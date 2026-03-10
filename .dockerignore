@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+logs
+deploy/data
+deploy/data/**
+**/*.sock
+**/*.pid
+**/*.log

@@ -1,0 +1,47 @@
+services:
+  dtm:
+    image: yedf/dtm
+    container_name: dtm
+    ports:
+      - "36789:36789" # HTTP
+      - "36790:36790" # gRPC
+    depends_on:
+      - etcd
+      - mysql
+
+  etcd:
+    image: bitnamilegacy/etcd:3.5
+    container_name: etcd
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+    ports:
+      - "2379:2379"
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    environment:
+      # 注意：保持你原来的密码，确保你的 Go 配置文件里也是这个
+      MYSQL_ROOT_PASSWORD: 6494kj06
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+
+  # --- 新增的 Redis 部分 ---
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: flashmall
+      RABBITMQ_DEFAULT_PASS: flashmall123
+    ports:
+      - "5672:5672"
+      - "15672:15672"

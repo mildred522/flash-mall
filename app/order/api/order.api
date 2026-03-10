@@ -1,0 +1,43 @@
+﻿syntax = "v1"
+
+type (
+	LoginReq {
+		UserId int64 `json:"user_id"`
+		Password string `json:"password"`
+	}
+	LoginResp {
+		AccessToken string `json:"access_token"`
+		TokenType string `json:"token_type"`
+		ExpiresAt int64 `json:"expires_at"`
+	}
+	CreateOrderReq {
+		RequestId string `json:"request_id"` // 幂等请求id
+		UserId    int64 `json:"user_id"`
+		ProductId int64 `json:"product_id"`
+		Amount    int64 `json:"amount"` // 购买数量
+	}
+	CreateOrderResp {
+		OrderId string `json:"order_id"`
+	}
+	DependencyStatus {
+		Name string `json:"name"`
+		Ok bool `json:"ok"`
+		Detail string `json:"detail"`
+	}
+	SystemHealthResp {
+		Overall bool `json:"overall"`
+		ServerTime int64 `json:"server_time"`
+		Dependencies []DependencyStatus `json:"dependencies"`
+	}
+)
+
+service order-api {
+	@handler Login
+	post /api/auth/login (LoginReq) returns (LoginResp)
+
+	@handler CreateOrder
+	post /api/order/create (CreateOrderReq) returns (CreateOrderResp)
+
+	@handler SystemHealth
+	get /api/system/health returns (SystemHealthResp)
+}

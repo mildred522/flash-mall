@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall 调试台</title>
+  <style>
+    :root {
+      --bg: #f3f0e8;
+      --card: #fffdf8;
+      --line: #d5c8b3;
+      --ink: #1d262b;
+      --muted: #5c6970;
+      --accent: #b85c38;
+      --accent-2: #1e6f8c;
+      --ok: #2b7d45;
+      --bad: #b23a2b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 100% 0, #fff3dc 0, transparent 34%),
+        radial-gradient(circle at 0 100%, #deecf1 0, transparent 34%),
+        linear-gradient(140deg, #f7f3e8, #e8eef2);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 16px; }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .top h1 { margin: 0; font-size: 26px; }
+    .top p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .top a {
+      text-decoration: none; color: #fff; background: var(--accent-2);
+      padding: 8px 12px; border-radius: 10px; font-size: 13px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: color-mix(in oklab, var(--card), white 12%);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 8px 22px rgba(20, 28, 35, .07);
+    }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+    h3 { margin: 0 0 10px; font-size: 16px; }
+    label {
+      display: flex; flex-direction: column; gap: 4px;
+      color: var(--muted); font-size: 12px; margin-bottom: 8px;
+    }
+    input {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+    }
+    input:focus { border-color: var(--accent); }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button {
+      border: 1px solid var(--accent); background: var(--accent); color: #fff;
+      border-radius: 10px; padding: 8px 12px; font-size: 13px; cursor: pointer;
+    }
+    button.alt { border-color: var(--accent-2); background: var(--accent-2); }
+    button.ghost { border-color: var(--line); background: transparent; color: var(--ink); }
+    .pill {
+      display: inline-flex; border: 1px solid var(--line); background: #fff;
+      border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted);
+    }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; border-bottom: 1px dashed var(--line); padding: 6px 4px; }
+    pre {
+      margin: 0; min-height: 200px; max-height: 320px; overflow: auto;
+      background: #1f2a2e; color: #dceff0; border-radius: 10px; padding: 10px;
+      font-family: Consolas, "Courier New", monospace; font-size: 12px; line-height: 1.45;
+    }
+    .quick a { color: var(--accent-2); text-decoration: none; margin-right: 10px; font-size: 12px; }
+    @media (max-width: 980px) {
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1>Flash Mall 调试观测界面</h1>
+        <p>用于链路验证、幂等实验和浏览器内快速压测</p>
+      </div>
+      <a href="/shop">去商城</a>
+    </header>
+
+    <section class="grid">
+      <article class="card span-4">
+        <h3>登录与身份</h3>
+        <label>用户 ID<input id="uid" value="1001" /></label>
+        <label>密码<input id="pwd" value="flashmall123" /></label>
+        <div class="row">
+          <button id="btnLogin">登录</button>
+          <button class="ghost" id="btnLogout">退出</button>
+        </div>
+        <div id="authState" class="pill bad" style="margin-top:8px">未登录</div>
+        <label style="margin-top:8px">Token（节选）<input id="token" readonly /></label>
+      </article>
+
+      <article class="card span-4">
+        <h3>链路健康检查</h3>
+        <div class="row"><button id="btnHealth" class="alt">检查链路</button></div>
+        <table>
+          <thead><tr><th>依赖</th><th>状态</th><th>详情</th></tr></thead>
+          <tbody id="healthBody"></tbody>
+        </table>
+        <div class="quick" style="margin-top:8px">
+          <a id="metricsLink" target="_blank" rel="noopener">Metrics</a>
+          <a id="pprofLink" target="_blank" rel="noopener">PProf</a>
+        </div>
+      </article>
+
+      <article class="card span-4">
+        <h3>幂等测试</h3>
+        <label>商品 ID<input id="productId" value="100" /></label>
+        <label>数量<input id="amount" value="1" /></label>
+        <label>request_id（可空）<input id="requestId" placeholder="空则自动生成" /></label>
+        <div class="row">
+          <button id="btnOnce">单次下单</button>
+          <button id="btnSeq" class="alt">顺序双击</button>
+          <button id="btnPar" class="ghost">并发双击</button>
+        </div>
+      </article>
+
+      <article class="card span-6">
+        <h3>并发快测</h3>
+        <div class="row">
+          <label>总请求数<input id="benchTotal" value="40" /></label>
+          <label>并发数<input id="benchConc" value="8" /></label>
+          <button id="btnBench">开始</button>
+        </div>
+        <table>
+          <tbody>
+            <tr><th>成功</th><td id="bSuccess">-</td></tr>
+            <tr><th>失败</th><td id="bFail">-</td></tr>
+            <tr><th>P50</th><td id="bP50">-</td></tr>
+            <tr><th>P95</th><td id="bP95">-</td></tr>
+            <tr><th>P99</th><td id="bP99">-</td></tr>
+            <tr><th>总耗时</th><td id="bTotal">-</td></tr>
+          </tbody>
+        </table>
+      </article>
+
+      <article class="card span-6">
+        <h3>调试日志</h3>
+        <pre id="logs"></pre>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const state = {
+      token: localStorage.getItem("fm_token") || "",
+      uid: Number(localStorage.getItem("fm_uid") || 1001)
+    };
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      const t = new Date().toLocaleTimeString();
+      $("logs").textContent = `[${t}] ${msg}\n` + $("logs").textContent;
+    };
+    const rid = (prefix="req-debug") => `${prefix}-${Date.now()}-${Math.floor(Math.random()*100000)}`;
+    const host = location.hostname || "127.0.0.1";
+    $("metricsLink").href = `http://${host}:9090/metrics`;
+    $("pprofLink").href = `http://${host}:6060/debug/pprof/`;
+
+    function setAuthUI() {
+      const st = $("authState");
+      if (!state.token) {
+        st.className = "pill bad";
+        st.textContent = "未登录";
+        $("token").value = "";
+      } else {
+        st.className = "pill ok";
+        st.textContent = `已登录 user_id=${state.uid}`;
+        $("token").value = state.token.slice(0, 28) + "...";
+      }
+    }
+
+    async function post(path, body, auth) {
+      const headers = { "Content-Type": "application/json" };
+      if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
+      const res = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+      const txt = await res.text();
+      let data = {};
+      try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    async function login() {
+      const uid = Number($("uid").value || 0);
+      const pwd = $("pwd").value;
+      const res = await post("/api/auth/login", { user_id: uid, password: pwd }, false);
+      if (!res.ok) {
+        log(`登录失败 status=${res.status} body=${JSON.stringify(res.data)}`);
+        return;
+      }
+      state.uid = uid;
+      state.token = res.data.access_token || "";
+      localStorage.setItem("fm_uid", String(uid));
+      localStorage.setItem("fm_token", state.token);
+      setAuthUI();
+      log(`登录成功 user_id=${uid}`);
+    }
+
+    async function createOrder(reqId) {
+      if (!state.token) {
+        log("请先登录");
+        return null;
+      }
+      const requestId = reqId || $("requestId").value.trim() || rid();
+      const productId = Number($("productId").value || 100);
+      const amount = Number($("amount").value || 1);
+      const payload = { request_id: requestId, user_id: 999999, product_id: productId, amount };
+      const t0 = performance.now();
+      const res = await post("/api/order/create", payload, true);
+      const cost = performance.now() - t0;
+      log(`下单 req=${requestId} status=${res.status} latency=${cost.toFixed(1)}ms body=${JSON.stringify(res.data)}`);
+      return { ...res, cost, requestId };
+    }
+
+    async function healthCheck() {
+      const res = await fetch("/api/system/health");
+      const data = await res.json();
+      const tbody = $("healthBody");
+      tbody.innerHTML = "";
+      (data.dependencies || []).forEach(dep => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${dep.name}</td><td class="${dep.ok ? "ok" : "bad"}">${dep.ok ? "OK" : "FAIL"}</td><td>${dep.detail}</td>`;
+        tbody.appendChild(tr);
+      });
+      log(`健康检查 overall=${data.overall}`);
+    }
+
+    function pct(arr, p) {
+      if (!arr.length) return 0;
+      const sorted = [...arr].sort((a, b) => a - b);
+      const idx = Math.ceil((p / 100) * sorted.length) - 1;
+      return sorted[Math.max(0, Math.min(idx, sorted.length - 1))];
+    }
+
+    async function benchmark() {
+      if (!state.token) {
+        log("压测前请先登录");
+        return;
+      }
+      const total = Math.max(1, Number($("benchTotal").value || 1));
+      const conc = Math.max(1, Number($("benchConc").value || 1));
+      let i = 0;
+      let success = 0;
+      let fail = 0;
+      const lat = [];
+      const start = performance.now();
+
+      async function worker() {
+        while (true) {
+          const n = i++;
+          if (n >= total) break;
+          const r = await createOrder(rid("req-bench"));
+          if (r && r.ok) {
+            success++;
+            lat.push(r.cost);
+          } else {
+            fail++;
+          }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(total, conc) }, worker));
+      const elapsed = performance.now() - start;
+
+      $("bSuccess").textContent = String(success);
+      $("bFail").textContent = String(fail);
+      $("bP50").textContent = `${pct(lat, 50).toFixed(1)} ms`;
+      $("bP95").textContent = `${pct(lat, 95).toFixed(1)} ms`;
+      $("bP99").textContent = `${pct(lat, 99).toFixed(1)} ms`;
+      $("bTotal").textContent = `${elapsed.toFixed(1)} ms`;
+      log(`压测结束 total=${total} conc=${conc} success=${success} fail=${fail}`);
+    }
+
+    $("btnLogin").onclick = login;
+    $("btnLogout").onclick = () => {
+      state.token = "";
+      localStorage.removeItem("fm_token");
+      setAuthUI();
+      log("已退出登录");
+    };
+    $("btnHealth").onclick = healthCheck;
+    $("btnOnce").onclick = () => createOrder();
+    $("btnSeq").onclick = async () => {
+      const x = $("requestId").value.trim() || rid("req-seq");
+      await createOrder(x);
+      await new Promise(r => setTimeout(r, 300));
+      await createOrder(x);
+      log(`顺序幂等测试完成 request_id=${x}`);
+    };
+    $("btnPar").onclick = async () => {
+      const x = $("requestId").value.trim() || rid("req-par");
+      await Promise.all([createOrder(x), createOrder(x)]);
+      log(`并发幂等测试完成 request_id=${x}`);
+    };
+    $("btnBench").onclick = benchmark;
+
+    $("uid").value = String(state.uid || 1001);
+    setAuthUI();
+    log("调试台已加载，可先做链路健康检查");
+  </script>
+</body>
+</html>
+

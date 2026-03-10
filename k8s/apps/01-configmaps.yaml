@@ -1,0 +1,139 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-api-config
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-api
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-24: 变更=新增 order-api 的 K8s ConfigMap; 之前=配置散落在本地; 原因=容器化统一管理。
+
+data:
+  order-api.yaml: |
+    Name: order-api
+    Host: 0.0.0.0
+    Port: 8888
+
+    DtmServer: dtm:36790
+    ProductRpcTarget: product-rpc:8080
+    OrderRpcTarget: order-rpc:8090
+    OrderTimeoutSeconds: 60
+
+    # Required configs (avoid startup failure)
+    RequestIdTTLSeconds: 86400
+    DtmTimeoutToFailSeconds: 10
+    DtmRequestTimeoutSeconds: 10
+    # CHG 2026-02-24: 变更=DTM 异步提交; 之前=同步等待结果; 原因=降低接口尾延迟与阻塞。
+    DtmWaitResult: false
+
+    # CHG 2026-02-24: 变更=新增 API 限流配置; 之前=无限流; 原因=高峰期快速失败保护后端。
+    OrderRateLimitQps: 200
+    OrderRateLimitBurst: 400
+    OrderIdNode: -1
+
+    # CHG 2026-02-28: 变更=新增 RabbitMQ 消费配置; 之前=仅 Redis 延迟队列; 原因=展示事件驱动增量架构。
+    RabbitMQURL: amqp://flashmall:flashmall123@rabbitmq:5672/
+    RabbitMQExchange: order.events
+    RabbitMQQueue: order.events.created.q
+    RabbitMQRouteKey: order.created
+    RabbitMQConsumerTag: order-api-consumer
+    RabbitMQPrefetch: 20
+    OrderEventConsumerEnabled: true
+    EventDedupTTLSeconds: 86400
+
+    ProductRpcConf:
+      Etcd:
+        Hosts:
+          - etcd:2379
+        Key: product.rpc
+
+    # CHG 2026-02-24: 变更=新增 Order RPC 客户端配置; 之前=关单仅回滚 DB; 原因=回滚 Redis 预扣库存以保证一致性。
+    OrderRpcConf:
+      Etcd:
+        Hosts:
+          - etcd:2379
+        Key: order.rpc
+
+    RedisConf:
+      Host: redis:6379
+      Type: node
+
+    DataSource: root:flashmall@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+    CacheConf:
+      - Host: redis:6379
+        Type: node
+
+    PprofAddr: 0.0.0.0:6060
+    MetricsAddr: 0.0.0.0:9090
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: order-rpc-config
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-rpc
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-24: 变更=新增 order-rpc 的 K8s ConfigMap; 之前=配置散落在本地; 原因=容器化统一管理。
+
+data:
+  order.yaml: |
+    Name: order.rpc
+    ListenOn: 0.0.0.0:8090
+
+    DataSource: root:flashmall@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+
+    RedisConf:
+      Host: redis:6379
+      Type: node
+
+    Etcd:
+      Hosts:
+        - etcd:2379
+      Key: order.rpc
+
+    PprofAddr: 0.0.0.0:6061
+    MetricsAddr: 0.0.0.0:9091
+
+    # Required configs (avoid startup failure)
+    StockShardCount: 4
+    RabbitMQURL: amqp://flashmall:flashmall123@rabbitmq:5672/
+    RabbitMQExchange: order.events
+    RabbitMQRouteKey: order.created
+    OutboxBatchSize: 20
+    OutboxPollMs: 1000
+    OutboxRetrySec: 5
+    OutboxTimeoutSec: 60
+    OutboxMaxRetries: 8
+    OutboxSingleActive: true
+    OutboxLeaderLockKey: order:outbox:publisher:leader
+    OutboxLeaderLockTTL: 90
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-rpc-config
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: product-rpc
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-24: 变更=新增 product-rpc 的 K8s ConfigMap; 之前=配置散落在本地; 原因=容器化统一管理。
+
+data:
+  product.yaml: |
+    Name: product.rpc
+    ListenOn: 0.0.0.0:8080
+
+    DataSource: root:flashmall@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
+
+    # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
+    StockBucketCount: 4
+
+    Etcd:
+      Hosts:
+        - etcd:2379
+      Key: product.rpc
+
+    PprofAddr: 0.0.0.0:6062
+    MetricsAddr: 0.0.0.0:9092
+

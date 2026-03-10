@@ -1,0 +1,83 @@
+name: Deploy Demo Cluster
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Image tag to deploy, for example v1.0.0 or sha-xxxxxxx
+        required: true
+        type: string
+      include_dependencies:
+        description: Apply demo dependency manifests before app rollout
+        required: true
+        default: false
+        type: boolean
+      run_init_jobs:
+        description: Run MySQL and Redis init jobs after apply
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-demo-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  NAMESPACE: flash-mall
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Write kubeconfig
+        env:
+          KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          test -n "$KUBE_CONFIG_DATA"
+          printf '%s' "$KUBE_CONFIG_DATA" > "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Apply namespace
+        run: kubectl apply -f k8s/00-namespace.yaml
+
+      - name: Apply demo dependencies
+        if: ${{ inputs.include_dependencies }}
+        run: kubectl apply -f k8s/deps/
+
+      - name: Apply config and apps
+        run: |
+          kubectl apply -f k8s/apps/01-configmaps.yaml
+          kubectl apply -f k8s/apps/06-pdb.yaml
+          kubectl apply -f k8s/apps/02-order-api.yaml
+          kubectl apply -f k8s/apps/03-order-rpc.yaml
+          kubectl apply -f k8s/apps/04-product-rpc.yaml
+          kubectl apply -f k8s/apps/05-ingress.yaml
+
+      - name: Run init jobs
+        if: ${{ inputs.run_init_jobs }}
+        run: kubectl apply -f k8s/jobs/
+
+      - name: Update images
+        run: |
+          kubectl -n "$NAMESPACE" set image deployment/order-api order-api="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-api:${{ inputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/order-rpc order-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-rpc:${{ inputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/product-rpc product-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-product-rpc:${{ inputs.image_tag }}"
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n "$NAMESPACE" rollout status deployment/order-api --timeout=180s
+          kubectl -n "$NAMESPACE" rollout status deployment/order-rpc --timeout=180s
+          kubectl -n "$NAMESPACE" rollout status deployment/product-rpc --timeout=180s
+

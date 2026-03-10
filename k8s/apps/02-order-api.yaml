@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-api
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-api
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-api
+  template:
+    metadata:
+      labels:
+        app: order-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: order-api
+          image: flash-mall/order-api:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-f", "/etc/flash-mall/order-api.yaml"]
+          ports:
+            - name: http
+              containerPort: 8888
+            - name: metrics
+              containerPort: 9090
+            - name: pprof
+              containerPort: 6060
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: order-api-config
+              mountPath: /etc/flash-mall
+      volumes:
+        - name: order-api-config
+          configMap:
+            name: order-api-config
+      # CHG 2026-02-26: 变更=增加跨节点反亲和; 之前=可能同节点聚集; 原因=提升故障隔离。
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: order-api
+                topologyKey: kubernetes.io/hostname
+      # CHG 2026-02-26: 变更=增加拓扑分布约束; 之前=无节点均衡; 原因=尽量均匀分布副本。
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: order-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-api
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-api
+spec:
+  selector:
+    app: order-api
+  ports:
+    - name: http
+      port: 8888
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: order-api-hpa
+  namespace: flash-mall
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: order-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

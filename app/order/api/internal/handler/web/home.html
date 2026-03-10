@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall 入口</title>
+  <style>
+    :root {
+      --bg-a: #f9f5ec;
+      --bg-b: #e7f1f4;
+      --ink: #1a2328;
+      --muted: #5d6970;
+      --card: #fffdf8;
+      --line: #d7cfbf;
+      --shop: #1f7a8c;
+      --debug: #b85c38;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 10% 0%, #fff8e8 0, transparent 35%),
+        radial-gradient(circle at 90% 100%, #e1f1f6 0, transparent 40%),
+        linear-gradient(130deg, var(--bg-a), var(--bg-b));
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .wrap { width: min(980px, 100%); }
+    .title {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: .3px;
+    }
+    .sub {
+      margin: 0 0 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: color-mix(in oklab, var(--card), white 14%);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 14px 34px rgba(20, 26, 30, .08);
+    }
+    .card h2 { margin: 0 0 8px; font-size: 22px; }
+    .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      text-decoration: none;
+      border-radius: 12px;
+      padding: 9px 14px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .shop { background: var(--shop); }
+    .debug { background: var(--debug); }
+    .tips {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1 class="title">Flash Mall 演示入口</h1>
+    <p class="sub">将面向用户的购物流程和工程调试流程拆分，便于展示与排障。</p>
+    <section class="grid">
+      <article class="card">
+        <h2>商城购物界面</h2>
+        <p>用于模拟正常用户行为：登录、选择商品、提交订单、查看订单回执。界面尽量贴近业务路径。</p>
+        <a class="btn shop" href="/shop">进入商城</a>
+      </article>
+      <article class="card">
+        <h2>调试观测界面</h2>
+        <p>用于工程验证：链路健康检查、幂等测试、浏览器内并发压测、指标与 pprof 快速跳转。</p>
+        <a class="btn debug" href="/debug">进入调试台</a>
+      </article>
+    </section>
+    <p class="tips">建议流程：先在调试台确认链路健康，再切换商城界面做完整下单演示。</p>
+  </main>
+</body>
+</html>
+

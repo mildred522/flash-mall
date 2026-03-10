@@ -1,0 +1,28 @@
+﻿{
+    "scenario":  "seckill",
+    "url":  "http://order-api.flash-mall.svc.cluster.local:8888/api/order/create",
+    "load_mode":  "in-cluster",
+    "concurrency":  1,
+    "requests":  0,
+    "warmup_seconds":  0,
+    "measurement_seconds":  2,
+    "duration":  2,
+    "target_rps":  0,
+    "timeout_ms":  5000,
+    "success":  47,
+    "failed":  0,
+    "measured_requests":  47,
+    "success_rate":  1,
+    "error_rate":  0,
+    "qps":  23.5,
+    "avg_ms":  42.868068361702129,
+    "p50_ms":  45.545498,
+    "p95_ms":  62.126612699999988,
+    "p99_ms":  67.0924134,
+    "status_codes":  {
+                         "200":  47,
+                         "429":  0,
+                         "503":  0
+                     },
+    "fixed_request":  false
+}

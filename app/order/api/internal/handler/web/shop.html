@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall 商城</title>
+  <style>
+    :root {
+      --bg: #f6f2e6;
+      --ink: #202a2e;
+      --muted: #5e6a72;
+      --line: #d8ccb7;
+      --card: #fffdf8;
+      --accent: #1f7a8c;
+      --danger: #b23a2b;
+      --ok: #2d7d45;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 0 0, #fff8e9 0, transparent 38%),
+        linear-gradient(145deg, #f9f4ea, #eaf0f3);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .top {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .title { margin: 0; font-size: 26px; }
+    .hint { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+    .nav a {
+      text-decoration: none; color: #fff; background: var(--accent);
+      padding: 8px 12px; border-radius: 10px; font-size: 13px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      background: color-mix(in oklab, var(--card), white 10%);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 8px 20px rgba(20, 25, 30, .06);
+    }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    label {
+      display: flex; flex-direction: column; gap: 4px;
+      color: var(--muted); font-size: 12px; margin-bottom: 8px;
+    }
+    input {
+      border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
+      font-size: 14px; outline: none; color: var(--ink); background: #fff;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+      border: 1px solid var(--accent); background: var(--accent); color: #fff;
+      border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px;
+    }
+    button.gray { background: transparent; color: var(--ink); border-color: var(--line); }
+    .state {
+      display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+      padding: 4px 10px; font-size: 12px; color: var(--muted); background: #fff;
+    }
+    .state.ok { color: var(--ok); }
+    .state.bad { color: var(--danger); }
+    .products {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .product { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: #fff; }
+    .name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .desc { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+    .row { display: flex; gap: 8px; align-items: center; }
+    .row input { width: 90px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th, td { text-align: left; border-bottom: 1px dashed var(--line); padding: 6px 4px; }
+    .logs {
+      margin-top: 10px; min-height: 120px; max-height: 200px; overflow: auto;
+      background: #1f2a2e; color: #d8edef; border-radius: 10px; padding: 10px;
+      font-family: Consolas, "Courier New", monospace; font-size: 12px;
+    }
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+      .products { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <div>
+        <h1 class="title">Flash Mall 商城界面</h1>
+        <p class="hint">用于模拟正常购物流程：登录 -> 选购 -> 下单</p>
+      </div>
+      <nav class="nav"><a href="/debug">去调试台</a></nav>
+    </header>
+
+    <section class="grid">
+      <aside class="card">
+        <h3>账户</h3>
+        <label>用户 ID<input id="uid" value="1001" /></label>
+        <label>密码<input id="pwd" value="flashmall123" /></label>
+        <div class="row" style="margin-bottom:8px">
+          <button id="btnLogin">登录</button>
+          <button id="btnLogout" class="gray">退出</button>
+        </div>
+        <div id="authState" class="state bad">未登录</div>
+        <label style="margin-top:8px">Token（节选）<input id="token" readonly /></label>
+      </aside>
+
+      <main class="card">
+        <h3>商品列表</h3>
+        <div class="products" id="products"></div>
+        <h3 style="margin-top:12px">最近下单回执</h3>
+        <table>
+          <thead><tr><th>时间</th><th>商品ID</th><th>数量</th><th>request_id</th><th>order_id</th><th>状态</th></tr></thead>
+          <tbody id="orders"></tbody>
+        </table>
+        <div class="logs" id="logs"></div>
+      </main>
+    </section>
+  </div>
+
+  <script>
+    const PRODUCTS = [
+      {
+        id: 100,
+        name: "Demo Product",
+        desc: "标准购买路径：单次提交订单。",
+        mode: "normal",
+        buttonText: "立即购买"
+      },
+      {
+        id: 100,
+        name: "Demo Product - 快速购",
+        desc: "调试演示路径：一键连续提交 3 笔订单。",
+        mode: "quick",
+        burstTimes: 3,
+        burstIntervalMs: 120,
+        buttonText: "快速购 x3"
+      }
+    ];
+    const state = {
+      token: localStorage.getItem("fm_token") || "",
+      uid: Number(localStorage.getItem("fm_uid") || 1001)
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      const t = new Date().toLocaleTimeString();
+      const box = $("logs");
+      box.textContent = `[${t}] ${msg}\n` + box.textContent;
+    };
+    const reqId = () => `req-shop-${Date.now()}-${Math.floor(Math.random()*100000)}`;
+
+    function renderProducts() {
+      const root = $("products");
+      root.innerHTML = PRODUCTS.map((p, idx) => `
+        <article class="product">
+          <div class="name">${p.name}</div>
+          <div class="desc">${p.desc}</div>
+          <div class="row">
+            <label style="margin:0">数量<input id="qty-${idx}" value="1" /></label>
+            <button data-idx="${idx}">${p.buttonText || "立即购买"}</button>
+          </div>
+        </article>
+      `).join("");
+      root.querySelectorAll("button[data-idx]").forEach(btn => {
+        btn.onclick = async () => {
+          const idx = Number(btn.getAttribute("data-idx"));
+          const product = PRODUCTS[idx];
+          const qty = Number($("qty-" + idx).value || 1);
+          btn.disabled = true;
+          try {
+            if (product.mode === "quick") {
+              await quickBuy(product, qty);
+            } else {
+              await createOrder(product.id, qty, { scene: "normal" });
+            }
+          } finally {
+            btn.disabled = false;
+          }
+        };
+      });
+    }
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    function setAuthUI() {
+      const el = $("authState");
+      if (!state.token) {
+        el.className = "state bad";
+        el.textContent = "未登录";
+        $("token").value = "";
+        return;
+      }
+      el.className = "state ok";
+      el.textContent = `已登录 user_id=${state.uid}`;
+      $("token").value = state.token.slice(0, 28) + "...";
+    }
+
+    async function post(path, body, withAuth) {
+      const headers = { "Content-Type": "application/json" };
+      if (withAuth && state.token) headers.Authorization = `Bearer ${state.token}`;
+      const res = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+      const txt = await res.text();
+      let data = {};
+      try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
+      return { ok: res.ok, status: res.status, data };
+    }
+
+    async function login() {
+      const uid = Number($("uid").value || 0);
+      const pwd = $("pwd").value;
+      const res = await post("/api/auth/login", { user_id: uid, password: pwd }, false);
+      if (!res.ok) {
+        log(`登录失败 status=${res.status} body=${JSON.stringify(res.data)}`);
+        return;
+      }
+      state.uid = uid;
+      state.token = res.data.access_token || "";
+      localStorage.setItem("fm_uid", String(uid));
+      localStorage.setItem("fm_token", state.token);
+      setAuthUI();
+      log(`登录成功 user_id=${uid}`);
+    }
+
+    function addOrderRow(row) {
+      const tbody = $("orders");
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${new Date().toLocaleTimeString()}</td><td>${row.productId}</td><td>${row.amount}</td><td>${row.requestId}</td><td>${row.orderId || "-"}</td><td>${row.status}</td>`;
+      tbody.prepend(tr);
+    }
+
+    async function createOrder(productId, amount, opts = {}) {
+      if (!state.token) {
+        log("请先登录");
+        return;
+      }
+      const requestId = reqId();
+      const body = {
+        request_id: requestId,
+        user_id: 999999,
+        product_id: productId,
+        amount
+      };
+      const t0 = performance.now();
+      const res = await post("/api/order/create", body, true);
+      const cost = (performance.now() - t0).toFixed(1);
+      const scene = opts.scene ? ` scene=${opts.scene}` : "";
+      if (res.ok) {
+        addOrderRow({ productId, amount, requestId, orderId: res.data.order_id, status: "成功" });
+        log(`下单成功 product=${productId} amount=${amount}${scene} order=${res.data.order_id} latency=${cost}ms`);
+      } else {
+        addOrderRow({ productId, amount, requestId, orderId: "", status: "失败" });
+        log(`下单失败 status=${res.status} body=${JSON.stringify(res.data)}${scene} latency=${cost}ms`);
+      }
+    }
+
+    async function quickBuy(product, amount) {
+      const times = Math.max(1, Number(product.burstTimes || 3));
+      const gap = Math.max(0, Number(product.burstIntervalMs || 120));
+      log(`快速购开始 product=${product.id} rounds=${times} amount=${amount}`);
+      for (let i = 0; i < times; i++) {
+        await createOrder(product.id, amount, { scene: `quick-${i + 1}/${times}` });
+        if (i < times - 1) {
+          await sleep(gap);
+        }
+      }
+      log(`快速购结束 product=${product.id} rounds=${times}`);
+    }
+
+    $("btnLogin").onclick = login;
+    $("btnLogout").onclick = () => {
+      state.token = "";
+      localStorage.removeItem("fm_token");
+      setAuthUI();
+      log("已退出登录");
+    };
+
+    $("uid").value = String(state.uid || 1001);
+    renderProducts();
+    setAuthUI();
+    log("商城页面已就绪");
+  </script>
+</body>
+</html>

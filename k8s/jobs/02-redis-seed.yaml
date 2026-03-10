@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: redis-seed
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: redis-seed
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-24: 变更=新增 Redis 库存初始化 Job; 之前=手动 MSET; 原因=自动化补齐分片库存。
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: redis-seed
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: redis-seed
+          image: redis:7
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PRODUCT_ID
+              value: "100"
+            - name: TOTAL_STOCK
+              value: "10000"
+            - name: SHARDS
+              value: "4"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "wait redis..."
+              until redis-cli -h redis ping >/dev/null 2>&1; do
+                sleep 2
+              done
+              product="${PRODUCT_ID}"
+              total="${TOTAL_STOCK}"
+              shards="${SHARDS}"
+              if [ "$shards" -le 0 ]; then
+                shards=1
+              fi
+              per=$((total / shards))
+              remain=$((total % shards))
+              i=0
+              while [ "$i" -lt "$shards" ]; do
+                value="$per"
+                if [ "$i" -eq 0 ]; then
+                  value=$((per + remain))
+                fi
+                # 只在 key 不存在时写入，避免覆盖已有库存
+                redis-cli -h redis SETNX "stock:${product}:${i}" "$value" >/dev/null
+                i=$((i+1))
+              done
+              echo "seed done"

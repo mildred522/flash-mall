@@ -1,0 +1,84 @@
+﻿Name: order-api
+Host: 0.0.0.0
+Port: 8888
+Timeout: 2000
+MaxConns: 8000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Log: true
+  Prometheus: true
+  Breaker: true
+  Shedding: true
+  Timeout: true
+  Metrics: true
+  Recover: true
+
+Telemetry:
+  Name: order-api
+  Endpoint: http://127.0.0.1:14268/api/traces
+  Sampler: 1.0
+  Batcher: jaeger
+
+ProductRpcConf:
+  Etcd:
+    Hosts:
+      - 127.0.0.1:2379
+    Key: product.rpc
+  Timeout: 2000
+  Middlewares:
+    Trace: true
+    Prometheus: true
+    Breaker: true
+    Timeout: true
+
+OrderRpcConf:
+  Etcd:
+    Hosts:
+      - 127.0.0.1:2379
+    Key: order.rpc
+  Timeout: 2000
+  Middlewares:
+    Trace: true
+    Prometheus: true
+    Breaker: true
+    Timeout: true
+
+RedisConf:
+  Host: 127.0.0.1:6379
+  Type: node
+
+DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+CacheConf:
+  - Host: 127.0.0.1:6379
+    Type: node
+
+PprofAddr: 0.0.0.0:6060
+MetricsAddr: 0.0.0.0:9090
+
+DtmServer: 127.0.0.1:36790
+ProductRpcTarget: 127.0.0.1:8080
+OrderTimeoutSeconds: 60
+OrderRpcTarget: 127.0.0.1:8090
+RequestIdTTLSeconds: 86400
+DtmTimeoutToFailSeconds: 120
+DtmRequestTimeoutSeconds: 6
+DtmWaitResult: false
+
+OrderRateLimitQps: 200
+OrderRateLimitBurst: 400
+OrderIdNode: -1
+
+RabbitMQURL: amqp://flashmall:flashmall123@127.0.0.1:5672/
+RabbitMQExchange: order.events
+RabbitMQQueue: order.events.created.q
+RabbitMQRouteKey: order.created
+RabbitMQConsumerTag: order-api-consumer
+RabbitMQPrefetch: 20
+OrderEventConsumerEnabled: true
+EventDedupTTLSeconds: 86400
+
+JwtAuthSecret: flashmall-order-api-jwt-secret
+JwtExpireSeconds: 7200
+AuthDemoPassword: flashmall123
+

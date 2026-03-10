@@ -1,0 +1,44 @@
+﻿apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-api-pdb
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-api
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-26: 变更=新增 PDB; 之前=节点维护可能打断服务; 原因=保证最小可用副本数。
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: order-rpc-pdb
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: order-rpc
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-26: 变更=新增 PDB; 之前=节点维护可能打断服务; 原因=保证最小可用副本数。
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: order-rpc
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: product-rpc-pdb
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: product-rpc
+    app.kubernetes.io/part-of: flash-mall
+# CHG 2026-02-26: 变更=新增 PDB; 之前=节点维护可能打断服务; 原因=保证最小可用副本数。
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: product-rpc

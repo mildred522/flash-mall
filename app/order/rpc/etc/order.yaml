@@ -1,0 +1,44 @@
+﻿Name: order.rpc
+ListenOn: 0.0.0.0:8090
+Timeout: 2000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Recover: true
+  Stat: true
+  Prometheus: true
+  Breaker: true
+
+Telemetry:
+  Name: order-rpc
+  Endpoint: http://127.0.0.1:14268/api/traces
+  Sampler: 1.0
+  Batcher: jaeger
+
+DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+
+RedisConf:
+  Host: 127.0.0.1:6379
+  Type: node
+
+Etcd:
+  Hosts:
+  - 127.0.0.1:2379
+  Key: order.rpc
+
+PprofAddr: 0.0.0.0:6061
+MetricsAddr: 0.0.0.0:9091
+StockShardCount: 4
+
+RabbitMQURL: amqp://flashmall:flashmall123@127.0.0.1:5672/
+RabbitMQExchange: order.events
+RabbitMQRouteKey: order.created
+OutboxBatchSize: 20
+OutboxPollMs: 1000
+OutboxRetrySec: 5
+OutboxTimeoutSec: 60
+OutboxMaxRetries: 8
+OutboxSingleActive: true
+OutboxLeaderLockKey: order:outbox:publisher:leader
+OutboxLeaderLockTTL: 90
+

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall Control Panel</title>
+  <style>
+    :root {
+      --bg-0: #f7f4ea;
+      --bg-1: #f0e6cf;
+      --card: #fffaf0;
+      --ink: #1f2a2e;
+      --muted: #5d6a70;
+      --ok: #2a7a3f;
+      --bad: #b23a2b;
+      --accent: #1e6f8c;
+      --accent-2: #d07f2c;
+      --border: #d8c9ad;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 0% 0%, #fff8e8 0%, transparent 38%),
+        radial-gradient(circle at 100% 100%, #e6f2f6 0%, transparent 34%),
+        linear-gradient(140deg, var(--bg-0), var(--bg-1));
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 20px 16px 32px;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .title {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: .2px;
+      font-weight: 700;
+    }
+    .sub {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      background: color-mix(in oklab, var(--card), white 18%);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 10px 24px rgba(42, 36, 22, .06);
+    }
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: center;
+    }
+    label {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      min-width: 120px;
+      flex: 1;
+    }
+    input {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 14px;
+      outline: none;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.secondary {
+      border-color: var(--accent-2);
+      background: var(--accent-2);
+    }
+    button.ghost {
+      border-color: var(--border);
+      background: transparent;
+      color: var(--ink);
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 12px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: #fff;
+    }
+    .ok { color: var(--ok); }
+    .bad { color: var(--bad); }
+    .mono { font-family: Consolas, "Courier New", monospace; }
+    pre {
+      margin: 0;
+      background: #1f2a2e;
+      color: #d7ecef;
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 180px;
+      max-height: 320px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      border-bottom: 1px dashed var(--border);
+      text-align: left;
+      padding: 6px 4px;
+      vertical-align: top;
+    }
+    a.quick {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 12px;
+      margin-right: 10px;
+    }
+    @media (max-width: 900px) {
+      .span-4, .span-6, .span-8 { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div>
+        <h1 class="title">Flash Mall 控制台</h1>
+        <p class="sub">登录、下单、幂等实验、并发压测、链路健康检查</p>
+      </div>
+      <div>
+        <span class="pill" id="authState">未登录</span>
+      </div>
+    </div>
+
+    <div class="grid">
+      <section class="card span-4">
+        <h3>1) 登录取 Token</h3>
+        <div class="row">
+          <label>用户 ID
+            <input id="loginUserId" value="1001" />
+          </label>
+        </div>
+        <div class="row">
+          <label>密码
+            <input id="loginPassword" value="flashmall123" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnLogin">登录</button>
+          <button id="btnLogout" class="ghost">退出</button>
+        </div>
+        <div class="row">
+          <label>Token（节选）
+            <input id="tokenPreview" readonly />
+          </label>
+        </div>
+      </section>
+
+      <section class="card span-4">
+        <h3>2) 正常下单</h3>
+        <div class="row">
+          <label>商品 ID
+            <input id="productId" value="100" />
+          </label>
+          <label>数量
+            <input id="amount" value="1" />
+          </label>
+        </div>
+        <div class="row">
+          <label>request_id（留空自动生成）
+            <input id="requestId" placeholder="例如 req-demo-001" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnCreateOrder">下单</button>
+          <button id="btnDuplicateSequential" class="secondary">顺序幂等测试</button>
+        </div>
+        <div class="row">
+          <button id="btnDuplicateParallel" class="ghost">并发幂等测试</button>
+        </div>
+      </section>
+
+      <section class="card span-4">
+        <h3>3) 系统链路健康</h3>
+        <div class="row">
+          <button id="btnHealth">检查链路</button>
+        </div>
+        <table>
+          <thead>
+            <tr><th>依赖</th><th>状态</th><th>详情</th></tr>
+          </thead>
+          <tbody id="healthBody"></tbody>
+        </table>
+        <div class="row" style="margin-top:8px">
+          <a class="quick" id="metricsLink" target="_blank" rel="noopener">Prometheus Metrics</a>
+          <a class="quick" id="pprofLink" target="_blank" rel="noopener">PProf</a>
+        </div>
+      </section>
+
+      <section class="card span-6">
+        <h3>4) 浏览器内并发压测（快速观测）</h3>
+        <div class="row">
+          <label>请求数
+            <input id="benchTotal" value="40" />
+          </label>
+          <label>并发数
+            <input id="benchConcurrency" value="8" />
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnBench">开始压测</button>
+        </div>
+        <table>
+          <tbody id="benchStats">
+            <tr><th>成功数</th><td id="statSuccess">-</td></tr>
+            <tr><th>失败数</th><td id="statFail">-</td></tr>
+            <tr><th>P50</th><td id="statP50">-</td></tr>
+            <tr><th>P95</th><td id="statP95">-</td></tr>
+            <tr><th>P99</th><td id="statP99">-</td></tr>
+            <tr><th>总耗时</th><td id="statTotal">-</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section class="card span-6">
+        <h3>5) 实时日志</h3>
+        <pre id="logBox"></pre>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      token: localStorage.getItem("fm_token") || "",
+      loginUserId: Number(localStorage.getItem("fm_uid") || 0),
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const log = (msg) => {
+      const now = new Date().toLocaleTimeString();
+      const box = $("logBox");
+      box.textContent = `[${now}] ${msg}\n` + box.textContent;
+    };
+
+    const host = location.hostname || "127.0.0.1";
+    $("metricsLink").href = `http://${host}:9090/metrics`;
+    $("pprofLink").href = `http://${host}:6060/debug/pprof/`;
+
+    function updateAuthView() {
+      const auth = $("authState");
+      const preview = $("tokenPreview");
+      if (!state.token) {
+        auth.textContent = "未登录";
+        auth.className = "pill bad";
+        preview.value = "";
+        return;
+      }
+      auth.textContent = `已登录 user_id=${state.loginUserId}`;
+      auth.className = "pill ok";
+      preview.value = state.token.slice(0, 26) + "...";
+    }
+
+    async function callApi(path, body, withAuth = false) {
+      const headers = { "Content-Type": "application/json" };
+      if (withAuth && state.token) {
+        headers.Authorization = `Bearer ${state.token}`;
+      }
+      const res = await fetch(path, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch { json = { raw: text }; }
+      return { status: res.status, ok: res.ok, data: json };
+    }
+
+    function randReqId(prefix = "req-ui") {
+      return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+    }
+
+    function percentile(sorted, p) {
+      if (!sorted.length) return 0;
+      const idx = Math.ceil((p / 100) * sorted.length) - 1;
+      return sorted[Math.max(0, Math.min(idx, sorted.length - 1))];
+    }
+
+    async function login() {
+      const userId = Number($("loginUserId").value);
+      const password = $("loginPassword").value;
+      const resp = await callApi("/api/auth/login", { user_id: userId, password }, false);
+      if (!resp.ok) {
+        log(`登录失败: status=${resp.status} body=${JSON.stringify(resp.data)}`);
+        return;
+      }
+      state.token = resp.data.access_token || "";
+      state.loginUserId = userId;
+      localStorage.setItem("fm_token", state.token);
+      localStorage.setItem("fm_uid", String(userId));
+      updateAuthView();
+      log(`登录成功: user_id=${userId}, expires_at=${resp.data.expires_at}`);
+    }
+
+    async function createOrder(customReqId = "") {
+      if (!state.token) {
+        log("请先登录再下单");
+        return null;
+      }
+      const productId = Number($("productId").value);
+      const amount = Number($("amount").value);
+      const requestId = customReqId || $("requestId").value.trim() || randReqId("req-buy");
+      const body = {
+        request_id: requestId,
+        user_id: 999999, // 服务端会被 JWT claim 覆盖
+        product_id: productId,
+        amount: amount,
+      };
+      const t0 = performance.now();
+      const resp = await callApi("/api/order/create", body, true);
+      const cost = (performance.now() - t0).toFixed(1);
+      log(`下单请求: req=${requestId}, status=${resp.status}, latency=${cost}ms, body=${JSON.stringify(resp.data)}`);
+      return { ...resp, cost: Number(cost), requestId };
+    }
+
+    async function runSequentialDup() {
+      const reqId = $("requestId").value.trim() || randReqId("req-dup");
+      const r1 = await createOrder(reqId);
+      await new Promise(r => setTimeout(r, 250));
+      const r2 = await createOrder(reqId);
+      log(`顺序幂等测试结束: req=${reqId}, first=${r1?.status}, second=${r2?.status}`);
+    }
+
+    async function runParallelDup() {
+      const reqId = $("requestId").value.trim() || randReqId("req-pdup");
+      const [r1, r2] = await Promise.all([createOrder(reqId), createOrder(reqId)]);
+      log(`并发幂等测试结束: req=${reqId}, s1=${r1?.status}, s2=${r2?.status}`);
+    }
+
+    async function runHealth() {
+      const res = await fetch("/api/system/health");
+      const data = await res.json();
+      const tbody = $("healthBody");
+      tbody.innerHTML = "";
+      (data.dependencies || []).forEach(dep => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${dep.name}</td><td class="${dep.ok ? "ok" : "bad"}">${dep.ok ? "OK" : "FAIL"}</td><td class="mono">${dep.detail}</td>`;
+        tbody.appendChild(tr);
+      });
+      log(`链路检查完成: overall=${data.overall}`);
+    }
+
+    async function runBench() {
+      if (!state.token) {
+        log("压测前请先登录");
+        return;
+      }
+      const total = Math.max(1, Number($("benchTotal").value || 0));
+      const concurrency = Math.max(1, Number($("benchConcurrency").value || 1));
+      let nextIndex = 0;
+      let success = 0;
+      let fail = 0;
+      const lats = [];
+      const tStart = performance.now();
+
+      async function worker() {
+        while (true) {
+          const idx = nextIndex++;
+          if (idx >= total) break;
+          const reqId = randReqId("req-bench");
+          const r = await createOrder(reqId);
+          if (r && r.ok) {
+            success++;
+            lats.push(r.cost);
+          } else {
+            fail++;
+          }
+        }
+      }
+
+      const workers = Array.from({ length: Math.min(concurrency, total) }, () => worker());
+      await Promise.all(workers);
+      const elapsed = performance.now() - tStart;
+      lats.sort((a, b) => a - b);
+
+      $("statSuccess").textContent = String(success);
+      $("statFail").textContent = String(fail);
+      $("statP50").textContent = `${percentile(lats, 50).toFixed(1)} ms`;
+      $("statP95").textContent = `${percentile(lats, 95).toFixed(1)} ms`;
+      $("statP99").textContent = `${percentile(lats, 99).toFixed(1)} ms`;
+      $("statTotal").textContent = `${elapsed.toFixed(1)} ms`;
+      log(`压测完成: total=${total}, concurrency=${concurrency}, success=${success}, fail=${fail}`);
+    }
+
+    $("btnLogin").onclick = login;
+    $("btnLogout").onclick = () => {
+      state.token = "";
+      state.loginUserId = 0;
+      localStorage.removeItem("fm_token");
+      localStorage.removeItem("fm_uid");
+      updateAuthView();
+      log("已退出");
+    };
+    $("btnCreateOrder").onclick = () => createOrder();
+    $("btnDuplicateSequential").onclick = runSequentialDup;
+    $("btnDuplicateParallel").onclick = runParallelDup;
+    $("btnHealth").onclick = runHealth;
+    $("btnBench").onclick = runBench;
+
+    $("loginUserId").value = String(state.loginUserId || 1001);
+    updateAuthView();
+    log("控制台已加载，可先点“检查链路”再登录下单");
+  </script>
+</body>
+</html>

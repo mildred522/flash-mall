@@ -1,0 +1,27 @@
+syntax = "proto3";
+package product;
+option go_package = "./product";
+
+message DeductReq {
+  int64 id = 1;
+  int64 num = 2;
+  // CHG 2026-02-24: 变更=新增 order_id; 之前=扣减请求无幂等键; 原因=库存分桶与回滚需要定位桶。
+  string order_id = 3;
+}
+message Empty {}
+
+message RevertStockReq {
+  int64 id = 1;
+  int64 num = 2;
+  string order_id = 3;
+}
+message RevertStockResp {}
+
+service Product {
+  // 扣减库存（正向操作）
+  rpc Deduct(DeductReq) returns(Empty);
+  // 回滚库存（补偿操作，用于事务失败）
+  rpc DeductRollback(DeductReq) returns(Empty);
+  // 归还库存
+  rpc RevertStock(RevertStockReq) returns(RevertStockResp);
+}

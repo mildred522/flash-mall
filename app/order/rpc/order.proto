@@ -1,0 +1,32 @@
+syntax = "proto3";
+package order;
+// CHG 2026-01-31: 变更=指定 go_package 为模块路径并固定包名; 之前=相对路径导致找不到包; 原因=生成稳定 import 路径。
+option go_package = "flash-mall/app/order/rpc/order;order";
+
+message PreDeductReq {
+  int64 product_id = 1;
+  int64 amount = 2;
+  string order_id = 3;
+}
+
+message CreateOrderReq {
+  string order_id = 1;
+  int64 user_id = 2;
+  int64 product_id = 3;
+  int64 amount = 4;
+  // 幂等请求id
+  string request_id = 5;
+}
+
+message Empty {}
+
+service Order {
+  // Redis 预扣库存（正向）
+  rpc PreDeduct(PreDeductReq) returns (Empty);
+  // Redis 预扣回滚（补偿）
+  rpc PreDeductRollback(PreDeductReq) returns (Empty);
+  // 创建订单（正向）
+  rpc CreateOrder(CreateOrderReq) returns (Empty);
+  // 订单回滚/关闭（补偿）
+  rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
+}

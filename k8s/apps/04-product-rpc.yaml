@@ -1,0 +1,111 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-rpc
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: product-rpc
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: product-rpc
+  template:
+    metadata:
+      labels:
+        app: product-rpc
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+    spec:
+      containers:
+        - name: product-rpc
+          image: flash-mall/product-rpc:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-f", "/etc/flash-mall/product.yaml"]
+          ports:
+            - name: grpc
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9092
+            - name: pprof
+              containerPort: 6062
+          readinessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: product-rpc-config
+              mountPath: /etc/flash-mall
+      volumes:
+        - name: product-rpc-config
+          configMap:
+            name: product-rpc-config
+      # CHG 2026-02-26: 变更=增加跨节点反亲和; 之前=可能同节点聚集; 原因=提升故障隔离。
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: product-rpc
+                topologyKey: kubernetes.io/hostname
+      # CHG 2026-02-26: 变更=增加拓扑分布约束; 之前=无节点均衡; 原因=尽量均匀分布副本。
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: product-rpc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-rpc
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: product-rpc
+spec:
+  selector:
+    app: product-rpc
+  ports:
+    - name: grpc
+      port: 8080
+      targetPort: grpc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: product-rpc-hpa
+  namespace: flash-mall
+# CHG 2026-02-24: 变更=新增 HPA; 之前=固定副本; 原因=压测/高峰期自动扩缩容。
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: product-rpc
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

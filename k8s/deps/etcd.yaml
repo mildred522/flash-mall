@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: flash-mall
+spec:
+  selector:
+    app: etcd
+  ports:
+    - name: client
+      port: 2379
+      targetPort: 2379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: etcd
+  namespace: flash-mall
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: etcd
+  template:
+    metadata:
+      labels:
+        app: etcd
+    spec:
+      containers:
+        - name: etcd
+          # CHG 2026-02-24: 变更=使用 bitnamilegacy/etcd:3.5; 之前=bitnami/etcd:3.5 拉取失败; 原因=旧 tag 被下线。
+          image: bitnamilegacy/etcd:3.5
+          # CHG 2026-02-24: 变更=固定为 IfNotPresent; 之前=可能继续拉取失败; 原因=kind 本地镜像应直接使用。
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: ALLOW_NONE_AUTHENTICATION
+              value: "yes"
+            - name: ETCD_ADVERTISE_CLIENT_URLS
+              value: "http://etcd:2379"
+            - name: ETCD_LISTEN_CLIENT_URLS
+              value: "http://0.0.0.0:2379"
+          ports:
+            - containerPort: 2379

@@ -1,0 +1,27 @@
+Name: product.rpc
+ListenOn: 0.0.0.0:8080
+Timeout: 2000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Recover: true
+  Stat: true
+  Prometheus: true
+  Breaker: true
+
+# CHG 2026-02-07: 变更=开启链路追踪; 之前=仅日志; 原因=库存扣减链路可追踪。
+Telemetry:
+  Name: product-rpc
+  Endpoint: http://127.0.0.1:14268/api/traces
+  Sampler: 1.0
+  Batcher: jaeger
+
+DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
+
+# CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
+StockBucketCount: 4
+
+Etcd:
+  Hosts:
+  - 127.0.0.1:2379
+  Key: product.rpc
