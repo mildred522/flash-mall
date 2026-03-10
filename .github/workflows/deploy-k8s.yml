@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+  workflow_run:
+    workflows:
+      - Release Images
+    types:
+      - completed
 
 permissions:
   contents: read
@@ -32,14 +37,39 @@ env:
 
 jobs:
   deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        secrets.KUBE_CONFIG != '' &&
+        vars.AUTO_DEPLOY_DEMO != 'false'
+      )
     runs-on: ubuntu-latest
     environment: demo
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.ref }}
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
+
+      - name: Resolve deploy inputs
+        id: vars
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "image_tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "include_dependencies=${{ inputs.include_dependencies }}" >> "$GITHUB_OUTPUT"
+            echo "run_init_jobs=${{ inputs.run_init_jobs }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "include_dependencies=false" >> "$GITHUB_OUTPUT"
+            echo "run_init_jobs=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Write kubeconfig
         env:
@@ -53,7 +83,7 @@ jobs:
         run: kubectl apply -f k8s/00-namespace.yaml
 
       - name: Apply demo dependencies
-        if: ${{ inputs.include_dependencies }}
+        if: ${{ steps.vars.outputs.include_dependencies == 'true' }}
         run: kubectl apply -f k8s/deps/
 
       - name: Apply config and apps
@@ -66,14 +96,14 @@ jobs:
           kubectl apply -f k8s/apps/05-ingress.yaml
 
       - name: Run init jobs
-        if: ${{ inputs.run_init_jobs }}
+        if: ${{ steps.vars.outputs.run_init_jobs == 'true' }}
         run: kubectl apply -f k8s/jobs/
 
       - name: Update images
         run: |
-          kubectl -n "$NAMESPACE" set image deployment/order-api order-api="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-api:${{ inputs.image_tag }}"
-          kubectl -n "$NAMESPACE" set image deployment/order-rpc order-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-rpc:${{ inputs.image_tag }}"
-          kubectl -n "$NAMESPACE" set image deployment/product-rpc product-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-product-rpc:${{ inputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/order-api order-api="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-api:${{ steps.vars.outputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/order-rpc order-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-rpc:${{ steps.vars.outputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/product-rpc product-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-product-rpc:${{ steps.vars.outputs.image_tag }}"
 
       - name: Wait for rollout
         run: |
