@@ -41,5 +41,5 @@ type Config struct {
 
 	JwtAuthSecret    string
 	JwtExpireSeconds int64
-	AuthDemoPassword string
+	AuthServiceBaseURL string
 }

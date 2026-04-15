@@ -15,17 +15,6 @@ type CreateOrderResp struct {
 	OrderId string `json:"order_id"`
 }
 
-type LoginReq struct {
-	UserId   int64  `json:"user_id"`
-	Password string `json:"password"`
-}
-
-type LoginResp struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresAt   int64  `json:"expires_at"`
-}
-
 type DependencyStatus struct {
 	Name   string `json:"name"`
 	Ok     bool   `json:"ok"`

@@ -5,94 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flash Mall 入口</title>
   <style>
-    :root {
-      --bg-a: #f9f5ec;
-      --bg-b: #e7f1f4;
-      --ink: #1a2328;
-      --muted: #5d6970;
-      --card: #fffdf8;
-      --line: #d7cfbf;
-      --shop: #1f7a8c;
-      --debug: #b85c38;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at 10% 0%, #fff8e8 0, transparent 35%),
-        radial-gradient(circle at 90% 100%, #e1f1f6 0, transparent 40%),
-        linear-gradient(130deg, var(--bg-a), var(--bg-b));
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-    .wrap { width: min(980px, 100%); }
-    .title {
-      margin: 0 0 8px;
-      font-size: clamp(28px, 4vw, 44px);
-      letter-spacing: .3px;
-    }
-    .sub {
-      margin: 0 0 20px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 14px;
-    }
-    .card {
-      border: 1px solid var(--line);
-      background: color-mix(in oklab, var(--card), white 14%);
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 14px 34px rgba(20, 26, 30, .08);
-    }
-    .card h2 { margin: 0 0 8px; font-size: 22px; }
-    .card p { margin: 0 0 14px; color: var(--muted); line-height: 1.6; }
-    .btn {
-      display: inline-block;
-      text-decoration: none;
-      border-radius: 12px;
-      padding: 9px 14px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
-    }
-    .shop { background: var(--shop); }
-    .debug { background: var(--debug); }
-    .tips {
-      margin-top: 14px;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    @media (max-width: 860px) {
-      .grid { grid-template-columns: 1fr; }
-    }
+    :root{--ink:#171a24;--muted:#5a6479;--line:rgba(23,26,36,.08);--paper:rgba(255,255,255,.88);--primary:#ff4d6d;--primary2:#ff8a65;--shadow:0 28px 64px rgba(18,24,39,.14)}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:radial-gradient(circle at 10% 0,rgba(255,77,109,.22) 0 14%,transparent 15%),radial-gradient(circle at 88% 18%,rgba(255,138,101,.22) 0 20%,transparent 20.5%),linear-gradient(180deg,#fffafb,#f7f8fc 44%,#f3f5fb 100%);display:grid;place-items:center;padding:28px 16px}
+    .shell,.hero,.entry-grid{display:grid;gap:18px}.shell{width:min(1160px,100%)}.hero{grid-template-columns:1.1fr .9fr;align-items:stretch}.hero-copy,.entry-card,.note{border-radius:30px;background:var(--paper);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(16px)}.hero-copy,.entry-card{padding:24px;display:grid;gap:16px}.note{padding:18px 22px;color:var(--muted);line-height:1.7;font-size:14px}.eyebrow{display:inline-flex;width:fit-content;padding:9px 14px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+    h1{margin:0;font-size:clamp(48px,8vw,82px);line-height:.95;letter-spacing:-.06em;max-width:720px}.hero-copy p,.entry-card p{margin:0;color:#454d60;line-height:1.6}.hero-copy p{max-width:580px;font-size:19px}.entry-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.entry-card h2{margin:0;font-size:28px;line-height:1.02;letter-spacing:-.04em}.button{display:inline-flex;align-items:center;justify-content:center;width:fit-content;padding:14px 18px;border-radius:999px;background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff;text-decoration:none;font-size:15px;font-weight:700;box-shadow:0 18px 30px rgba(255,77,109,.22)}.button.soft{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+    @media (max-width:860px){.hero,.entry-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <main class="wrap">
-    <h1 class="title">Flash Mall 演示入口</h1>
-    <p class="sub">将面向用户的购物流程和工程调试流程拆分，便于展示与排障。</p>
-    <section class="grid">
-      <article class="card">
-        <h2>商城购物界面</h2>
-        <p>用于模拟正常用户行为：登录、选择商品、提交订单、查看订单回执。界面尽量贴近业务路径。</p>
-        <a class="btn shop" href="/shop">进入商城</a>
+  <main class="shell">
+    <section class="hero">
+      <article class="hero-copy">
+        <span class="eyebrow">春日上新进行时</span>
+        <h1>今天想逛的衣橱灵感，从这里开始。</h1>
+        <p>把当季热卖、每日上新和限时好价放在一个入口里，先看值得买的单品，再挑适合自己的整套搭配。</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a id="entry-shop" class="button" href="/shop">进入商城</a>
+          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">看今日主推</a>
+        </div>
       </article>
-      <article class="card">
-        <h2>调试观测界面</h2>
-        <p>用于工程验证：链路健康检查、幂等测试、浏览器内并发压测、指标与 pprof 快速跳转。</p>
-        <a class="btn debug" href="/debug">进入调试台</a>
+      <article class="entry-card">
+        <h2>首页怎么逛最省时间</h2>
+        <p>先看今日主推，再进精选商品区。喜欢的款可以直接登录下单，账号相关动作已经统一放进商城弹层和右下角控制台。</p>
+        <p>如果你是开发调试，可以额外打开 <strong>/debug</strong> 看健康检查和联调入口。</p>
       </article>
     </section>
-    <p class="tips">建议流程：先在调试台确认链路健康，再切换商城界面做完整下单演示。</p>
+
+    <section class="entry-grid">
+      <article class="entry-card">
+        <h2>今日上新</h2>
+        <p>适合先逛一圈看趋势。人气单品、早春新款和好搭不挑人的基础款，都整理在同一页里。</p>
+        <a class="button" href="/shop">前往商城</a>
+      </article>
+      <article class="entry-card">
+        <h2>人气会场</h2>
+        <p>适合直接看主推。限时推荐、折扣提醒和本周最容易出片的单品，会优先排在前面。</p>
+        <a class="button soft" href="/shop#campaign-strip">去看主推</a>
+      </article>
+    </section>
+
+    <div class="note">建议逛法：先看今日主推，再进精选商品区。想演示注册、登录、下单、刷新令牌这些完整链路，直接进商城页就行。</div>
   </main>
 </body>
 </html>
-

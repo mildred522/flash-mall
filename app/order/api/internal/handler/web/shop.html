@@ -3,292 +3,197 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flash Mall 商城</title>
+  <title>Flash Mall 商城首页</title>
   <style>
-    :root {
-      --bg: #f6f2e6;
-      --ink: #202a2e;
-      --muted: #5e6a72;
-      --line: #d8ccb7;
-      --card: #fffdf8;
-      --accent: #1f7a8c;
-      --danger: #b23a2b;
-      --ok: #2d7d45;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      color: var(--ink);
-      font-family: "IBM Plex Sans", "Noto Sans SC", "Segoe UI", sans-serif;
-      background:
-        radial-gradient(circle at 0 0, #fff8e9 0, transparent 38%),
-        linear-gradient(145deg, #f9f4ea, #eaf0f3);
-      min-height: 100vh;
-    }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
-    .top {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      margin-bottom: 14px;
-    }
-    .title { margin: 0; font-size: 26px; }
-    .hint { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-    .nav a {
-      text-decoration: none; color: #fff; background: var(--accent);
-      padding: 8px 12px; border-radius: 10px; font-size: 13px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: 300px 1fr;
-      gap: 12px;
-    }
-    .card {
-      border: 1px solid var(--line);
-      background: color-mix(in oklab, var(--card), white 10%);
-      border-radius: 14px;
-      padding: 12px;
-      box-shadow: 0 8px 20px rgba(20, 25, 30, .06);
-    }
-    h3 { margin: 0 0 8px; font-size: 16px; }
-    label {
-      display: flex; flex-direction: column; gap: 4px;
-      color: var(--muted); font-size: 12px; margin-bottom: 8px;
-    }
-    input {
-      border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px;
-      font-size: 14px; outline: none; color: var(--ink); background: #fff;
-    }
-    input:focus { border-color: var(--accent); }
-    button {
-      border: 1px solid var(--accent); background: var(--accent); color: #fff;
-      border-radius: 10px; padding: 8px 12px; cursor: pointer; font-size: 13px;
-    }
-    button.gray { background: transparent; color: var(--ink); border-color: var(--line); }
-    .state {
-      display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
-      padding: 4px 10px; font-size: 12px; color: var(--muted); background: #fff;
-    }
-    .state.ok { color: var(--ok); }
-    .state.bad { color: var(--danger); }
-    .products {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .product { border: 1px solid var(--line); border-radius: 12px; padding: 10px; background: #fff; }
-    .name { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-    .desc { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
-    .row { display: flex; gap: 8px; align-items: center; }
-    .row input { width: 90px; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
-    th, td { text-align: left; border-bottom: 1px dashed var(--line); padding: 6px 4px; }
-    .logs {
-      margin-top: 10px; min-height: 120px; max-height: 200px; overflow: auto;
-      background: #1f2a2e; color: #d8edef; border-radius: 10px; padding: 10px;
-      font-family: Consolas, "Courier New", monospace; font-size: 12px;
-    }
-    @media (max-width: 920px) {
-      .grid { grid-template-columns: 1fr; }
-      .products { grid-template-columns: 1fr; }
-    }
+    :root{--bg:#f6f7fb;--paper:rgba(255,255,255,.92);--line:rgba(20,24,33,.08);--ink:#161922;--muted:#5f6879;--brand:#ff4d6d;--brand2:#ff8a65;--ok:#33c38e;--bad:#ff6b6b;--warn:#ffc857;--shadow:0 22px 60px rgba(20,24,33,.14)}
+    *{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:radial-gradient(circle at 0 0,rgba(255,77,109,.18) 0,transparent 28%),radial-gradient(circle at 100% 16%,rgba(255,138,101,.18) 0,transparent 24%),linear-gradient(180deg,#fff8f8 0,#f7f8fb 42%,#f4f6fb 100%)}a{text-decoration:none;color:inherit}button,input{font:inherit}
+    .container{width:min(1160px,calc(100% - 32px));margin:0 auto}.card{background:var(--paper);border:1px solid var(--line);border-radius:26px;box-shadow:var(--shadow);backdrop-filter:blur(16px)}.topbar{position:sticky;top:0;z-index:20;background:rgba(255,250,250,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}.topbar-inner,.row,.hero-actions,.tabs,.actions,.status-line,.console-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.topbar-inner{justify-content:space-between;padding:18px 0}.brand{display:flex;align-items:center;gap:12px;font-size:30px;font-weight:800;letter-spacing:-.04em}.brand-mark{width:18px;height:18px;border-radius:999px;background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:0 0 0 10px rgba(255,77,109,.12)}.nav{display:flex;gap:18px;flex-wrap:wrap;font-size:14px}.nav a,.note{color:var(--muted)}
+    .chip,.pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px;font-weight:700}.pill{border-color:transparent;background:rgba(255,77,109,.12);color:#d83459}.button{appearance:none;border:none;border-radius:999px;cursor:pointer;padding:12px 18px}.primary{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;box-shadow:0 18px 30px rgba(255,77,109,.24)}.soft{background:#fff;color:var(--ink);border:1px solid var(--line)}.section{padding:12px 0 28px}
+    .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:18px;padding-top:28px}.hero-copy,.hero-side,.promo,.product,.console-card,.auth-box{padding:22px}.hero-copy h1{margin:14px 0 0;font-size:clamp(46px,8vw,76px);line-height:.96;letter-spacing:-.06em}.hero-copy p,.hero-side p,.promo p,.product p{color:#495163;line-height:1.65}.stats,.grid2,.product-grid,.console-grid{display:grid;gap:14px}.stats{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:18px}.grid2{grid-template-columns:1.1fr .9fr}.product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.hero-stat strong,.price{display:block;margin-top:8px;font-size:24px;font-weight:800}.promo strong{display:block;margin-top:12px;font-size:34px;line-height:1.05;letter-spacing:-.05em}.thumb{height:220px;border-radius:18px;background:linear-gradient(160deg,#fff0f2,#ffe2d7)}.qty,.field input{width:100%;padding:12px 14px;border-radius:999px;border:1px solid var(--line);background:#fafbff;color:var(--ink)}
+    .auth-modal{position:fixed;inset:0;z-index:40;background:rgba(15,18,28,.46);backdrop-filter:blur(10px);opacity:0;pointer-events:none;transition:opacity .2s}.auth-modal.open{opacity:1;pointer-events:auto}.auth-box{width:min(560px,calc(100% - 24px));margin:26px auto 0}.tabs button{padding:10px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer}.tabs button.active{border-color:transparent;background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff}.panel{display:none;gap:12px;margin-top:16px}.panel.active{display:grid}.field{display:grid;gap:8px}.field label{color:#6d7587;font-size:13px;font-weight:700}.code-row{display:grid;grid-template-columns:1fr auto;gap:10px}.submit{width:100%;border-radius:18px;font-size:17px;font-weight:700}.error{min-height:22px;color:#d43f5e;font-size:13px;font-weight:600}
+    .console{position:fixed;right:16px;bottom:16px;z-index:35;width:min(370px,calc(100vw - 24px));border-radius:24px;overflow:hidden;background:#0f1521;color:#eef2ff;border:1px solid rgba(255,255,255,.08);box-shadow:0 26px 56px rgba(5,10,18,.42)}.console.collapsed .console-body{display:none}.console-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08)}.console-body{display:grid;gap:12px;padding:14px 16px 16px}.console-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.console-card{display:grid;gap:8px;border-radius:16px;background:rgba(255,255,255,.04)}.console-card h4{margin:0;font-size:12px;color:#93a9d8;text-transform:uppercase}.console-summary{display:grid;gap:6px;border-radius:16px;padding:14px;background:rgba(255,255,255,.03);color:#cfd7ec;font-size:13px}.console-log{min-height:150px;max-height:220px;overflow:auto;border-radius:16px;padding:12px;background:#0a0f17;white-space:pre-wrap;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.55}.dot{display:inline-block;width:10px;height:10px;border-radius:999px;background:var(--warn)}.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}
+    @media (max-width:960px){.hero,.grid2,.product-grid,.stats,.console-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <div>
-        <h1 class="title">Flash Mall 商城界面</h1>
-        <p class="hint">用于模拟正常购物流程：登录 -> 选购 -> 下单</p>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand"><span class="brand-mark"></span><span>Flash Mall</span></div>
+      <nav class="nav">
+        <a href="#campaign-strip">今日会场</a>
+        <a href="#featured-products">精选单品</a>
+        <a href="#style-strip">穿搭灵感</a>
+        <a href="#featured-products">热卖推荐</a>
+      </nav>
+      <div class="row">
+        <span id="auth-chip" class="chip">游客模式</span>
+        <button id="open-auth" class="button primary" type="button">登录 / 注册</button>
       </div>
-      <nav class="nav"><a href="/debug">去调试台</a></nav>
-    </header>
+    </div>
+  </header>
 
-    <section class="grid">
-      <aside class="card">
-        <h3>账户</h3>
-        <label>用户 ID<input id="uid" value="1001" /></label>
-        <label>密码<input id="pwd" value="flashmall123" /></label>
-        <div class="row" style="margin-bottom:8px">
-          <button id="btnLogin">登录</button>
-          <button id="btnLogout" class="gray">退出</button>
-        </div>
-        <div id="authState" class="state bad">未登录</div>
-        <label style="margin-top:8px">Token（节选）<input id="token" readonly /></label>
-      </aside>
-
-      <main class="card">
-        <h3>商品列表</h3>
-        <div class="products" id="products"></div>
-        <h3 style="margin-top:12px">最近下单回执</h3>
-        <table>
-          <thead><tr><th>时间</th><th>商品ID</th><th>数量</th><th>request_id</th><th>order_id</th><th>状态</th></tr></thead>
-          <tbody id="orders"></tbody>
-        </table>
-        <div class="logs" id="logs"></div>
-      </main>
-    </section>
-  </div>
-
-  <script>
-    const PRODUCTS = [
-      {
-        id: 100,
-        name: "Demo Product",
-        desc: "标准购买路径：单次提交订单。",
-        mode: "normal",
-        buttonText: "立即购买"
-      },
-      {
-        id: 100,
-        name: "Demo Product - 快速购",
-        desc: "调试演示路径：一键连续提交 3 笔订单。",
-        mode: "quick",
-        burstTimes: 3,
-        burstIntervalMs: 120,
-        buttonText: "快速购 x3"
-      }
-    ];
-    const state = {
-      token: localStorage.getItem("fm_token") || "",
-      uid: Number(localStorage.getItem("fm_uid") || 1001)
-    };
-
-    const $ = (id) => document.getElementById(id);
-    const log = (msg) => {
-      const t = new Date().toLocaleTimeString();
-      const box = $("logs");
-      box.textContent = `[${t}] ${msg}\n` + box.textContent;
-    };
-    const reqId = () => `req-shop-${Date.now()}-${Math.floor(Math.random()*100000)}`;
-
-    function renderProducts() {
-      const root = $("products");
-      root.innerHTML = PRODUCTS.map((p, idx) => `
-        <article class="product">
-          <div class="name">${p.name}</div>
-          <div class="desc">${p.desc}</div>
-          <div class="row">
-            <label style="margin:0">数量<input id="qty-${idx}" value="1" /></label>
-            <button data-idx="${idx}">${p.buttonText || "立即购买"}</button>
+  <main>
+    <section class="section">
+      <div class="container hero">
+        <article class="card hero-copy">
+          <span class="pill">春日上新进行时</span>
+          <h1>今天想买的那几件，先从首页挑。</h1>
+          <p>把通勤能穿、周末好看、现在下单更划算的单品先摆在前面。先逛主推，再挑细节，找到合适的直接下单。</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#featured-products">马上开逛</a>
+            <button class="button soft" type="button" data-open-auth="register">领新人礼</button>
+          </div>
+          <div class="stats">
+            <article class="card hero-stat"><span class="pill">秒杀倒计时</span><strong id="hero-timer">02:15:08</strong></article>
+            <article class="card hero-stat"><span class="pill">今日精选</span><strong>4 组人气好物</strong></article>
+            <article class="card hero-stat"><span class="pill">今日优惠</span><strong>满 199 减 30</strong></article>
           </div>
         </article>
-      `).join("");
-      root.querySelectorAll("button[data-idx]").forEach(btn => {
-        btn.onclick = async () => {
-          const idx = Number(btn.getAttribute("data-idx"));
-          const product = PRODUCTS[idx];
-          const qty = Number($("qty-" + idx).value || 1);
-          btn.disabled = true;
-          try {
-            if (product.mode === "quick") {
-              await quickBuy(product, qty);
-            } else {
-              await createOrder(product.id, qty, { scene: "normal" });
-            }
-          } finally {
-            btn.disabled = false;
-          }
-        };
-      });
-    }
+        <aside class="card hero-side">
+          <span class="pill">本周主推</span>
+          <h2 style="margin:14px 0 0;font-size:34px;line-height:1.02;letter-spacing:-.05em">换季这几件，怎么搭都顺眼。</h2>
+          <p>通勤外套、轻薄针织和好穿内搭已经替你排好了，今天打开首页就能直接挑到顺手那一件。</p>
+        </aside>
+      </div>
+    </section>
 
-    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    <section id="campaign-strip" class="section">
+      <div class="container grid2">
+        <article class="card promo">
+          <h3 style="margin:0">今日主推</h3>
+          <strong>春装上新，轻松穿出好状态。</strong>
+          <p>从通勤外套到周末针织，把现在最值得入手的款一次看全。想买得省心，就先从这一屏开始逛。</p>
+        </article>
+        <div class="grid2">
+          <article id="style-strip" class="card promo"><h3 style="margin:0">穿搭灵感</h3><strong style="font-size:28px">今晚出门、明早通勤、周末约会，都能在这里找到顺手那一件。</strong></article>
+          <article class="card promo"><h3 style="margin:0">折扣提醒</h3><strong style="font-size:28px">限时直降、满减专区、精选好价，喜欢的款先加购更稳。</strong></article>
+        </div>
+      </div>
+    </section>
 
-    function setAuthUI() {
-      const el = $("authState");
-      if (!state.token) {
-        el.className = "state bad";
-        el.textContent = "未登录";
-        $("token").value = "";
-        return;
-      }
-      el.className = "state ok";
-      el.textContent = `已登录 user_id=${state.uid}`;
-      $("token").value = state.token.slice(0, 28) + "...";
-    }
+    <section id="featured-products" class="section">
+      <div class="container">
+        <div class="row" style="justify-content:space-between;align-items:flex-end">
+          <div>
+            <h2 style="margin:0">精选商品</h2>
+            <p class="note">挑了几件这个季节最容易穿出氛围的单品，日常通勤、周末出门、换季叠穿都很合适，看到喜欢的直接下单就行。</p>
+          </div>
+          <span class="pill">今日下单更省心</span>
+        </div>
+        <div id="product-grid" class="product-grid"></div>
+      </div>
+    </section>
+  </main>
 
-    async function post(path, body, withAuth) {
-      const headers = { "Content-Type": "application/json" };
-      if (withAuth && state.token) headers.Authorization = `Bearer ${state.token}`;
-      const res = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
-      const txt = await res.text();
-      let data = {};
-      try { data = JSON.parse(txt); } catch { data = { raw: txt }; }
-      return { ok: res.ok, status: res.status, data };
-    }
+  <div id="auth-modal" class="auth-modal" aria-hidden="true">
+    <div class="card auth-box">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <h2 id="auth-title" style="margin:0;font-size:46px;line-height:.92;letter-spacing:-.06em">登录</h2>
+          <p id="auth-subtitle" class="note" style="margin:10px 0 0">登录后下单、领券、查看当前状态都更顺手。</p>
+        </div>
+        <button id="close-auth" class="button soft" type="button">关闭</button>
+      </div>
+      <div class="tabs">
+        <button id="auth-tab-password" class="active" type="button" data-auth-tab="password">密码登录</button>
+        <button id="auth-tab-register" type="button" data-auth-tab="register">手机号注册</button>
+        <button id="auth-tab-code" type="button" data-auth-tab="code">验证码登录</button>
+        <button id="auth-tab-reset" type="button" data-auth-tab="reset">找回密码</button>
+      </div>
+      <section id="auth-panel-password" class="panel active">
+        <div class="field"><label for="login-phone">手机号</label><input id="login-phone" type="tel" value="13800000001" /></div>
+        <div class="field"><label for="login-password">密码</label><input id="login-password" type="password" value="flashmall123" /></div>
+        <div class="actions"><button id="password-login-action" class="button primary submit" type="button">立即登录</button></div>
+        <div class="note">演示账号已预填，直接登录就能下单。也可以先注册一个新的手机号账号。</div>
+      </section>
+      <section id="auth-panel-register" class="panel">
+        <div class="field"><label for="register-name">昵称</label><input id="register-name" type="text" value="新用户" /></div>
+        <div class="field"><label for="register-phone">手机号</label><input id="register-phone" type="tel" value="13800138000" /></div>
+        <div class="field"><label for="register-password">设置密码</label><input id="register-password" type="password" value="mall-pass-123" /></div>
+        <div class="field"><label for="register-code">验证码</label><div class="code-row"><input id="register-code" type="text" /><button id="send-code-action" class="button soft" type="button">发送验证码</button></div></div>
+        <div class="actions"><button id="register-action" class="button primary submit" type="button">注册并登录</button></div>
+        <div class="note">注册成功后会自动进入登录状态，开发环境验证码只会出现在右下角开发者控制台。</div>
+      </section>
+      <section id="auth-panel-code" class="panel">
+        <div class="field"><label for="code-login-phone">手机号</label><input id="code-login-phone" type="tel" value="13800000001" /></div>
+        <div class="field"><label for="code-login-code">验证码</label><div class="code-row"><input id="code-login-code" type="text" /><button id="send-login-code-action" class="button soft" type="button">发送登录码</button></div></div>
+        <div class="actions"><button id="code-login-action" class="button primary submit" type="button">验证码登录</button></div>
+        <div class="note">适合直接演示手机号快速登录链路，不需要输入密码。</div>
+      </section>
+      <section id="auth-panel-reset" class="panel">
+        <div class="field"><label for="reset-phone">手机号</label><input id="reset-phone" type="tel" value="13800000001" /></div>
+        <div class="field"><label for="reset-code">验证码</label><div class="code-row"><input id="reset-code" type="text" /><button id="reset-password-action" class="button soft" type="button">发送重置码</button></div></div>
+        <div class="field"><label for="reset-password">新密码</label><input id="reset-password" type="password" value="new-pass-456" /></div>
+        <div class="actions"><button id="submit-reset-password" class="button primary submit" type="button">重置密码</button></div>
+        <div class="note">重置成功后，旧会话会立即失效，需要重新登录。</div>
+      </section>
+      <div id="auth-error" class="error"></div>
+    </div>
+  </div>
 
-    async function login() {
-      const uid = Number($("uid").value || 0);
-      const pwd = $("pwd").value;
-      const res = await post("/api/auth/login", { user_id: uid, password: pwd }, false);
-      if (!res.ok) {
-        log(`登录失败 status=${res.status} body=${JSON.stringify(res.data)}`);
-        return;
-      }
-      state.uid = uid;
-      state.token = res.data.access_token || "";
-      localStorage.setItem("fm_uid", String(uid));
-      localStorage.setItem("fm_token", state.token);
-      setAuthUI();
-      log(`登录成功 user_id=${uid}`);
-    }
-
-    function addOrderRow(row) {
-      const tbody = $("orders");
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${new Date().toLocaleTimeString()}</td><td>${row.productId}</td><td>${row.amount}</td><td>${row.requestId}</td><td>${row.orderId || "-"}</td><td>${row.status}</td>`;
-      tbody.prepend(tr);
-    }
-
-    async function createOrder(productId, amount, opts = {}) {
-      if (!state.token) {
-        log("请先登录");
-        return;
-      }
-      const requestId = reqId();
-      const body = {
-        request_id: requestId,
-        user_id: 999999,
-        product_id: productId,
-        amount
-      };
-      const t0 = performance.now();
-      const res = await post("/api/order/create", body, true);
-      const cost = (performance.now() - t0).toFixed(1);
-      const scene = opts.scene ? ` scene=${opts.scene}` : "";
-      if (res.ok) {
-        addOrderRow({ productId, amount, requestId, orderId: res.data.order_id, status: "成功" });
-        log(`下单成功 product=${productId} amount=${amount}${scene} order=${res.data.order_id} latency=${cost}ms`);
-      } else {
-        addOrderRow({ productId, amount, requestId, orderId: "", status: "失败" });
-        log(`下单失败 status=${res.status} body=${JSON.stringify(res.data)}${scene} latency=${cost}ms`);
-      }
-    }
-
-    async function quickBuy(product, amount) {
-      const times = Math.max(1, Number(product.burstTimes || 3));
-      const gap = Math.max(0, Number(product.burstIntervalMs || 120));
-      log(`快速购开始 product=${product.id} rounds=${times} amount=${amount}`);
-      for (let i = 0; i < times; i++) {
-        await createOrder(product.id, amount, { scene: `quick-${i + 1}/${times}` });
-        if (i < times - 1) {
-          await sleep(gap);
-        }
-      }
-      log(`快速购结束 product=${product.id} rounds=${times}`);
-    }
-
-    $("btnLogin").onclick = login;
-    $("btnLogout").onclick = () => {
-      state.token = "";
-      localStorage.removeItem("fm_token");
-      setAuthUI();
-      log("已退出登录");
-    };
-
-    $("uid").value = String(state.uid || 1001);
-    renderProducts();
-    setAuthUI();
-    log("商城页面已就绪");
+  <aside id="developer-console" class="console">
+    <div class="console-head">
+      <div><div style="font-size:12px;color:#9eb3e6;text-transform:uppercase">开发者控制台</div><strong>实时状态</strong></div>
+      <button id="console-toggle" class="button soft" type="button">-</button>
+    </div>
+    <div class="console-body">
+      <div class="console-grid">
+        <section class="console-card"><h4>鉴权状态</h4><strong id="console-auth-text">游客模式</strong><div class="status-line"><span id="auth-dot" class="dot bad"></span><span id="console-token">暂无令牌</span></div></section>
+        <section class="console-card"><h4>健康状态</h4><strong id="health-summary">尚未检查</strong><div class="status-line"><span id="health-dot" class="dot"></span><span id="health-detail">点击执行健康检查</span></div></section>
+      </div>
+      <section class="console-card">
+        <h4>快捷动作</h4>
+        <div class="console-actions">
+          <button id="console-login-action" class="button primary" type="button">打开登录</button>
+          <button id="console-health-action" class="button soft" type="button">健康检查</button>
+          <button id="console-buy-action" class="button soft" type="button">下单 x1</button>
+          <button id="console-burst-action" class="button soft" type="button">连点 x3</button>
+          <button id="console-logout-action" class="button soft" type="button">退出登录</button>
+          <button id="console-logout-all-action" class="button soft" type="button">全部下线</button>
+        </div>
+      </section>
+      <section class="console-summary">
+        <div>当前用户：<strong id="current-user-name">暂无</strong></div>
+        <div>最近订单：<strong id="latest-order">暂无</strong></div>
+        <div>最近请求：<strong id="latest-request">暂无</strong></div>
+      </section>
+      <section class="console-card"><h4>实时日志</h4><pre id="console-log" class="console-log"></pre></section>
+    </div>
+  </aside>
+  <script>
+    const PRODUCTS=[{id:100,name:"首发风衣",desc:"利落版型配轻盈面料，通勤出门都好搭。",price:"¥129",badge:"限时秒杀",accent:"linear-gradient(160deg,#fff1f4 0%,#ffd9d9 100%)"},{id:100,name:"周末轻熟系列",desc:"柔和配色和干净廓形放在一起，逛街见面都顺眼。",price:"¥98",badge:"刚刚上新",accent:"linear-gradient(160deg,#fff4ec 0%,#ffe2cc 100%)"},{id:100,name:"柔感针织衫",desc:"贴身穿也舒服，换季时做内搭也很顺手。",price:"¥76",badge:"常驻推荐",accent:"linear-gradient(160deg,#fff7ef 0%,#ffe8db 100%)"},{id:100,name:"轻盈通勤套装",desc:"上班想体面一点，下班又不想太拘谨，这套一穿就能出门。",price:"¥143",badge:"热卖加购",accent:"linear-gradient(160deg,#fff0f6 0%,#ffdfe7 100%)"}];
+    const state={token:localStorage.getItem("fm_token")||"",user:JSON.parse(localStorage.getItem("fm_user")||"null"),consoleCollapsed:window.matchMedia("(max-width:960px)").matches,timerSeconds:8108};
+    const $=(id)=>document.getElementById(id),authModal=$("auth-modal"),logBox=$("console-log");
+    function log(message){logBox.textContent=`[${new Date().toLocaleTimeString()}] ${message}\n${logBox.textContent}`;}
+    function err(message){$("auth-error").textContent=message||"";}
+    function rid(){return `req-shop-${Date.now()}-${Math.floor(Math.random()*100000)}`;}
+    function collapse(value){state.consoleCollapsed=value;$("developer-console").classList.toggle("collapsed",value);$("console-toggle").textContent=value?"+":"-";}
+    function setUser(payload){state.user={user_id:payload.user_id,display_name:payload.display_name||`用户 ${payload.user_id}`,phone:payload.phone||""};localStorage.setItem("fm_user",JSON.stringify(state.user));}
+    function saveAuth(payload){state.token=payload.access_token||"";if(payload.user_id)setUser(payload);localStorage.setItem("fm_token",state.token);updateUI();}
+    function clearAuth(){state.token="";state.user=null;localStorage.removeItem("fm_token");localStorage.removeItem("fm_user");updateUI();}
+    function updateUI(){const authed=!!state.token&&!!state.user;$("auth-chip").textContent=authed?`${state.user.display_name} 已登录`:"游客模式";$("console-auth-text").textContent=authed?state.user.display_name:"游客模式";$("console-token").textContent=authed?`${state.token.slice(0,24)}...`:"暂无令牌";$("current-user-name").textContent=authed?`${state.user.display_name} / ${state.user.phone}`:"暂无";$("auth-dot").className=`dot ${authed?"ok":"bad"}`;$("open-auth").textContent=authed?"切换账号":"登录 / 注册";}
+    function timerTick(){const total=Math.max(0,state.timerSeconds),hh=String(Math.floor(total/3600)).padStart(2,"0"),mm=String(Math.floor((total%3600)/60)).padStart(2,"0"),ss=String(total%60).padStart(2,"0");$("hero-timer").textContent=`${hh}:${mm}:${ss}`;if(state.timerSeconds>0)state.timerSeconds-=1;}
+    function tab(name){document.querySelectorAll("[data-auth-tab]").forEach((button)=>button.classList.toggle("active",button.getAttribute("data-auth-tab")===name));document.querySelectorAll(".panel").forEach((panel)=>panel.classList.toggle("active",panel.id===`auth-panel-${name}`));const copy={password:["登录","登录后下单、领券、查看当前状态都更顺手。"],register:["注册","先注册，再慢慢挑今天想买的。"],code:["快捷登录","验证码登录更适合直接演示完整链路。"],reset:["找回密码","先验证手机号，再设置一个新的登录密码。"]};$("auth-title").textContent=copy[name][0];$("auth-subtitle").textContent=copy[name][1];err("");}
+    function openAuth(name="password"){tab(name);authModal.classList.add("open");authModal.setAttribute("aria-hidden","false");}
+    function closeAuth(){authModal.classList.remove("open");authModal.setAttribute("aria-hidden","true");err("");}
+    function renderProducts(){$("product-grid").innerHTML=PRODUCTS.map((product,index)=>`<article class="card product"><div class="thumb" style="background:${product.accent}"></div><span class="pill">${product.badge}</span><h3 style="margin:0;font-size:22px">${product.name}</h3><p>${product.desc}</p><div class="row" style="justify-content:space-between"><span class="price">${product.price}</span><span class="chip">商品 ${product.id}</span></div><div class="row"><input class="qty" id="qty-${index}" type="number" min="1" value="1" /><button class="button primary" type="button" data-buy-index="${index}">立即购买</button></div></article>`).join("");document.querySelectorAll("[data-buy-index]").forEach((button)=>button.addEventListener("click",async()=>{const index=Number(button.getAttribute("data-buy-index")),qty=Math.max(1,Number($(`qty-${index}`).value||1));await order(PRODUCTS[index].id,qty,"card-buy");}));}
+    async function api(path,options={}){const headers=Object.assign({},options.headers||{});if(options.jsonBody!==undefined)headers["Content-Type"]="application/json";if(options.auth&&state.token)headers.Authorization=`Bearer ${state.token}`;const response=await fetch(path,{method:options.method||"GET",headers,body:options.jsonBody!==undefined?JSON.stringify(options.jsonBody):options.body,credentials:"same-origin"}),text=await response.text();let data={};try{data=text?JSON.parse(text):{};}catch{data={raw:text};}return{ok:response.ok,status:response.status,data};}
+    async function refresh(){const response=await api("/api/auth/refresh",{method:"POST"});if(!response.ok){clearAuth();return false;}saveAuth(response.data);log("access token 已刷新");return true;}
+    async function authed(path,options={}){let response=await api(path,Object.assign({},options,{auth:true}));if(response.status===401&&await refresh())response=await api(path,Object.assign({},options,{auth:true}));return response;}
+    async function me(){if(!state.token)return false;const response=await authed("/api/auth/me");if(!response.ok){clearAuth();return false;}setUser(response.data);updateUI();return true;}
+    async function bootstrap(){updateUI();if(state.token&&await me()){log(`当前用户已恢复 ${state.user.display_name}`);return;}if(await refresh())await me();}
+    async function sendCode(scene,phone){const path=scene==="reset-password"?"/api/auth/password/forgot":"/api/auth/code/send",payload=scene==="reset-password"?{phone}:{phone,scene},response=await api(path,{method:"POST",jsonBody:payload});if(!response.ok){const message=response.data.message||response.data.msg||`发送验证码失败（${response.status}）`;err(message);log(`发码失败 scene=${scene} phone=${phone} body=${JSON.stringify(response.data)}`);return false;}err("");log(`验证码已发送 scene=${scene} phone=${phone} debug_code=${response.data.debug_code||"-"}`);return true;}
+    async function passwordLogin(){const phone=$("login-phone").value.trim(),password=$("login-password").value,response=await api("/api/auth/login",{method:"POST",jsonBody:{phone,password,device_type:"web"}});if(!response.ok){const message=response.data.message||response.data.msg||`登录失败（${response.status}）`;err(message);log(`密码登录失败 phone=${phone} body=${JSON.stringify(response.data)}`);return;}saveAuth(response.data);closeAuth();log(`密码登录成功 user_id=${response.data.user_id}`);}
+    async function register(){const payload={display_name:$("register-name").value.trim(),phone:$("register-phone").value.trim(),password:$("register-password").value,code:$("register-code").value.trim(),device_type:"web"},response=await api("/api/auth/register",{method:"POST",jsonBody:payload});if(!response.ok){const message=response.data.message||response.data.msg||`注册失败（${response.status}）`;err(message);log(`注册失败 phone=${payload.phone} body=${JSON.stringify(response.data)}`);return;}saveAuth(response.data);closeAuth();log(`注册成功 user_id=${response.data.user_id} phone=${payload.phone}`);}
+    async function codeLogin(){const payload={phone:$("code-login-phone").value.trim(),code:$("code-login-code").value.trim(),device_type:"web"},response=await api("/api/auth/login/code",{method:"POST",jsonBody:payload});if(!response.ok){const message=response.data.message||response.data.msg||`验证码登录失败（${response.status}）`;err(message);log(`验证码登录失败 phone=${payload.phone} body=${JSON.stringify(response.data)}`);return;}saveAuth(response.data);closeAuth();log(`验证码登录成功 user_id=${response.data.user_id}`);}
+    async function resetPassword(){const payload={phone:$("reset-phone").value.trim(),code:$("reset-code").value.trim(),new_password:$("reset-password").value},response=await api("/api/auth/password/reset",{method:"POST",jsonBody:payload});if(!response.ok){const message=response.data.message||response.data.msg||`重置密码失败（${response.status}）`;err(message);log(`重置密码失败 phone=${payload.phone} body=${JSON.stringify(response.data)}`);return;}clearAuth();tab("password");$("login-phone").value=payload.phone;$("login-password").value=payload.new_password;log(`重置密码成功 phone=${payload.phone}`);}
+    async function logout(){if(!state.token){clearAuth();return;}const response=await api("/api/auth/logout",{method:"POST",auth:true});if(!response.ok)log(`退出登录失败 body=${JSON.stringify(response.data)}`);clearAuth();log("退出登录完成");}
+    async function logoutAll(){if(!state.token){clearAuth();return;}const response=await api("/api/auth/logout-all",{method:"POST",auth:true});if(!response.ok)log(`全部下线失败 body=${JSON.stringify(response.data)}`);clearAuth();log("全部下线完成");}
+    function latest(orderId,requestId){if(orderId)$("latest-order").textContent=orderId;if(requestId)$("latest-request").textContent=requestId;}
+    async function order(productId,amount,scene){if(!state.token){openAuth("password");log("下单被拦截：请先登录");return null;}const requestId=rid(),payload={request_id:requestId,user_id:999999,product_id:productId,amount},t0=performance.now(),response=await authed("/api/order/create",{method:"POST",jsonBody:payload}),cost=(performance.now()-t0).toFixed(1);latest(response.ok?response.data.order_id:"失败",requestId);if(response.ok){log(`下单成功 scene=${scene} product=${productId} qty=${amount} req=${requestId} order=${response.data.order_id} latency=${cost}ms`);}else{if(response.status===401)openAuth("password");log(`下单失败 scene=${scene} status=${response.status} req=${requestId} body=${JSON.stringify(response.data)} latency=${cost}ms`);}return response;}
+    async function burst(){if(!state.token){openAuth("password");return;}log("连续下单开始 rounds=3 qty=1");for(let i=0;i<3;i+=1){await order(100,1,`burst-${i+1}/3`);if(i<2)await new Promise((resolve)=>setTimeout(resolve,140));}log("连续下单结束 rounds=3");}
+    async function health(){$("health-summary").textContent="检查中";$("health-detail").textContent="正在探测依赖";$("health-dot").className="dot";try{const response=await fetch("/api/system/health",{credentials:"same-origin"}),data=await response.json(),ok=!!data.overall,failed=(data.dependencies||[]).filter((dep)=>!dep.ok).map((dep)=>dep.name);$("health-summary").textContent=ok?"整体正常":"部分降级";$("health-detail").textContent=failed.length?failed.join(", "):"核心依赖全部可达";$("health-dot").className=`dot ${ok?"ok":"bad"}`;log(`健康检查完成 overall=${ok} detail=${$("health-detail").textContent}`);}catch(error){$("health-summary").textContent="检查失败";$("health-detail").textContent=error.message||"未知错误";$("health-dot").className="dot bad";log(`健康检查失败 error=${$("health-detail").textContent}`);}}
+    document.querySelectorAll("[data-auth-tab]").forEach((button)=>button.addEventListener("click",()=>tab(button.getAttribute("data-auth-tab"))));document.querySelectorAll("[data-open-auth]").forEach((button)=>button.addEventListener("click",()=>openAuth(button.getAttribute("data-open-auth")||"password")));$("open-auth").addEventListener("click",()=>openAuth("password"));$("console-login-action").addEventListener("click",()=>openAuth("password"));$("close-auth").addEventListener("click",closeAuth);authModal.addEventListener("click",(event)=>{if(event.target===authModal)closeAuth();});document.addEventListener("keydown",(event)=>{if(event.key==="Escape")closeAuth();});$("password-login-action").addEventListener("click",passwordLogin);$("register-action").addEventListener("click",register);$("code-login-action").addEventListener("click",codeLogin);$("send-code-action").addEventListener("click",()=>sendCode("register",$("register-phone").value.trim()));$("send-login-code-action").addEventListener("click",()=>sendCode("login",$("code-login-phone").value.trim()));$("reset-password-action").addEventListener("click",()=>sendCode("reset-password",$("reset-phone").value.trim()));$("submit-reset-password").addEventListener("click",resetPassword);$("console-logout-action").addEventListener("click",logout);$("console-logout-all-action").addEventListener("click",logoutAll);$("console-health-action").addEventListener("click",health);$("console-buy-action").addEventListener("click",()=>order(100,1,"console-buy"));$("console-burst-action").addEventListener("click",burst);$("console-toggle").addEventListener("click",()=>collapse(!state.consoleCollapsed));renderProducts();updateUI();collapse(state.consoleCollapsed);timerTick();setInterval(timerTick,1000);bootstrap();log("商城首页已就绪");
   </script>
 </body>
 </html>

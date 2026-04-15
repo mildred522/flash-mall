@@ -1,0 +1,62 @@
+syntax = "v1"
+
+type (
+	LoginReq {
+		UserId int64 `json:"user_id"`
+		Password string `json:"password"`
+		DeviceType string `json:"device_type,optional"`
+	}
+	LoginResp {
+		AccessToken string `json:"access_token"`
+		TokenType string `json:"token_type"`
+		ExpiresAt int64 `json:"expires_at"`
+	}
+	LoginCodeReq {
+		Phone string `json:"phone"`
+		Code string `json:"code"`
+		DeviceType string `json:"device_type,optional"`
+	}
+	RegisterReq {
+		Phone string `json:"phone"`
+		Password string `json:"password"`
+		Code string `json:"code"`
+		DisplayName string `json:"display_name,optional"`
+		DeviceType string `json:"device_type,optional"`
+	}
+	MeResp {
+		UserId int64 `json:"user_id"`
+		DisplayName string `json:"display_name"`
+	}
+)
+
+service auth-api {
+	@handler Login
+	post /api/auth/login (LoginReq) returns (LoginResp)
+
+	@handler LoginCode
+	post /api/auth/login/code (LoginCodeReq) returns (LoginResp)
+
+	@handler Register
+	post /api/auth/register (RegisterReq) returns (LoginResp)
+
+	@handler Refresh
+	post /api/auth/refresh
+
+	@handler Logout
+	post /api/auth/logout
+
+	@handler LogoutAll
+	post /api/auth/logout-all
+
+	@handler Me
+	get /api/auth/me returns (MeResp)
+
+	@handler SendCode
+	post /api/auth/code/send
+
+	@handler ForgotPassword
+	post /api/auth/password/forgot
+
+	@handler ResetPassword
+	post /api/auth/password/reset
+}

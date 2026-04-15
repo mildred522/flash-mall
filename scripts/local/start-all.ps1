@@ -227,6 +227,10 @@ if (-not $SkipSeedStock) {
 
 $procs = @()
 try {
+  $svc = Start-GoService -Name "auth-api" -Entry "./app/auth/api/auth.go" -Config "./app/auth/api/etc/auth-api.yaml"
+  $procs += $svc
+  Wait-TcpPort -Name "auth-api" -TargetHost "127.0.0.1" -Port 8890 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
+
   $svc = Start-GoService -Name "product-rpc" -Entry "./app/product/rpc/product.go" -Config "./app/product/rpc/etc/product.yaml"
   $procs += $svc
   Wait-TcpPort -Name "product-rpc" -TargetHost "127.0.0.1" -Port 8080 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
@@ -253,6 +257,7 @@ try {
 Write-Host ""
 Write-Host "========== Flash Mall Ready =========="
 Write-Host "UI:          http://127.0.0.1:8888/"
+Write-Host "Auth API:    http://127.0.0.1:8890/api/auth/login"
 Write-Host "Health API:  http://127.0.0.1:8888/api/system/health"
 Write-Host "Metrics:     http://127.0.0.1:9090/metrics"
 Write-Host "PProf:       http://127.0.0.1:6060/debug/pprof/"

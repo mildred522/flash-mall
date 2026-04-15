@@ -80,5 +80,5 @@ EventDedupTTLSeconds: 86400
 
 JwtAuthSecret: flashmall-order-api-jwt-secret
 JwtExpireSeconds: 7200
-AuthDemoPassword: flashmall123
+AuthServiceBaseURL: http://127.0.0.1:8890
 

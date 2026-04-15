@@ -4,6 +4,7 @@ import (
 	"flash-mall/app/order/api/internal/config"
 	"flash-mall/app/order/api/internal/idgen"
 	"flash-mall/app/order/api/internal/model"
+	"flash-mall/app/order/api/internal/sessionstate"
 	orderClient "flash-mall/app/order/rpc/orderclient"
 	productClient "flash-mall/app/product/rpc/productclient"
 
@@ -20,7 +21,8 @@ type ServiceContext struct {
 	ProductRpc productClient.Product
 	Redis      *redis.Redis
 	SqlConn    sqlx.SqlConn
-	OrderModel model.OrdersModel
+	OrderModel       model.OrdersModel
+	SessionValidator sessionstate.Validator
 	// CHG 2026-02-24: 变更=新增下单限流器; 之前=无显式限流; 原因=高峰期快速失败保护后端。
 	OrderLimiter *rate.Limiter
 	OrderIdGen   idgen.Generator
@@ -40,14 +42,21 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		}
 		limiter = rate.NewLimiter(rate.Limit(c.OrderRateLimitQps), burst)
 	}
+	rds := redis.MustNewRedis(c.RedisConf)
+	var validator sessionstate.Validator
+	validator = sessionstate.NewHTTPValidator(nil, c.AuthServiceBaseURL)
+	if c.JwtAuthSecret != "" {
+		validator = sessionstate.NewRedisValidator(rds, c.JwtAuthSecret)
+	}
 	return &ServiceContext{
 		Config:       c,
 		OrderRpc:     orderClient.NewOrder(zrpc.MustNewClient(c.OrderRpcConf)),
 		ProductRpc:   productClient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf)),
-		Redis:        redis.MustNewRedis(c.RedisConf),
+		Redis:        rds,
 		SqlConn:      sqlConn,
-		OrderModel:   model.NewOrdersModel(sqlConn, c.CacheConf),
-		OrderLimiter: limiter,
-		OrderIdGen:   orderIDGen,
+		OrderModel:       model.NewOrdersModel(sqlConn, c.CacheConf),
+		SessionValidator: validator,
+		OrderLimiter:     limiter,
+		OrderIdGen:       orderIDGen,
 	}
 }

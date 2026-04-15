@@ -43,7 +43,52 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			{
 				Method:  http.MethodPost,
 				Path:    "/api/auth/login",
-				Handler: LoginHandler(serverCtx),
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/login"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/login/code",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/login/code"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/register",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/register"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/refresh",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/refresh"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/logout",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/logout"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/logout-all",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/logout-all"),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/auth/me",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/me"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/code/send",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/code/send"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/password/forgot",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/password/forgot"),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/auth/password/reset",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/password/reset"),
 			},
 		},
 	)

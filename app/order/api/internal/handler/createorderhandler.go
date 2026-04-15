@@ -4,6 +4,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -16,6 +17,12 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type authIdentity struct {
+	UserID         int64
+	SessionID      string
+	SessionVersion int64
+}
+
 func CreateOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req types.CreateOrderReq
@@ -23,13 +30,19 @@ func CreateOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		userID, ok := parseUserIDClaim(r.Context().Value("user_id"))
-		if !ok {
-			httpx.ErrorCtx(r.Context(), w, status.Error(codes.Unauthenticated, "missing user_id in jwt"))
+		if svcCtx.SessionValidator != nil {
+			if err := svcCtx.SessionValidator.Validate(r.Context(), r.Header.Get("Authorization")); err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
+		}
+		identity, err := extractAuthIdentity(r.Context())
+		if err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 		// JWT claims are the source of truth for user identity.
-		req.UserId = userID
+		req.UserId = identity.UserID
 
 		l := logic.NewCreateOrderLogic(r.Context(), svcCtx)
 		resp, err := l.CreateOrder(&req)
@@ -39,6 +52,30 @@ func CreateOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.OkJsonCtx(r.Context(), w, resp)
 		}
 	}
+}
+
+func extractAuthIdentity(ctx context.Context) (*authIdentity, error) {
+	userID, ok := parseUserIDClaim(ctx.Value("user_id"))
+	if !ok {
+		userID, ok = parseUserIDClaim(ctx.Value("sub"))
+	}
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing user subject in jwt")
+	}
+
+	sessionID, _ := ctx.Value("sid").(string)
+	if sessionID == "" {
+		return nil, status.Error(codes.Unauthenticated, "missing session id in jwt")
+	}
+	sessionVersion, ok := parseUserIDClaim(ctx.Value("session_version"))
+	if !ok {
+		return nil, status.Error(codes.Unauthenticated, "missing session version in jwt")
+	}
+	return &authIdentity{
+		UserID:         userID,
+		SessionID:      sessionID,
+		SessionVersion: sessionVersion,
+	}, nil
 }
 
 func parseUserIDClaim(v any) (int64, bool) {

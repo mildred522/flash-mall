@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+// Rebuild this package when embedded storefront copy changes.
 //go:embed web/*.html
 var webUIFS embed.FS
 

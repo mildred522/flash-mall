@@ -1,15 +1,6 @@
 ﻿syntax = "v1"
 
 type (
-	LoginReq {
-		UserId int64 `json:"user_id"`
-		Password string `json:"password"`
-	}
-	LoginResp {
-		AccessToken string `json:"access_token"`
-		TokenType string `json:"token_type"`
-		ExpiresAt int64 `json:"expires_at"`
-	}
 	CreateOrderReq {
 		RequestId string `json:"request_id"` // 幂等请求id
 		UserId    int64 `json:"user_id"`
@@ -32,9 +23,6 @@ type (
 )
 
 service order-api {
-	@handler Login
-	post /api/auth/login (LoginReq) returns (LoginResp)
-
 	@handler CreateOrder
 	post /api/order/create (CreateOrderReq) returns (CreateOrderResp)
 

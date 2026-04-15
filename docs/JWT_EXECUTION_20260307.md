@@ -64,3 +64,16 @@ go test ./app/order/api/...
 ## 6. 简历可用一句话
 
 为订单服务引入 JWT 认证链路（登录签发 + 路由验签 + user_id claim 注入），将下单身份从前端传参升级为服务端可信声明，并通过测试验证鉴权改造无回归。
+
+## 7. 2026-04-13 增量
+
+认证链路已从 demo `user_id` 语义继续演进到业务会话语义：
+
+- `auth-service` 签发的 access token 同时携带 `sub` 与 `sid`
+- `order-api` 下单链路要求 JWT 中存在有效 `sid`
+- `order-api` 在本地验签后，会结合 Redis 中的会话快照与用户会话版本做本地强校验
+- `order-api` 旧的 demo 登录实现已从运行时路径退场，浏览器登录统一走 `/api/auth/* -> auth-service`
+- `logout-all` 之后，旧 access token 即使还没过期，也会因为 `sid` 失效而被拦截
+- 登录策略已支持“同端互斥、跨端共存”
+
+这一步把“JWT 只是签名通过就放行”的模型，升级成“JWT 验签 + 会话状态校验”的业务模型，更适合在面试中讲清楚 refresh token、强制下线、同端互斥等后续能力如何继续演进。
