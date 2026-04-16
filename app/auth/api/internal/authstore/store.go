@@ -2,12 +2,15 @@ package authstore
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,34 +19,39 @@ import (
 )
 
 var (
-	ErrUserExists          = errors.New("user already exists")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrInvalidCredentials  = errors.New("invalid credentials")
-	ErrInvalidCode         = errors.New("invalid verification code")
-	ErrRefreshTokenInvalid = errors.New("refresh token invalid")
+	ErrUserExists           = errors.New("user already exists")
+	ErrUserNotFound         = errors.New("user not found")
+	ErrInvalidCredentials   = errors.New("invalid credentials")
+	ErrInvalidCode          = errors.New("invalid verification code")
+	ErrRefreshTokenInvalid  = errors.New("refresh token invalid")
+	ErrRefreshTokenReplayed = errors.New("refresh token replayed")
 )
 
 type User struct {
-	ID           int64
-	Phone        string
-	DisplayName  string
-	PasswordHash string
+	ID             int64
+	Phone          string
+	DisplayName    string
+	PasswordHash   string
 	SessionVersion int64
 }
 
 type verifyCode struct {
 	Code      string
 	ExpiresAt time.Time
+	Attempts  int64
 }
 
 type Session struct {
-	ID               string
-	UserID           int64
-	DeviceType       string
-	SessionVersion   int64
-	RefreshTokenHash string
-	ExpiresAt        time.Time
-	Revoked          bool
+	ID                       string
+	UserID                   int64
+	DeviceType               string
+	SessionVersion           int64
+	RefreshTokenHash         string
+	PreviousRefreshTokenHash string
+	RefreshFamilySecret      string
+	RefreshGeneration        int64
+	ExpiresAt                time.Time
+	Revoked                  bool
 }
 
 type Store struct {
@@ -86,10 +94,10 @@ func (s *Store) seedDemoUser(password string) error {
 		return err
 	}
 	user := &User{
-		ID:           1001,
-		Phone:        "13800000001",
-		DisplayName:  "Flash Mall 用户 1001",
-		PasswordHash: string(hash),
+		ID:             1001,
+		Phone:          "13800000001",
+		DisplayName:    "Flash Mall 用户 1001",
+		PasswordHash:   string(hash),
 		SessionVersion: 1,
 	}
 	s.usersByID[user.ID] = user
@@ -113,18 +121,37 @@ func (s *Store) IssueCode(phone, scene string, ttlSeconds int64) (string, time.T
 	s.codes[codeKey(phone, scene)] = verifyCode{
 		Code:      code,
 		ExpiresAt: expiresAt,
+		Attempts:  0,
 	}
 	return code, expiresAt, nil
 }
 
-func (s *Store) ConsumeCode(phone, scene, code string) error {
+func (s *Store) ConsumeCode(phone, scene, code string, maxAttempts int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	entry, ok := s.codes[codeKey(phone, scene)]
-	if !ok || time.Now().After(entry.ExpiresAt) || entry.Code != code {
+	key := codeKey(phone, scene)
+	entry, ok := s.codes[key]
+	if !ok || time.Now().After(entry.ExpiresAt) {
+		delete(s.codes, key)
 		return ErrInvalidCode
 	}
+	if entry.Code != code {
+		entry.Attempts++
+		if maxAttempts > 0 && entry.Attempts >= maxAttempts {
+			delete(s.codes, key)
+		} else {
+			s.codes[key] = entry
+		}
+		return ErrInvalidCode
+	}
+	delete(s.codes, key)
+	return nil
+}
+
+func (s *Store) ResetCode(phone, scene string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.codes, codeKey(phone, scene))
 	return nil
 }
@@ -149,10 +176,10 @@ func (s *Store) CreateUser(phone, displayName, password string) (*User, error) {
 	}
 
 	user := &User{
-		ID:           s.nextUserID,
-		Phone:        phone,
-		DisplayName:  displayName,
-		PasswordHash: string(hash),
+		ID:             s.nextUserID,
+		Phone:          phone,
+		DisplayName:    displayName,
+		PasswordHash:   string(hash),
 		SessionVersion: 1,
 	}
 	s.nextUserID++
@@ -221,14 +248,15 @@ func (s *Store) CreateSessionForDevice(userID int64, deviceType string, ttlSecon
 	if deviceType == "" {
 		deviceType = "web"
 	}
-	refreshToken, err := randomToken()
-	if err != nil {
-		return "", "", err
-	}
 	sessionID, err := randomToken()
 	if err != nil {
 		return "", "", err
 	}
+	refreshFamilySecret, err := randomSecret()
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken := buildRefreshToken(sessionID, 1, refreshFamilySecret)
 	refreshHash := hashToken(refreshToken)
 	expiresAt := time.Now().Add(time.Duration(ttlSeconds) * time.Second)
 
@@ -243,12 +271,14 @@ func (s *Store) CreateSessionForDevice(userID int64, deviceType string, ttlSecon
 	s.revokeUserDeviceSessionsLocked(userID, deviceType)
 
 	session := &Session{
-		ID:               sessionID,
-		UserID:           userID,
-		DeviceType:       deviceType,
-		SessionVersion:   user.SessionVersion,
-		RefreshTokenHash: refreshHash,
-		ExpiresAt:        expiresAt,
+		ID:                  sessionID,
+		UserID:              userID,
+		DeviceType:          deviceType,
+		SessionVersion:      user.SessionVersion,
+		RefreshTokenHash:    refreshHash,
+		RefreshFamilySecret: refreshFamilySecret,
+		RefreshGeneration:   1,
+		ExpiresAt:           expiresAt,
 	}
 	s.sessions[sessionID] = session
 	s.refreshIndex[refreshHash] = sessionID
@@ -265,27 +295,35 @@ func (s *Store) RefreshSession(refreshToken string, ttlSeconds int64) (*Session,
 		ttlSeconds = 7 * 24 * 60 * 60
 	}
 
-	refreshHash := hashToken(refreshToken)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sessionID, ok := s.refreshIndex[refreshHash]
+	sessionID, tokenGeneration, signature, ok := parseRefreshToken(refreshToken)
 	if !ok {
 		return nil, "", ErrRefreshTokenInvalid
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	session := s.sessions[sessionID]
 	if session == nil || session.Revoked || time.Now().After(session.ExpiresAt) {
-		delete(s.refreshIndex, refreshHash)
+		return nil, "", ErrRefreshTokenInvalid
+	}
+	if !verifyRefreshTokenSignature(sessionID, tokenGeneration, signature, session.RefreshFamilySecret) {
+		return nil, "", ErrRefreshTokenInvalid
+	}
+	if tokenGeneration < session.RefreshGeneration {
+		s.revokeSessionLocked(sessionID)
+		return nil, "", ErrRefreshTokenReplayed
+	}
+	if tokenGeneration > session.RefreshGeneration {
 		return nil, "", ErrRefreshTokenInvalid
 	}
 
-	newRefreshToken, err := randomToken()
-	if err != nil {
-		return nil, "", err
-	}
+	newGeneration := session.RefreshGeneration + 1
+	newRefreshToken := buildRefreshToken(sessionID, newGeneration, session.RefreshFamilySecret)
 	newRefreshHash := hashToken(newRefreshToken)
-	delete(s.refreshIndex, refreshHash)
+	delete(s.refreshIndex, session.RefreshTokenHash)
+	session.PreviousRefreshTokenHash = session.RefreshTokenHash
 	session.RefreshTokenHash = newRefreshHash
+	session.RefreshGeneration = newGeneration
 	session.ExpiresAt = time.Now().Add(time.Duration(ttlSeconds) * time.Second)
 	s.refreshIndex[newRefreshHash] = sessionID
 	s.syncSessionStateLocked(session)
@@ -293,25 +331,28 @@ func (s *Store) RefreshSession(refreshToken string, ttlSeconds int64) (*Session,
 }
 
 func (s *Store) Logout(refreshToken string) error {
-	refreshHash := hashToken(refreshToken)
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	sessionID, ok := s.refreshIndex[refreshHash]
+	sessionID, tokenGeneration, signature, ok := parseRefreshToken(refreshToken)
 	if !ok {
 		return ErrRefreshTokenInvalid
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	session := s.sessions[sessionID]
-	if session == nil {
-		delete(s.refreshIndex, refreshHash)
+	if session == nil || session.Revoked || time.Now().After(session.ExpiresAt) {
 		return ErrRefreshTokenInvalid
 	}
-	session.Revoked = true
-	delete(s.refreshIndex, refreshHash)
-	if ids := s.userSessionIDs[session.UserID]; ids != nil {
-		delete(ids, sessionID)
+	if !verifyRefreshTokenSignature(sessionID, tokenGeneration, signature, session.RefreshFamilySecret) {
+		return ErrRefreshTokenInvalid
 	}
-	s.deleteSessionStateLocked(session.ID)
+	if tokenGeneration < session.RefreshGeneration {
+		s.revokeSessionLocked(sessionID)
+		return ErrRefreshTokenReplayed
+	}
+	if tokenGeneration > session.RefreshGeneration {
+		return ErrRefreshTokenInvalid
+	}
+	s.revokeSessionLocked(sessionID)
 	return nil
 }
 
@@ -361,12 +402,7 @@ func (s *Store) bumpUserSessionVersionLocked(userID int64) {
 func (s *Store) revokeUserSessionsLocked(userID int64) {
 	ids := s.userSessionIDs[userID]
 	for sessionID := range ids {
-		session := s.sessions[sessionID]
-		if session != nil {
-			session.Revoked = true
-			delete(s.refreshIndex, session.RefreshTokenHash)
-			s.deleteSessionStateLocked(session.ID)
-		}
+		s.revokeSessionLocked(sessionID)
 		delete(ids, sessionID)
 	}
 }
@@ -382,11 +418,31 @@ func (s *Store) revokeUserDeviceSessionsLocked(userID int64, deviceType string) 
 		if session.DeviceType != deviceType {
 			continue
 		}
-		session.Revoked = true
-		delete(s.refreshIndex, session.RefreshTokenHash)
-		s.deleteSessionStateLocked(session.ID)
+		s.revokeSessionLocked(sessionID)
 		delete(ids, sessionID)
 	}
+}
+
+func (s *Store) deleteRefreshIndexLocked(session *Session) {
+	if session == nil {
+		return
+	}
+	if session.RefreshTokenHash != "" {
+		delete(s.refreshIndex, session.RefreshTokenHash)
+	}
+}
+
+func (s *Store) revokeSessionLocked(sessionID string) {
+	session := s.sessions[sessionID]
+	if session == nil {
+		return
+	}
+	session.Revoked = true
+	s.deleteRefreshIndexLocked(session)
+	if ids := s.userSessionIDs[session.UserID]; ids != nil {
+		delete(ids, sessionID)
+	}
+	s.deleteSessionStateLocked(sessionID)
 }
 
 func (s *Store) syncSessionStateLocked(session *Session) {
@@ -446,4 +502,61 @@ func cloneSession(session *Session) *Session {
 	}
 	copy := *session
 	return &copy
+}
+
+func buildRefreshToken(sessionID string, generation int64, familySecret string) string {
+	return fmt.Sprintf("%s.%d.%s", sessionID, generation, signRefreshToken(sessionID, generation, familySecret))
+}
+
+func parseRefreshToken(token string) (string, int64, string, bool) {
+	sessionID, generationPart, signature, ok := splitRefreshToken(token)
+	if !ok {
+		return "", 0, "", false
+	}
+	generation, err := parseGeneration(generationPart)
+	if err != nil || generation <= 0 {
+		return "", 0, "", false
+	}
+	return sessionID, generation, signature, true
+}
+
+func splitRefreshToken(token string) (string, string, string, bool) {
+	sessionID, rest, ok := strings.Cut(token, ".")
+	if !ok || sessionID == "" || rest == "" {
+		return "", "", "", false
+	}
+	generation, signature, ok := strings.Cut(rest, ".")
+	if !ok || generation == "" || signature == "" {
+		return "", "", "", false
+	}
+	return sessionID, generation, signature, true
+}
+
+func parseGeneration(value string) (int64, error) {
+	generation, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return generation, nil
+}
+
+func signRefreshToken(sessionID string, generation int64, familySecret string) string {
+	mac := hmac.New(sha256.New, []byte(familySecret))
+	_, _ = mac.Write([]byte(sessionID))
+	_, _ = mac.Write([]byte(":"))
+	_, _ = mac.Write([]byte(strconv.FormatInt(generation, 10)))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func verifyRefreshTokenSignature(sessionID string, generation int64, signature, familySecret string) bool {
+	expected := signRefreshToken(sessionID, generation, familySecret)
+	return hmac.Equal([]byte(signature), []byte(expected))
+}
+
+func randomSecret() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(buf), nil
 }

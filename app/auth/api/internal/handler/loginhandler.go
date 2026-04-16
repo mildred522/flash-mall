@@ -16,6 +16,8 @@ func LoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		req.ClientIP = clientIP(r)
+		req.UserAgent = r.UserAgent()
 
 		l := auth.NewLoginPasswordLogic(r.Context(), svcCtx)
 		resp, err := l.Login(&req)

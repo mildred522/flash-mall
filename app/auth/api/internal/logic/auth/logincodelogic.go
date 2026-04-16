@@ -29,7 +29,7 @@ func (l *LoginCodeLogic) Login(req *types.LoginCodeReq) (*types.LoginResp, error
 	if req.Phone == "" || req.Code == "" {
 		return nil, status.Error(codes.InvalidArgument, "phone and code are required")
 	}
-	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "login", req.Code); err != nil {
+	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "login", req.Code, l.svcCtx.Config.VerificationCodeMaxAttempts); err != nil {
 		if err == authstore.ErrInvalidCode {
 			return nil, status.Error(codes.InvalidArgument, "invalid verification code")
 		}

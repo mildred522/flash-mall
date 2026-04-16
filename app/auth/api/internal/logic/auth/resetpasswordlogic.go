@@ -29,7 +29,7 @@ func (l *ResetPasswordLogic) Reset(req *types.ResetPasswordReq) error {
 	if req.Phone == "" || req.Code == "" || req.NewPassword == "" {
 		return status.Error(codes.InvalidArgument, "phone, code and new_password are required")
 	}
-	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "reset-password", req.Code); err != nil {
+	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "reset-password", req.Code, l.svcCtx.Config.VerificationCodeMaxAttempts); err != nil {
 		if err == authstore.ErrInvalidCode {
 			return status.Error(codes.InvalidArgument, "invalid verification code")
 		}
@@ -40,6 +40,9 @@ func (l *ResetPasswordLogic) Reset(req *types.ResetPasswordReq) error {
 			return status.Error(codes.NotFound, "user not found")
 		}
 		return status.Error(codes.Internal, "update password failed")
+	}
+	if err := l.svcCtx.Store.ResetCode(req.Phone, "reset-password"); err != nil {
+		return status.Error(codes.Internal, "reset verification code failed")
 	}
 	return nil
 }

@@ -160,6 +160,9 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   device_type varchar(32) NOT NULL DEFAULT 'web' COMMENT '设备类型',
   session_version int NOT NULL DEFAULT 1 COMMENT '会话版本号',
   refresh_token_hash char(64) NOT NULL COMMENT 'refresh token hash',
+  previous_refresh_token_hash char(64) NOT NULL DEFAULT '' COMMENT 'previous refresh token hash',
+  refresh_family_secret char(64) NOT NULL DEFAULT '' COMMENT 'refresh family secret',
+  refresh_generation bigint NOT NULL DEFAULT 1 COMMENT 'refresh generation',
   status tinyint NOT NULL DEFAULT 1 COMMENT '状态 1-活跃 2-失效 3-登出',
   expires_at timestamp NULL DEFAULT NULL COMMENT 'refresh 过期时间',
   last_seen_at timestamp NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最近活跃时间',
@@ -169,7 +172,9 @@ CREATE TABLE IF NOT EXISTS user_sessions (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_refresh_token_hash (refresh_token_hash),
   KEY ix_user_id_status (user_id, status),
-  KEY ix_user_id_device_type (user_id, device_type)
+  KEY ix_user_id_device_type (user_id, device_type),
+  KEY ix_previous_refresh_token_hash (previous_refresh_token_hash),
+  KEY ix_refresh_generation (refresh_generation)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS verification_codes (
@@ -178,6 +183,7 @@ CREATE TABLE IF NOT EXISTS verification_codes (
   scene varchar(32) NOT NULL COMMENT '场景',
   code_hash char(64) NOT NULL COMMENT '验证码哈希',
   status tinyint NOT NULL DEFAULT 1 COMMENT '状态 1-待使用 2-已使用 3-已过期',
+  attempt_count int NOT NULL DEFAULT 0 COMMENT '验证码失败尝试次数',
   expires_at timestamp NULL DEFAULT NULL COMMENT '过期时间',
   consumed_at timestamp NULL DEFAULT NULL COMMENT '消费时间',
   send_count int NOT NULL DEFAULT 1 COMMENT '发送次数',

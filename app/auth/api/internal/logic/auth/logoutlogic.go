@@ -32,6 +32,9 @@ func (l *LogoutLogic) Logout(refreshToken string) error {
 		if err == authstore.ErrRefreshTokenInvalid {
 			return status.Error(codes.Unauthenticated, "invalid refresh token")
 		}
+		if err == authstore.ErrRefreshTokenReplayed {
+			return status.Error(codes.Unauthenticated, "refresh token replayed")
+		}
 		return status.Error(codes.Internal, "logout failed")
 	}
 	return nil

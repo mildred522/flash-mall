@@ -76,6 +76,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Handler: AuthProxyHandler(serverCtx, "/api/auth/me"),
 			},
 			{
+				Method:  http.MethodGet,
+				Path:    "/api/auth/security/events/recent",
+				Handler: AuthProxyHandler(serverCtx, "/api/auth/security/events/recent"),
+			},
+			{
 				Method:  http.MethodPost,
 				Path:    "/api/auth/code/send",
 				Handler: AuthProxyHandler(serverCtx, "/api/auth/code/send"),

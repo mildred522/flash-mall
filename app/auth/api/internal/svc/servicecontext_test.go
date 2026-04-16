@@ -4,8 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/config"
+	"flash-mall/app/auth/api/internal/risk"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/zeromicro/go-zero/core/stores/redis"
 )
 
 type stubAuthStore struct{}
@@ -14,7 +19,11 @@ func (s *stubAuthStore) IssueCode(string, string, int64) (string, time.Time, err
 	return "", time.Time{}, nil
 }
 
-func (s *stubAuthStore) ConsumeCode(string, string, string) error {
+func (s *stubAuthStore) ConsumeCode(string, string, string, int64) error {
+	return nil
+}
+
+func (s *stubAuthStore) ResetCode(string, string) error {
 	return nil
 }
 
@@ -86,5 +95,28 @@ func TestNewServiceContext_UsesSQLStoreWhenDataSourceConfigured(t *testing.T) {
 
 	if _, ok := svcCtx.Store.(*authstore.SQLStore); !ok {
 		t.Fatalf("expected SQLStore when datasource is configured, got %T", svcCtx.Store)
+	}
+}
+
+func TestNewServiceContext_UsesRedisBackedFoundationWhenRedisConfigured(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("failed to start miniredis: %v", err)
+	}
+	defer mr.Close()
+
+	svcCtx := NewServiceContext(config.Config{
+		DemoPassword: "pwd",
+		RedisConf: redis.RedisConf{
+			Host: mr.Addr(),
+			Type: redis.NodeType,
+		},
+	})
+
+	if _, ok := svcCtx.RiskLimiter.(*risk.RedisLimiter); !ok {
+		t.Fatalf("expected RedisLimiter when redis is configured, got %T", svcCtx.RiskLimiter)
+	}
+	if _, ok := svcCtx.AuditRecorder.(*audit.RedisRecorder); !ok {
+		t.Fatalf("expected RedisRecorder when redis is configured, got %T", svcCtx.AuditRecorder)
 	}
 }

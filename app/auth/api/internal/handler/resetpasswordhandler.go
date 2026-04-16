@@ -16,6 +16,8 @@ func ResetPasswordHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		req.ClientIP = clientIP(r)
+		req.UserAgent = r.UserAgent()
 		l := auth.NewResetPasswordLogic(r.Context(), svcCtx)
 		if err := l.Reset(&req); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)

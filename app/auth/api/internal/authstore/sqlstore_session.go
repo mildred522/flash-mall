@@ -22,7 +22,7 @@ func (s *SQLStore) GetActiveSession(sessionID string) (*Session, bool) {
 	session, err := querySession(
 		db.QueryRowContext(
 			context.Background(),
-			`SELECT id, user_id, device_type, session_version, refresh_token_hash, expires_at, status
+			`SELECT id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, expires_at, status
 			 FROM user_sessions
 			 WHERE id = ?
 			 LIMIT 1`,
@@ -61,14 +61,15 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 		return "", "", err
 	}
 
-	refreshToken, err := randomToken()
-	if err != nil {
-		return "", "", err
-	}
 	sessionID, err := randomToken()
 	if err != nil {
 		return "", "", err
 	}
+	refreshFamilySecret, err := randomSecret()
+	if err != nil {
+		return "", "", err
+	}
+	refreshToken := buildRefreshToken(sessionID, 1, refreshFamilySecret)
 
 	ctx := context.Background()
 	tx, err := db.BeginTx(ctx, nil)
@@ -113,13 +114,16 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 	expiresAt := time.Now().Add(time.Duration(ttlSeconds) * time.Second)
 	if _, err = tx.ExecContext(
 		ctx,
-		`INSERT INTO user_sessions (id, user_id, device_type, session_version, refresh_token_hash, status, expires_at, last_seen_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+		`INSERT INTO user_sessions (id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, status, expires_at, last_seen_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
 		sessionID,
 		userID,
 		deviceType,
 		user.SessionVersion,
 		hashToken(refreshToken),
+		"",
+		refreshFamilySecret,
+		int64(1),
 		statusActive,
 		expiresAt,
 	); err != nil {
@@ -133,11 +137,13 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 		s.deleteSessionState(oldSessionID)
 	}
 	s.syncSessionState(&Session{
-		ID:             sessionID,
-		UserID:         userID,
-		DeviceType:     deviceType,
-		SessionVersion: user.SessionVersion,
-		ExpiresAt:      expiresAt,
+		ID:                  sessionID,
+		UserID:              userID,
+		DeviceType:          deviceType,
+		SessionVersion:      user.SessionVersion,
+		RefreshFamilySecret: refreshFamilySecret,
+		RefreshGeneration:   1,
+		ExpiresAt:           expiresAt,
 	})
 	return sessionID, refreshToken, nil
 }
@@ -152,6 +158,10 @@ func (s *SQLStore) RefreshSession(refreshToken string, ttlSeconds int64) (*Sessi
 	if ttlSeconds <= 0 {
 		ttlSeconds = 7 * 24 * 60 * 60
 	}
+	sessionID, tokenGeneration, signature, ok := parseRefreshToken(refreshToken)
+	if !ok {
+		return nil, "", ErrRefreshTokenInvalid
+	}
 
 	db, err := s.rawDB()
 	if err != nil {
@@ -165,14 +175,15 @@ func (s *SQLStore) RefreshSession(refreshToken string, ttlSeconds int64) (*Sessi
 	}
 	defer tx.Rollback()
 
+	refreshHash := hashToken(refreshToken)
 	session, err := querySession(
 		tx.QueryRowContext(
 			ctx,
-			`SELECT id, user_id, device_type, session_version, refresh_token_hash, expires_at, status
+			`SELECT id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, expires_at, status
 			 FROM user_sessions
-			 WHERE refresh_token_hash = ?
-			 LIMIT 1`,
-			hashToken(refreshToken),
+			 WHERE id = ?
+			 LIMIT 1 FOR UPDATE`,
+			sessionID,
 		),
 	)
 	if err != nil {
@@ -184,22 +195,49 @@ func (s *SQLStore) RefreshSession(refreshToken string, ttlSeconds int64) (*Sessi
 	if session.Revoked || time.Now().After(session.ExpiresAt) {
 		return nil, "", ErrRefreshTokenInvalid
 	}
+	if !verifyRefreshTokenSignature(sessionID, tokenGeneration, signature, session.RefreshFamilySecret) {
+		return nil, "", ErrRefreshTokenInvalid
+	}
+	if tokenGeneration < session.RefreshGeneration {
+		if _, err = tx.ExecContext(
+			ctx,
+			"UPDATE user_sessions SET status = ?, revoked_at = NOW(), last_seen_at = NOW() WHERE id = ? AND status = ?",
+			statusRevoked, session.ID, statusActive,
+		); err != nil {
+			return nil, "", err
+		}
+		if err = tx.Commit(); err != nil {
+			return nil, "", err
+		}
+		s.deleteSessionState(session.ID)
+		return nil, "", ErrRefreshTokenReplayed
+	}
+	if tokenGeneration > session.RefreshGeneration {
+		return nil, "", ErrRefreshTokenInvalid
+	}
 
-	newRefreshToken, err := randomToken()
+	newGeneration := session.RefreshGeneration + 1
+	newRefreshToken := buildRefreshToken(session.ID, newGeneration, session.RefreshFamilySecret)
+	newRefreshHash := hashToken(newRefreshToken)
+	session.PreviousRefreshTokenHash = session.RefreshTokenHash
+	session.RefreshTokenHash = newRefreshHash
+	session.RefreshGeneration = newGeneration
+	session.ExpiresAt = time.Now().Add(time.Duration(ttlSeconds) * time.Second)
+
+	result, err := tx.ExecContext(
+		ctx,
+		`UPDATE user_sessions
+		 SET refresh_generation = ?, refresh_token_hash = ?, previous_refresh_token_hash = ?, expires_at = ?, last_seen_at = NOW()
+		 WHERE id = ? AND refresh_generation = ? AND refresh_token_hash = ? AND status = ?`,
+		session.RefreshGeneration, session.RefreshTokenHash, session.PreviousRefreshTokenHash, session.ExpiresAt, session.ID, tokenGeneration, refreshHash, statusActive,
+	)
 	if err != nil {
 		return nil, "", err
 	}
-	session.ExpiresAt = time.Now().Add(time.Duration(ttlSeconds) * time.Second)
-	session.RefreshTokenHash = hashToken(newRefreshToken)
-
-	if _, err = tx.ExecContext(
-		ctx,
-		`UPDATE user_sessions
-		 SET refresh_token_hash = ?, expires_at = ?, last_seen_at = NOW()
-		 WHERE id = ? AND status = ?`,
-		session.RefreshTokenHash, session.ExpiresAt, session.ID, statusActive,
-	); err != nil {
+	if rows, err := result.RowsAffected(); err != nil {
 		return nil, "", err
+	} else if rows == 0 {
+		return nil, "", ErrRefreshTokenInvalid
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, "", err
@@ -216,6 +254,10 @@ func (s *SQLStore) Logout(refreshToken string) error {
 	if err := s.ensureDemoUser(); err != nil {
 		return err
 	}
+	sessionID, tokenGeneration, signature, ok := parseRefreshToken(refreshToken)
+	if !ok {
+		return ErrRefreshTokenInvalid
+	}
 
 	db, err := s.rawDB()
 	if err != nil {
@@ -229,30 +271,56 @@ func (s *SQLStore) Logout(refreshToken string) error {
 	}
 	defer tx.Rollback()
 
-	var sessionID string
-	err = tx.QueryRowContext(
-		ctx,
-		"SELECT id FROM user_sessions WHERE refresh_token_hash = ? AND status = ? LIMIT 1",
-		hashToken(refreshToken), statusActive,
-	).Scan(&sessionID)
+	session, err := querySession(
+		tx.QueryRowContext(
+			ctx,
+			`SELECT id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, expires_at, status
+			 FROM user_sessions
+			 WHERE id = ?
+			 LIMIT 1 FOR UPDATE`,
+			sessionID,
+		),
+	)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return ErrRefreshTokenInvalid
 		}
 		return err
 	}
-
+	if session.Revoked || time.Now().After(session.ExpiresAt) {
+		return ErrRefreshTokenInvalid
+	}
+	if !verifyRefreshTokenSignature(sessionID, tokenGeneration, signature, session.RefreshFamilySecret) {
+		return ErrRefreshTokenInvalid
+	}
+	if tokenGeneration < session.RefreshGeneration {
+		if _, err = tx.ExecContext(
+			ctx,
+			"UPDATE user_sessions SET status = ?, revoked_at = NOW() WHERE id = ? AND status = ?",
+			statusRevoked, session.ID, statusActive,
+		); err != nil {
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+		s.deleteSessionState(session.ID)
+		return ErrRefreshTokenReplayed
+	}
+	if tokenGeneration > session.RefreshGeneration {
+		return ErrRefreshTokenInvalid
+	}
 	if _, err = tx.ExecContext(
 		ctx,
-		"UPDATE user_sessions SET status = ?, revoked_at = NOW() WHERE id = ?",
-		statusRevoked, sessionID,
+		"UPDATE user_sessions SET status = ?, revoked_at = NOW() WHERE id = ? AND status = ?",
+		statusRevoked, session.ID, statusActive,
 	); err != nil {
 		return err
 	}
 	if err = tx.Commit(); err != nil {
 		return err
 	}
-	s.deleteSessionState(sessionID)
+	s.deleteSessionState(session.ID)
 	return nil
 }
 
@@ -334,6 +402,9 @@ func querySession(row sessionScanner) (*Session, error) {
 		&session.DeviceType,
 		&session.SessionVersion,
 		&session.RefreshTokenHash,
+		&session.PreviousRefreshTokenHash,
+		&session.RefreshFamilySecret,
+		&session.RefreshGeneration,
 		&session.ExpiresAt,
 		&status,
 	); err != nil {

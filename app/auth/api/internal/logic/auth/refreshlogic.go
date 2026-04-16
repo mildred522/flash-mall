@@ -35,6 +35,9 @@ func (l *RefreshLogic) Refresh(refreshToken string) (*types.LoginResp, error) {
 		if err == authstore.ErrRefreshTokenInvalid {
 			return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
 		}
+		if err == authstore.ErrRefreshTokenReplayed {
+			return nil, status.Error(codes.Unauthenticated, "refresh token replayed")
+		}
 		return nil, status.Error(codes.Internal, "refresh session failed")
 	}
 

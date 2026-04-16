@@ -130,3 +130,41 @@ func TestAuthProxyHandler_ForwardsStreamingRequestBody(t *testing.T) {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
 }
+
+func TestAuthProxyHandler_ForwardsSecurityEventsRoute(t *testing.T) {
+	var gotPath string
+	var gotAuth string
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer upstream.Close()
+
+	svcCtx := &svc.ServiceContext{
+		Config: config.Config{
+			AuthServiceBaseURL: upstream.URL,
+		},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/security/events/recent", nil)
+	req.Header.Set("Authorization", "Bearer test-access-token")
+	rec := httptest.NewRecorder()
+
+	AuthProxyHandler(svcCtx, "/api/auth/security/events/recent").ServeHTTP(rec, req)
+
+	if gotPath != "/api/auth/security/events/recent" {
+		t.Fatalf("unexpected path: %s", gotPath)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if gotAuth != "Bearer test-access-token" {
+		t.Fatalf("unexpected authorization header: %s", gotAuth)
+	}
+	if body := rec.Body.String(); body != `{"items":[]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}

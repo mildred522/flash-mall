@@ -38,6 +38,39 @@ func TestLogoutLogic_Logout_InvalidatesRefreshToken(t *testing.T) {
 	}
 }
 
+func TestLogoutLogic_Logout_InvalidatesRotatedSession(t *testing.T) {
+	svcCtx := svc.NewServiceContext(config.Config{
+		JwtAuthSecret:          "test-auth-jwt-secret",
+		JwtExpireSeconds:       600,
+		DemoPassword:           "pwd",
+		RefreshTokenTTLSeconds: 3600,
+	})
+
+	login := NewLoginPasswordLogic(context.Background(), svcCtx)
+	loginResp, err := login.Login(&types.LoginReq{
+		UserId:   1001,
+		Password: "pwd",
+	})
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	refresh := NewRefreshLogic(context.Background(), svcCtx)
+	refreshedResp, err := refresh.Refresh(loginResp.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh failed: %v", err)
+	}
+
+	logout := NewLogoutLogic(context.Background(), svcCtx)
+	if err := logout.Logout(refreshedResp.RefreshToken); err != nil {
+		t.Fatalf("logout failed: %v", err)
+	}
+
+	if _, err := refresh.Refresh(refreshedResp.RefreshToken); err == nil {
+		t.Fatalf("expected rotated refresh token to be invalid after logout")
+	}
+}
+
 func TestLogoutLogic_LogoutAll_InvalidatesAllUserSessions(t *testing.T) {
 	svcCtx := svc.NewServiceContext(config.Config{
 		JwtAuthSecret:          "test-auth-jwt-secret",
@@ -74,6 +107,42 @@ func TestLogoutLogic_LogoutAll_InvalidatesAllUserSessions(t *testing.T) {
 	}
 	if _, err := refresh.Refresh(secondResp.RefreshToken); err == nil {
 		t.Fatalf("expected second refresh token to be invalid after logout-all")
+	}
+}
+
+func TestLogoutLogic_LogoutAll_InvalidatesRotatedSession(t *testing.T) {
+	svcCtx := svc.NewServiceContext(config.Config{
+		JwtAuthSecret:          "test-auth-jwt-secret",
+		JwtExpireSeconds:       600,
+		DemoPassword:           "pwd",
+		RefreshTokenTTLSeconds: 3600,
+	})
+
+	login := NewLoginPasswordLogic(context.Background(), svcCtx)
+	loginResp, err := login.Login(&types.LoginReq{
+		UserId:   1001,
+		Password: "pwd",
+	})
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+
+	refresh := NewRefreshLogic(context.Background(), svcCtx)
+	refreshedResp, err := refresh.Refresh(loginResp.RefreshToken)
+	if err != nil {
+		t.Fatalf("refresh failed: %v", err)
+	}
+
+	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx)
+	if err := logoutAll.LogoutAll(); err != nil {
+		t.Fatalf("logout-all failed: %v", err)
+	}
+
+	if _, err := refresh.Refresh(loginResp.RefreshToken); err == nil {
+		t.Fatalf("expected old refresh token to be invalid after logout-all")
+	}
+	if _, err := refresh.Refresh(refreshedResp.RefreshToken); err == nil {
+		t.Fatalf("expected rotated refresh token to be invalid after logout-all")
 	}
 }
 

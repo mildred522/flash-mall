@@ -13,3 +13,13 @@ RedisConf:
 RefreshTokenTTLSeconds: 604800
 CodeTTLSeconds: 300
 RefreshCookieName: fm_refresh_token
+LoginFailWindowSeconds: 900
+LoginFailPhoneMaxAttempts: 5
+LoginFailIPMaxAttempts: 20
+CodeSendCooldownSeconds: 60
+CodeSendPhoneWindowSeconds: 600
+CodeSendPhoneMaxAttempts: 3
+CodeSendIPWindowSeconds: 600
+CodeSendIPMaxAttempts: 10
+VerificationCodeMaxAttempts: 5
+SecurityAuditRecentLimit: 10

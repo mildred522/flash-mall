@@ -29,7 +29,7 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 	if req.Phone == "" || req.Password == "" || req.Code == "" {
 		return nil, status.Error(codes.InvalidArgument, "phone, password and code are required")
 	}
-	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "register", req.Code); err != nil {
+	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "register", req.Code, l.svcCtx.Config.VerificationCodeMaxAttempts); err != nil {
 		if err == authstore.ErrInvalidCode {
 			return nil, status.Error(codes.InvalidArgument, "invalid verification code")
 		}

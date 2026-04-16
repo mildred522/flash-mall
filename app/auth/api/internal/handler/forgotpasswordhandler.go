@@ -18,8 +18,10 @@ func ForgotPasswordHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 		l := auth.NewSendCodeLogic(r.Context(), svcCtx)
 		resp, err := l.Send(&types.SendCodeReq{
-			Phone: req.Phone,
-			Scene: "reset-password",
+			Phone:     req.Phone,
+			Scene:     "reset-password",
+			ClientIP:  clientIP(r),
+			UserAgent: r.UserAgent(),
 		})
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)

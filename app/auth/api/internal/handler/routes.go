@@ -63,6 +63,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/auth/me",
 				Handler: MeHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/auth/security/events/recent",
+				Handler: SecurityEventsRecentHandler(serverCtx),
+			},
 		},
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)

@@ -23,6 +23,10 @@ func TestShopUIIncludesAuthAndStorefrontAnchors(t *testing.T) {
 		"auth-tab-reset",
 		"send-code-action",
 		"reset-password-action",
+		"/api/auth/security/events/recent",
+		"security-events",
+		"login-risk-summary",
+		"code-risk-summary",
 		"/api/auth/register",
 		"/api/auth/login/code",
 		"/api/auth/refresh",
@@ -32,6 +36,27 @@ func TestShopUIIncludesAuthAndStorefrontAnchors(t *testing.T) {
 	} {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("expected shop UI to contain %q", needle)
+		}
+	}
+}
+
+func TestShopUIWiresSecurityEventsRefresh(t *testing.T) {
+	req := httptest.NewRequest("GET", "/shop", nil)
+	rec := httptest.NewRecorder()
+
+	ShopUIHandler().ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	for _, needle := range []string{
+		"async function loadSecurityEvents()",
+		"if(state.token&&await me()){await loadSecurityEvents();",
+		"if(await refresh()){await me();await loadSecurityEvents();}",
+		"await loadSecurityEvents();log(`密码登录成功",
+		"await loadSecurityEvents();log(`注册成功",
+		"await loadSecurityEvents();log(`验证码登录成功",
+	} {
+		if !strings.Contains(body, needle) {
+			t.Fatalf("expected shop UI to wire security refresh with %q", needle)
 		}
 	}
 }
