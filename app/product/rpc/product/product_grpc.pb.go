@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
+	Product_GetProductCard_FullMethodName = "/product.Product/GetProductCard"
 	Product_Deduct_FullMethodName         = "/product.Product/Deduct"
 	Product_DeductRollback_FullMethodName = "/product.Product/DeductRollback"
 	Product_RevertStock_FullMethodName    = "/product.Product/RevertStock"
@@ -28,6 +29,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProductClient interface {
+	GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error)
 	// 扣减库存（正向操作）
 	Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error)
 	// 回滚库存（补偿操作，用于事务失败）
@@ -42,6 +44,16 @@ type productClient struct {
 
 func NewProductClient(cc grpc.ClientConnInterface) ProductClient {
 	return &productClient{cc}
+}
+
+func (c *productClient) GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetProductCardResp)
+	err := c.cc.Invoke(ctx, Product_GetProductCard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *productClient) Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error) {
@@ -78,6 +90,7 @@ func (c *productClient) RevertStock(ctx context.Context, in *RevertStockReq, opt
 // All implementations must embed UnimplementedProductServer
 // for forward compatibility.
 type ProductServer interface {
+	GetProductCard(context.Context, *GetProductCardReq) (*GetProductCardResp, error)
 	// 扣减库存（正向操作）
 	Deduct(context.Context, *DeductReq) (*Empty, error)
 	// 回滚库存（补偿操作，用于事务失败）
@@ -94,6 +107,9 @@ type ProductServer interface {
 // pointer dereference when methods are called.
 type UnimplementedProductServer struct{}
 
+func (UnimplementedProductServer) GetProductCard(context.Context, *GetProductCardReq) (*GetProductCardResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetProductCard not implemented")
+}
 func (UnimplementedProductServer) Deduct(context.Context, *DeductReq) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Deduct not implemented")
 }
@@ -122,6 +138,24 @@ func RegisterProductServer(s grpc.ServiceRegistrar, srv ProductServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&Product_ServiceDesc, srv)
+}
+
+func _Product_GetProductCard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetProductCardReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServer).GetProductCard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Product_GetProductCard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServer).GetProductCard(ctx, req.(*GetProductCardReq))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _Product_Deduct_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -185,6 +219,10 @@ var Product_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "product.Product",
 	HandlerType: (*ProductServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetProductCard",
+			Handler:    _Product_GetProductCard_Handler,
+		},
 		{
 			MethodName: "Deduct",
 			Handler:    _Product_Deduct_Handler,

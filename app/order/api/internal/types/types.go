@@ -15,6 +15,15 @@ type CreateOrderResp struct {
 	OrderId string `json:"order_id"`
 }
 
+type ProductCard struct {
+	ProductId      int64  `json:"product_id"`
+	Name           string `json:"name"`
+	OriginPriceFen int64  `json:"origin_price_fen"`
+	FinalPriceFen  int64  `json:"final_price_fen"`
+	PromotionTag   string `json:"promotion_tag"`
+	StockAvailable int64  `json:"stock_available"`
+}
+
 type DependencyStatus struct {
 	Name   string `json:"name"`
 	Ok     bool   `json:"ok"`

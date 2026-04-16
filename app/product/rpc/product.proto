@@ -10,6 +10,21 @@ message DeductReq {
 }
 message Empty {}
 
+message GetProductCardReq {
+  int64 product_id = 1;
+}
+
+message GetProductCardResp {
+  int64 product_id = 1;
+  string name = 2;
+  int64 origin_price_fen = 3;
+  int64 final_price_fen = 4;
+  string promotion_type = 5;
+  string promotion_tag = 6;
+  int64 stock_available = 7;
+  int64 supplier_id = 8;
+}
+
 message RevertStockReq {
   int64 id = 1;
   int64 num = 2;
@@ -18,6 +33,7 @@ message RevertStockReq {
 message RevertStockResp {}
 
 service Product {
+  rpc GetProductCard(GetProductCardReq) returns(GetProductCardResp);
   // 扣减库存（正向操作）
   rpc Deduct(DeductReq) returns(Empty);
   // 回滚库存（补偿操作，用于事务失败）

@@ -23,13 +23,18 @@ func NewProductServer(svcCtx *svc.ServiceContext) *ProductServer {
 	}
 }
 
-// 扣减库存 (正向操作)
+func (s *ProductServer) GetProductCard(ctx context.Context, in *product.GetProductCardReq) (*product.GetProductCardResp, error) {
+	l := logic.NewGetProductCardLogic(ctx, s.svcCtx)
+	return l.GetProductCard(in)
+}
+
+// 扣减库存（正向操作）
 func (s *ProductServer) Deduct(ctx context.Context, in *product.DeductReq) (*product.Empty, error) {
 	l := logic.NewDeductLogic(ctx, s.svcCtx)
 	return l.Deduct(in)
 }
 
-// 回滚库存 (补偿操作 - 用于事务失败时)
+// 回滚库存（补偿操作，用于事务失败）
 func (s *ProductServer) DeductRollback(ctx context.Context, in *product.DeductReq) (*product.Empty, error) {
 	l := logic.NewDeductRollbackLogic(ctx, s.svcCtx)
 	return l.DeductRollback(in)

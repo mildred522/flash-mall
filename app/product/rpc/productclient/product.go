@@ -14,15 +14,18 @@ import (
 )
 
 type (
-	DeductReq       = product.DeductReq
-	Empty           = product.Empty
-	RevertStockReq  = product.RevertStockReq
-	RevertStockResp = product.RevertStockResp
+	DeductReq          = product.DeductReq
+	Empty              = product.Empty
+	GetProductCardReq  = product.GetProductCardReq
+	GetProductCardResp = product.GetProductCardResp
+	RevertStockReq     = product.RevertStockReq
+	RevertStockResp    = product.RevertStockResp
 
 	Product interface {
-		// 扣减库存 (正向操作)
+		GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error)
+		// 扣减库存（正向操作）
 		Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error)
-		// 回滚库存 (补偿操作 - 用于事务失败时)
+		// 回滚库存（补偿操作，用于事务失败）
 		DeductRollback(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error)
 		// 归还库存
 		RevertStock(ctx context.Context, in *RevertStockReq, opts ...grpc.CallOption) (*RevertStockResp, error)
@@ -39,13 +42,18 @@ func NewProduct(cli zrpc.Client) Product {
 	}
 }
 
-// 扣减库存 (正向操作)
+func (m *defaultProduct) GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error) {
+	client := product.NewProductClient(m.cli.Conn())
+	return client.GetProductCard(ctx, in, opts...)
+}
+
+// 扣减库存（正向操作）
 func (m *defaultProduct) Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error) {
 	client := product.NewProductClient(m.cli.Conn())
 	return client.Deduct(ctx, in, opts...)
 }
 
-// 回滚库存 (补偿操作 - 用于事务失败时)
+// 回滚库存（补偿操作，用于事务失败）
 func (m *defaultProduct) DeductRollback(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error) {
 	client := product.NewProductClient(m.cli.Conn())
 	return client.DeductRollback(ctx, in, opts...)

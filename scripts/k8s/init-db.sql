@@ -66,6 +66,66 @@ CREATE TABLE IF NOT EXISTS product (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'origin_price_fen'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN origin_price_fen bigint NOT NULL DEFAULT 0'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'sale_price_fen'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN sale_price_fen bigint NOT NULL DEFAULT 0'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'status'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN status tinyint NOT NULL DEFAULT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'supplier_id'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN supplier_id bigint NOT NULL DEFAULT 0'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- CHG 2026-02-24: 变更=新增库存分桶表; 之前=单行 product 表扣减; 原因=降低热点行冲突。
 CREATE TABLE IF NOT EXISTS product_stock_bucket (
   product_id bigint NOT NULL,
@@ -73,6 +133,26 @@ CREATE TABLE IF NOT EXISTS product_stock_bucket (
   stock int NOT NULL DEFAULT 0,
   version bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (product_id, bucket_idx)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS promotion_rule (
+  id bigint NOT NULL AUTO_INCREMENT,
+  product_id bigint NOT NULL,
+  type varchar(32) NOT NULL,
+  discount_value bigint NOT NULL DEFAULT 0,
+  threshold_amount bigint NOT NULL DEFAULT 0,
+  starts_at timestamp NULL DEFAULT NULL,
+  ends_at timestamp NULL DEFAULT NULL,
+  status tinyint NOT NULL DEFAULT 1,
+  PRIMARY KEY (id),
+  KEY ix_product_status_time (product_id, status, starts_at, ends_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS supplier (
+  id bigint NOT NULL AUTO_INCREMENT,
+  name varchar(128) NOT NULL,
+  status tinyint NOT NULL DEFAULT 1,
+  PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS stock_log (
@@ -99,11 +179,20 @@ CREATE TABLE IF NOT EXISTS barrier (
   UNIQUE KEY uniq_barrier (gid, branch_id, op, barrier_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+INSERT INTO supplier (id, name, status)
+VALUES (200, 'Flash Supplier', 1)
+ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
+
 -- 初始化示例商品
--- 兼容旧表结构：仅写入必需字段，避免历史库缺少 name/version 时初始化失败
-INSERT INTO product (id, stock)
-VALUES (100, 10000)
-ON DUPLICATE KEY UPDATE stock = VALUES(stock);
+INSERT INTO product (id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+VALUES (100, '首发风衣', 10000, 0, 12900, 11900, 1, 200)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  stock = VALUES(stock),
+  origin_price_fen = VALUES(origin_price_fen),
+  sale_price_fen = VALUES(sale_price_fen),
+  status = VALUES(status),
+  supplier_id = VALUES(supplier_id);
 
 -- 初始化分桶库存（默认 4 桶）
 INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version)
@@ -113,6 +202,13 @@ VALUES
   (100, 2, 2500, 0),
   (100, 3, 2500, 0)
 ON DUPLICATE KEY UPDATE stock = VALUES(stock), version = VALUES(version);
+
+DELETE FROM promotion_rule
+WHERE product_id = 100
+  AND type = 'LIMITED_PRICE';
+
+INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, starts_at, ends_at, status)
+VALUES (100, 'LIMITED_PRICE', 9900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
 
 USE mall_auth;
 
