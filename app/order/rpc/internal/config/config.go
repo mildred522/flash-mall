@@ -7,8 +7,9 @@ import (
 
 type Config struct {
 	zrpc.RpcServerConf
-	DataSource string
-	RedisConf  redis.RedisConf
+	DataSource     string
+	RedisConf      redis.RedisConf
+	ProductRpcConf zrpc.RpcClientConf `json:",optional"`
 
 	PprofAddr   string
 	MetricsAddr string

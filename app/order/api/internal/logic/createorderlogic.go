@@ -2,6 +2,8 @@ package logic
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"strings"
 	"time"
 
@@ -9,7 +11,7 @@ import (
 	"flash-mall/app/order/api/internal/model"
 	"flash-mall/app/order/api/internal/svc"
 	"flash-mall/app/order/api/internal/types"
-	"flash-mall/app/order/rpc/order"
+	order "flash-mall/app/order/rpc/order"
 	"flash-mall/app/product/rpc/product"
 
 	"github.com/dtm-labs/dtm/client/dtmgrpc"
@@ -29,16 +31,27 @@ const (
 
 type CreateOrderLogic struct {
 	logx.Logger
-	ctx    context.Context
-	svcCtx *svc.ServiceContext
+	ctx                context.Context
+	svcCtx             *svc.ServiceContext
+	genGID             func(string) string
+	submitSaga         func(*dtmgrpc.SagaGrpc) error
+	loadSnapshotResult func(string) (*types.CreateOrderResp, error)
 }
 
 func NewCreateOrderLogic(ctx context.Context, svcCtx *svc.ServiceContext) *CreateOrderLogic {
-	return &CreateOrderLogic{
+	logic := &CreateOrderLogic{
 		Logger: logx.WithContext(ctx),
 		ctx:    ctx,
 		svcCtx: svcCtx,
 	}
+	logic.genGID = dtmgrpc.MustGenGid
+	logic.submitSaga = func(saga *dtmgrpc.SagaGrpc) error {
+		return saga.Submit()
+	}
+	logic.loadSnapshotResult = func(orderID string) (*types.CreateOrderResp, error) {
+		return logic.queryCreateOrderResp(orderID)
+	}
+	return logic
 }
 
 func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.CreateOrderResp, err error) {
@@ -48,6 +61,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 		logx.Field("user_id", req.UserId),
 		logx.Field("product_id", req.ProductId),
 		logx.Field("amount", req.Amount),
+		logx.Field("expected_price_fen", req.ExpectedPriceFen),
 	)
 
 	result := "fail"
@@ -73,7 +87,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 				logx.Field("order_id", existOrder.Id),
 			)
 			result = "hit"
-			return &types.CreateOrderResp{OrderId: existOrder.Id}, nil
+			return l.loadSnapshotResult(existOrder.Id)
 		} else if lookupErr != model.ErrNotFound {
 			return nil, lookupErr
 		}
@@ -84,12 +98,18 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 				logx.Field("order_id", cachedOrderId),
 			)
 			result = "hit"
-			return &types.CreateOrderResp{OrderId: cachedOrderId}, nil
+			return l.loadSnapshotResult(cachedOrderId)
 		}
 	}
 
 	if l.svcCtx.Config.DtmServer == "" {
 		return nil, status.Error(codes.Internal, "DTM server not configured")
+	}
+	if l.svcCtx.Config.OrderRpcTarget == "" {
+		return nil, status.Error(codes.Internal, "Order RPC target not configured")
+	}
+	if l.svcCtx.Config.ProductRpcTarget == "" {
+		return nil, status.Error(codes.Internal, "Product RPC target not configured")
 	}
 
 	var orderID string
@@ -111,7 +131,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 				logx.Field("order_id", cachedOrderId),
 			)
 			result = "hit"
-			return &types.CreateOrderResp{OrderId: cachedOrderId}, nil
+			return l.loadSnapshotResult(cachedOrderId)
 		}
 		return nil, status.Error(codes.Aborted, "duplicate request in progress")
 	}
@@ -119,9 +139,10 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	if orderID == "" {
 		orderID = l.svcCtx.OrderIdGen.NextID()
 	}
-	gid := dtmgrpc.MustGenGid(l.svcCtx.Config.DtmServer)
+	gid := l.genGID(l.svcCtx.Config.DtmServer)
 
 	saga := dtmgrpc.NewSagaGrpc(l.svcCtx.Config.DtmServer, gid)
+	saga.WaitResult = true
 	if l.svcCtx.Config.DtmTimeoutToFailSeconds > 0 {
 		saga.TimeoutToFail = l.svcCtx.Config.DtmTimeoutToFailSeconds
 	}
@@ -130,13 +151,6 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	}
 	if l.svcCtx.Config.DtmWaitResult {
 		saga.WaitResult = true
-	}
-
-	if l.svcCtx.Config.OrderRpcTarget == "" {
-		return nil, status.Error(codes.Internal, "Order RPC target not configured")
-	}
-	if l.svcCtx.Config.ProductRpcTarget == "" {
-		return nil, status.Error(codes.Internal, "Product RPC target not configured")
 	}
 
 	orderRoute := l.svcCtx.Config.OrderRpcTarget + "/order.Order"
@@ -148,11 +162,12 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 		OrderId:   orderID,
 	}
 	createOrderReq := &order.CreateOrderReq{
-		OrderId:   orderID,
-		RequestId: requestId,
-		UserId:    req.UserId,
-		ProductId: req.ProductId,
-		Amount:    req.Amount,
+		OrderId:          orderID,
+		RequestId:        requestId,
+		UserId:           req.UserId,
+		ProductId:        req.ProductId,
+		Amount:           req.Amount,
+		ExpectedPriceFen: req.ExpectedPriceFen,
 	}
 	deductReq := &product.DeductReq{
 		Id:      req.ProductId,
@@ -164,7 +179,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	saga.Add(orderRoute+"/CreateOrder", orderRoute+"/CreateOrderRollback", createOrderReq)
 	saga.Add(productRoute+"/Deduct", productRoute+"/DeductRollback", deductReq)
 
-	if err = saga.Submit(); err != nil {
+	if err = l.submitSaga(saga); err != nil {
 		l.Errorf("submit SAGA failed: %v", err)
 		metrics.OrderSagaSubmitTotal.WithLabelValues("fail").Inc()
 		_, _ = l.svcCtx.Redis.DelCtx(l.ctx, requestLockKey)
@@ -207,5 +222,67 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	}
 
 	result = "success"
-	return &types.CreateOrderResp{OrderId: orderID}, nil
+	return l.loadSnapshotResult(orderID)
+}
+
+type createOrderSnapshotRow struct {
+	OrderID          string `db:"order_id"`
+	Status           int64  `db:"status"`
+	PayableAmountFen int64  `db:"payable_amount_fen"`
+	PaymentOrderID   string `db:"payment_order_id"`
+}
+
+func (l *CreateOrderLogic) queryCreateOrderResp(orderID string) (*types.CreateOrderResp, error) {
+	if strings.TrimSpace(orderID) == "" {
+		return nil, status.Error(codes.InvalidArgument, "order_id is required")
+	}
+	if l.svcCtx.SqlConn == nil {
+		return &types.CreateOrderResp{
+			OrderId:        orderID,
+			Status:         orderStatusText(0),
+			PaymentOrderId: paymentOrderIDFor(orderID),
+		}, nil
+	}
+
+	var row createOrderSnapshotRow
+	err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &row, `
+SELECT o.id AS order_id,
+       o.status AS status,
+       s.payable_amount_fen AS payable_amount_fen,
+       p.id AS payment_order_id
+FROM orders o
+JOIN order_price_snapshot s ON s.order_id = o.id
+JOIN payment_order p ON p.order_id = o.id
+WHERE o.id = ?
+LIMIT 1`, orderID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, status.Error(codes.NotFound, "order snapshot not found")
+		}
+		return nil, err
+	}
+
+	return &types.CreateOrderResp{
+		OrderId:          row.OrderID,
+		Status:           orderStatusText(row.Status),
+		PayableAmountFen: row.PayableAmountFen,
+		PaymentOrderId:   row.PaymentOrderID,
+	}, nil
+}
+
+func orderStatusText(statusCode int64) string {
+	switch statusCode {
+	case 0:
+		return "pending_payment"
+	case 1:
+		return "paid"
+	case 2:
+		return "closed"
+	default:
+		return "unknown"
+	}
+}
+
+func paymentOrderIDFor(orderID string) string {
+	return "pay:" + orderID
 }

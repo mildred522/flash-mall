@@ -4,17 +4,22 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"flash-mall/app/order/rpc/internal/job"
+	"flash-mall/app/order/rpc/internal/pricing"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
+	productclient "flash-mall/app/product/rpc/productclient"
 
 	"github.com/dtm-labs/dtm/client/dtmgrpc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+const orderStatusPendingPayment = "pending_payment"
 
 type CreateOrderLogic struct {
 	ctx    context.Context
@@ -31,14 +36,39 @@ func NewCreateOrderLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Creat
 }
 
 // CreateOrder is the order creation saga branch in order-rpc.
-func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.Empty, error) {
+func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateOrderResp, error) {
 	if in.OrderId == "" {
 		return nil, status.Error(codes.InvalidArgument, "order_id is required")
+	}
+	if in.ProductId <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "product_id is required")
+	}
+	if in.Amount <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "amount must be positive")
+	}
+	if l.svcCtx.ProductRpc == nil {
+		return nil, status.Error(codes.Internal, "product rpc not configured")
 	}
 
 	requestID := in.RequestId
 	if requestID == "" {
 		requestID = in.OrderId
+	}
+	paymentOrderID := paymentOrderIDFor(in.OrderId)
+
+	card, err := l.svcCtx.ProductRpc.GetProductCard(l.ctx, &productclient.GetProductCardReq{
+		ProductId: in.ProductId,
+	})
+	if err != nil {
+		return nil, status.Error(codes.Internal, "load product card failed")
+	}
+
+	quote, err := pricing.BuildQuote(card, in.Amount)
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
+	}
+	if in.ExpectedPriceFen > 0 && in.ExpectedPriceFen != quote.PayableAmountFen {
+		return nil, status.Error(codes.FailedPrecondition, "price changed, please retry checkout")
 	}
 
 	barrier, err := dtmgrpc.BarrierFromGrpc(l.ctx)
@@ -58,16 +88,63 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.Empty, 
 		); execErr != nil {
 			return execErr
 		}
+		if _, execErr := tx.Exec(`
+INSERT IGNORE INTO order_price_snapshot (
+	order_id,
+	product_id,
+	supplier_id,
+	product_name,
+	amount,
+	origin_unit_price_fen,
+	sale_unit_price_fen,
+	payable_amount_fen,
+	discount_amount_fen,
+	promotion_type,
+	promotion_tag
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			in.OrderId,
+			quote.ProductId,
+			quote.SupplierId,
+			quote.ProductName,
+			quote.Amount,
+			quote.OriginUnitPriceFen,
+			quote.SaleUnitPriceFen,
+			quote.PayableAmountFen,
+			quote.DiscountAmountFen,
+			quote.PromotionType,
+			quote.PromotionTag,
+		); execErr != nil {
+			return execErr
+		}
+		if _, execErr := tx.Exec(`
+INSERT IGNORE INTO payment_order (
+	id,
+	order_id,
+	user_id,
+	payable_amount_fen,
+	status,
+	out_trade_no
+) VALUES (?, ?, ?, ?, 0, ?)`,
+			paymentOrderID,
+			in.OrderId,
+			in.UserId,
+			quote.PayableAmountFen,
+			outTradeNoFor(in.OrderId),
+		); execErr != nil {
+			return execErr
+		}
 
 		payload, marshalErr := json.Marshal(map[string]any{
-			"event_id":   "order.created:" + in.OrderId,
-			"event_type": "order.created",
-			"order_id":   in.OrderId,
-			"request_id": requestID,
-			"user_id":    in.UserId,
-			"product_id": in.ProductId,
-			"amount":     in.Amount,
-			"created_at": time.Now().Unix(),
+			"event_id":           "order.created:" + in.OrderId,
+			"event_type":         "order.created",
+			"order_id":           in.OrderId,
+			"request_id":         requestID,
+			"user_id":            in.UserId,
+			"product_id":         in.ProductId,
+			"amount":             in.Amount,
+			"payable_amount_fen": quote.PayableAmountFen,
+			"payment_order_id":   paymentOrderID,
+			"created_at":         time.Now().Unix(),
 		})
 		if marshalErr != nil {
 			return marshalErr
@@ -79,5 +156,18 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.Empty, 
 		return nil, err
 	}
 
-	return &order.Empty{}, nil
+	return &order.CreateOrderResp{
+		OrderId:          in.OrderId,
+		Status:           orderStatusPendingPayment,
+		PayableAmountFen: quote.PayableAmountFen,
+		PaymentOrderId:   paymentOrderID,
+	}, nil
+}
+
+func paymentOrderIDFor(orderID string) string {
+	return fmt.Sprintf("pay:%s", orderID)
+}
+
+func outTradeNoFor(orderID string) string {
+	return fmt.Sprintf("mock-%s", orderID)
 }

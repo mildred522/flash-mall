@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v6.30.0--rc2
-// source: app/order/rpc/order.proto
+// source: order.proto
 
 package order
 
@@ -34,7 +34,7 @@ type OrderClient interface {
 	// Redis 预扣回滚（补偿）
 	PreDeductRollback(ctx context.Context, in *PreDeductReq, opts ...grpc.CallOption) (*Empty, error)
 	// 创建订单（正向）
-	CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
+	CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
 }
@@ -67,9 +67,9 @@ func (c *orderClient) PreDeductRollback(ctx context.Context, in *PreDeductReq, o
 	return out, nil
 }
 
-func (c *orderClient) CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error) {
+func (c *orderClient) CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Empty)
+	out := new(CreateOrderResp)
 	err := c.cc.Invoke(ctx, Order_CreateOrder_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ type OrderServer interface {
 	// Redis 预扣回滚（补偿）
 	PreDeductRollback(context.Context, *PreDeductReq) (*Empty, error)
 	// 创建订单（正向）
-	CreateOrder(context.Context, *CreateOrderReq) (*Empty, error)
+	CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error)
 	mustEmbedUnimplementedOrderServer()
@@ -115,7 +115,7 @@ func (UnimplementedOrderServer) PreDeduct(context.Context, *PreDeductReq) (*Empt
 func (UnimplementedOrderServer) PreDeductRollback(context.Context, *PreDeductReq) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PreDeductRollback not implemented")
 }
-func (UnimplementedOrderServer) CreateOrder(context.Context, *CreateOrderReq) (*Empty, error) {
+func (UnimplementedOrderServer) CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOrder not implemented")
 }
 func (UnimplementedOrderServer) CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error) {
@@ -239,5 +239,5 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "app/order/rpc/order.proto",
+	Metadata: "order.proto",
 }

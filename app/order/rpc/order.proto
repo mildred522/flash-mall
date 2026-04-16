@@ -16,6 +16,14 @@ message CreateOrderReq {
   int64 amount = 4;
   // 幂等请求id
   string request_id = 5;
+  int64 expected_price_fen = 6;
+}
+
+message CreateOrderResp {
+  string order_id = 1;
+  string status = 2;
+  int64 payable_amount_fen = 3;
+  string payment_order_id = 4;
 }
 
 message Empty {}
@@ -26,7 +34,7 @@ service Order {
   // Redis 预扣回滚（补偿）
   rpc PreDeductRollback(PreDeductReq) returns (Empty);
   // 创建订单（正向）
-  rpc CreateOrder(CreateOrderReq) returns (Empty);
+  rpc CreateOrder(CreateOrderReq) returns (CreateOrderResp);
   // 订单回滚/关闭（补偿）
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
 }

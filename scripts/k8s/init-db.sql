@@ -22,6 +22,38 @@ CREATE TABLE IF NOT EXISTS orders (
   KEY ix_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS order_price_snapshot (
+  order_id varchar(64) NOT NULL COMMENT '订单id',
+  product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
+  supplier_id bigint NOT NULL DEFAULT 0 COMMENT '供应商id',
+  product_name varchar(128) NOT NULL DEFAULT '' COMMENT '商品名快照',
+  amount int NOT NULL DEFAULT 0 COMMENT '购买数量',
+  origin_unit_price_fen bigint NOT NULL DEFAULT 0 COMMENT '原价单价分',
+  sale_unit_price_fen bigint NOT NULL DEFAULT 0 COMMENT '成交单价分',
+  payable_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '应付金额分',
+  discount_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '优惠金额分',
+  promotion_type varchar(32) NOT NULL DEFAULT '' COMMENT '促销类型',
+  promotion_tag varchar(64) NOT NULL DEFAULT '' COMMENT '促销标签',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (order_id),
+  KEY ix_product_id (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS payment_order (
+  id varchar(64) NOT NULL COMMENT '支付单id',
+  order_id varchar(64) NOT NULL COMMENT '订单id',
+  user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
+  payable_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '应付金额分',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '支付单状态 0-init 1-success 2-failed 3-closed',
+  out_trade_no varchar(64) NOT NULL DEFAULT '' COMMENT '外部交易号',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_order_id (order_id),
+  UNIQUE KEY uniq_out_trade_no (out_trade_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS order_outbox (
   id bigint NOT NULL AUTO_INCREMENT,
   event_id varchar(128) NOT NULL,

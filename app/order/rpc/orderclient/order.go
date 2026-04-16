@@ -13,9 +13,10 @@ import (
 )
 
 type (
-	PreDeductReq   = order.PreDeductReq
-	CreateOrderReq = order.CreateOrderReq
-	Empty          = order.Empty
+	PreDeductReq    = order.PreDeductReq
+	CreateOrderReq  = order.CreateOrderReq
+	CreateOrderResp = order.CreateOrderResp
+	Empty           = order.Empty
 
 	Order interface {
 		// Redis 预扣库存（正向）
@@ -23,7 +24,7 @@ type (
 		// Redis 预扣回滚（补偿）
 		PreDeductRollback(ctx context.Context, in *PreDeductReq, opts ...grpc.CallOption) (*Empty, error)
 		// 创建订单（正向）
-		CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
+		CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
 		// 订单回滚/关闭（补偿）
 		CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
 	}
@@ -49,7 +50,7 @@ func (m *defaultOrder) PreDeductRollback(ctx context.Context, in *PreDeductReq, 
 	return client.PreDeductRollback(ctx, in, opts...)
 }
 
-func (m *defaultOrder) CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error) {
+func (m *defaultOrder) CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error) {
 	client := order.NewOrderClient(m.cli.Conn())
 	return client.CreateOrder(ctx, in, opts...)
 }

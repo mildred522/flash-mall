@@ -35,7 +35,7 @@ func (s *OrderServer) PreDeductRollback(ctx context.Context, in *order.PreDeduct
 }
 
 // 创建订单（正向）
-func (s *OrderServer) CreateOrder(ctx context.Context, in *order.CreateOrderReq) (*order.Empty, error) {
+func (s *OrderServer) CreateOrder(ctx context.Context, in *order.CreateOrderReq) (*order.CreateOrderResp, error) {
 	l := logic.NewCreateOrderLogic(ctx, s.svcCtx)
 	return l.CreateOrder(in)
 }

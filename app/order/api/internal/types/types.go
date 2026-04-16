@@ -5,14 +5,18 @@ package types
 
 type CreateOrderReq struct {
 	// CHG 2026-02-07: 变更=新增 request_id; 之前=无幂等键; 原因=重复请求返回同一订单避免双下单。
-	RequestId string `json:"request_id"`
-	UserId    int64  `json:"user_id"`
-	ProductId int64  `json:"product_id"`
-	Amount    int64  `json:"amount"` // 购买数量
+	RequestId        string `json:"request_id"`
+	UserId           int64  `json:"user_id"`
+	ProductId        int64  `json:"product_id"`
+	Amount           int64  `json:"amount"` // 购买数量
+	ExpectedPriceFen int64  `json:"expected_price_fen,optional"`
 }
 
 type CreateOrderResp struct {
-	OrderId string `json:"order_id"`
+	OrderId          string `json:"order_id"`
+	Status           string `json:"status"`
+	PayableAmountFen int64  `json:"payable_amount_fen"`
+	PaymentOrderId   string `json:"payment_order_id"`
 }
 
 type ProductCard struct {
