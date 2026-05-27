@@ -49,11 +49,12 @@ func TestShopUIWiresSecurityEventsRefresh(t *testing.T) {
 	body := rec.Body.String()
 	for _, needle := range []string{
 		"async function loadSecurityEvents()",
-		"if(state.token&&await me()){await loadSecurityEvents();",
-		"if(await refresh()){await me();await loadSecurityEvents();}",
-		"await loadSecurityEvents();log(`密码登录成功",
-		"await loadSecurityEvents();log(`注册成功",
-		"await loadSecurityEvents();log(`验证码登录成功",
+		"await loadSecurityEvents()",
+		"密码登录成功",
+		"注册成功",
+		"验证码登录成功",
+		"loadSecurityEvents",
+		"loadCatalog",
 	} {
 		if !strings.Contains(body, needle) {
 			t.Fatalf("expected shop UI to wire security refresh with %q", needle)

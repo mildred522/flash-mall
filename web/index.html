@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall 入口</title>
+  <link rel="stylesheet" href="./styles/index.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <article class="hero-copy">
+        <span class="eyebrow">春日上新进行时</span>
+        <h1>今天想逛的衣橱灵感，从这里开始。</h1>
+        <p>把当季热卖、每日上新和限时好价放在一个入口里，先看值得买的单品，再挑适合自己的整套搭配。</p>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <a id="entry-shop" class="button" href="/shop">进入商城</a>
+          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">看今日主推</a>
+        </div>
+      </article>
+      <article class="entry-card">
+        <h2>首页怎么逛最省时间</h2>
+        <p>先看今日主推，再进精选商品区。喜欢的款可以直接登录下单，账号相关动作已经统一放进商城弹层和右下角控制台。</p>
+        <p>如果你是开发调试，可以额外打开 <strong>/debug</strong> 看健康检查和联调入口。</p>
+      </article>
+    </section>
+
+    <section class="entry-grid">
+      <article class="entry-card">
+        <h2>今日上新</h2>
+        <p>适合先逛一圈看趋势。人气单品、早春新款和好搭不挑人的基础款，都整理在同一页里。</p>
+        <a class="button" href="/shop">前往商城</a>
+      </article>
+      <article class="entry-card">
+        <h2>人气会场</h2>
+        <p>适合直接看主推。限时推荐、折扣提醒和本周最容易出片的单品，会优先排在前面。</p>
+        <a class="button soft" href="/shop#campaign-strip">去看主推</a>
+      </article>
+    </section>
+
+    <div class="note">建议逛法：先看今日主推，再进精选商品区。想演示注册、登录、下单、刷新令牌这些完整链路，直接进商城页就行。</div>
+  </main>
+  <script type="module" src="./js/index.js"></script>
+</body>
+</html>

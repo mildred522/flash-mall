@@ -1,0 +1,85 @@
+.console {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 35;
+  width: min(370px, calc(100vw - 24px));
+  border-radius: 24px;
+  overflow: hidden;
+  background: #0f1521;
+  color: #eef2ff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 26px 56px rgba(5, 10, 18, 0.42);
+}
+
+.console.collapsed .console-body {
+  display: none;
+}
+
+.console-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.console-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px 16px;
+}
+
+.console-card {
+  display: grid;
+  gap: 8px;
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.console-card h4 {
+  margin: 0;
+  font-size: 12px;
+  color: #93a9d8;
+  text-transform: uppercase;
+}
+
+.console-summary {
+  display: grid;
+  gap: 6px;
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfd7ec;
+  font-size: 13px;
+}
+
+.console-log {
+  min-height: 150px;
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 16px;
+  padding: 12px;
+  background: #0a0f17;
+  white-space: pre-wrap;
+  font-family: Consolas, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--warn);
+}
+
+.dot.ok {
+  background: var(--ok);
+}
+
+.dot.bad {
+  background: var(--bad);
+}

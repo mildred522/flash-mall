@@ -42,4 +42,6 @@ type Config struct {
 	JwtAuthSecret    string
 	JwtExpireSeconds int64
 	AuthServiceBaseURL string
+
+	CatalogProductIDs []int64
 }

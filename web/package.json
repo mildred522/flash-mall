@@ -1,0 +1,12 @@
+{
+  "name": "flash-mall-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node build.js"
+  },
+  "devDependencies": {
+    "vite": "^6.3.0"
+  }
+}

@@ -1,10 +1,16 @@
+FROM node:20-alpine AS frontend
+WORKDIR /src
+COPY web/package.json web/package-lock.json ./web/
+RUN cd web && npm ci
+COPY web/ ./web/
+RUN cd web && npm run build
+
 FROM golang:1.24 AS build
 WORKDIR /src
-
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
+COPY --from=frontend /src/app/order/api/internal/handler/web/ ./app/order/api/internal/handler/web/
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/order-api ./app/order/api
 
 FROM alpine:3.20

@@ -4,12 +4,152 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Flash Mall 调试页</title>
-  <style>
-    :root{--bg:#f5f2ec;--card:#fffdf8;--line:#d7cbb8;--ink:#1d262b;--muted:#5c6970;--accent:#1e6f8c;--accent2:#ff6b57;--ok:#2b7d45;--bad:#b23a2b}
-    *{box-sizing:border-box}body{margin:0;color:var(--ink);font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:radial-gradient(circle at 100% 0,#fff3dc 0,transparent 34%),radial-gradient(circle at 0 100%,#deecf1 0,transparent 34%),linear-gradient(140deg,#f7f3e8,#e8eef2);min-height:100vh}
-    .wrap{max-width:1100px;margin:0 auto;padding:20px 16px 32px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}.top a,.button{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:999px;text-decoration:none;border:1px solid var(--line);background:#fff;color:var(--ink)}.button.primary{background:var(--accent);border-color:var(--accent);color:#fff}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.card{border:1px solid var(--line);background:rgba(255,255,255,.88);border-radius:20px;padding:18px;box-shadow:0 14px 30px rgba(20,28,35,.08)}.card h2,.card h3{margin:0 0 10px}.card p,li{color:var(--muted);line-height:1.7}.pill{display:inline-flex;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:#fff;font-size:12px}.ok{color:var(--ok)}.bad{color:var(--bad)}table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:8px 4px;border-bottom:1px dashed var(--line)}pre{margin:0;background:#172028;color:#dceff0;border-radius:14px;padding:12px;min-height:180px;white-space:pre-wrap;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.5}
-    @media (max-width:860px){.grid{grid-template-columns:1fr}}
-  </style>
+    <style>:root {
+  --bg: #f6f7fb;
+  --paper: rgba(255, 255, 255, 0.92);
+  --line: rgba(20, 24, 33, 0.08);
+  --ink: #161922;
+  --muted: #5f6879;
+  --brand: #ff4d6d;
+  --brand2: #ff8a65;
+  --ok: #33c38e;
+  --bad: #ff6b6b;
+  --warn: #ffc857;
+  --shadow: 0 22px 60px rgba(20, 24, 33, 0.14);
+  --radius-lg: 26px;
+  --radius-sm: 14px;
+  --radius-full: 999px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(circle at 0 0, rgba(255, 77, 109, 0.18) 0, transparent 28%),
+    radial-gradient(circle at 100% 16%, rgba(255, 138, 101, 0.18) 0, transparent 24%),
+    linear-gradient(180deg, #fff8f8 0, #f7f8fb 42%, #f4f6fb 100%);
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
+
+button, input {
+  font: inherit;
+}
+
+@import "./variables.css";
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.top a, .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: var(--radius-full);
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+}
+
+.button.primary {
+  background: linear-gradient(135deg, var(--brand), var(--brand2));
+  border-color: transparent;
+  color: #fff;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid var(--line);
+  background: var(--paper);
+  border-radius: 20px;
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.card h2, .card h3 {
+  margin: 0 0 10px;
+}
+
+.card p, li {
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.pill {
+  display: inline-flex;
+  padding: 6px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 12px;
+}
+
+.ok {
+  color: var(--ok);
+}
+
+.bad {
+  color: var(--bad);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th, td {
+  text-align: left;
+  padding: 8px 4px;
+  border-bottom: 1px dashed var(--line);
+}
+
+pre {
+  margin: 0;
+  background: #172028;
+  color: #dceff0;
+  border-radius: 14px;
+  padding: 12px;
+  min-height: 180px;
+  white-space: pre-wrap;
+  font-family: Consolas, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -63,33 +203,34 @@
       </article>
     </section>
   </div>
-
-  <script>
-    const body = document.getElementById("health-body");
-    const overall = document.getElementById("overall");
-    const logBox = document.getElementById("debug-log");
-    function log(message){logBox.textContent=`[${new Date().toLocaleTimeString()}] ${message}\n${logBox.textContent}`;}
-    async function runHealth(){
-      overall.textContent="检查中";
-      body.innerHTML="";
-      try{
-        const response=await fetch("/api/system/health",{credentials:"same-origin"});
-        const data=await response.json();
-        overall.textContent=data.overall?"整体正常":"部分降级";
-        overall.className=`pill ${data.overall?"ok":"bad"}`;
-        (data.dependencies||[]).forEach((dep)=>{
-          const tr=document.createElement("tr");
-          tr.innerHTML=`<td>${dep.name}</td><td class="${dep.ok?"ok":"bad"}">${dep.ok?"OK":"FAIL"}</td><td>${dep.detail}</td>`;
-          body.appendChild(tr);
-        });
-        log(`健康检查完成 overall=${data.overall}`);
-      }catch(error){
-        overall.textContent="检查失败";
-        overall.className="pill bad";
-        log(`健康检查失败 error=${error.message||"unknown"}`);
-      }
-    }
-    document.getElementById("run-health").addEventListener("click",runHealth);
-  </script>
+  <script>const body = document.getElementById("health-body");
+const overall = document.getElementById("overall");
+const logBox = document.getElementById("debug-log");
+function log(message) {
+  logBox.textContent = `[${(/* @__PURE__ */ new Date()).toLocaleTimeString()}] ${message}
+${logBox.textContent}`;
+}
+async function runHealth() {
+  overall.textContent = "检查中";
+  body.innerHTML = "";
+  try {
+    const response = await fetch("/api/system/health", { credentials: "same-origin" });
+    const data = await response.json();
+    overall.textContent = data.overall ? "整体正常" : "部分降级";
+    overall.className = `pill ${data.overall ? "ok" : "bad"}`;
+    (data.dependencies || []).forEach((dep) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${dep.name}</td><td class="${dep.ok ? "ok" : "bad"}">${dep.ok ? "OK" : "FAIL"}</td><td>${dep.detail}</td>`;
+      body.appendChild(tr);
+    });
+    log(`健康检查完成 overall=${data.overall}`);
+  } catch (error) {
+    overall.textContent = "检查失败";
+    overall.className = "pill bad";
+    log(`健康检查失败 error=${error.message || "unknown"}`);
+  }
+}
+document.getElementById("run-health").addEventListener("click", runHealth);
+</script>
 </body>
 </html>

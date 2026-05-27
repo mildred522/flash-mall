@@ -12,8 +12,12 @@ import (
 
 func CatalogHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		items := make([]types.ProductCard, 0, 1)
-		for _, productID := range []int64{100} {
+		productIDs := svcCtx.Config.CatalogProductIDs
+		if len(productIDs) == 0 {
+			productIDs = []int64{100}
+		}
+		items := make([]types.ProductCard, 0, len(productIDs))
+		for _, productID := range productIDs {
 			card, err := svcCtx.ProductRpc.GetProductCard(r.Context(), &productclient.GetProductCardReq{
 				ProductId: productID,
 			})

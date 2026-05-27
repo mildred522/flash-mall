@@ -82,3 +82,6 @@ JwtAuthSecret: flashmall-order-api-jwt-secret
 JwtExpireSeconds: 7200
 AuthServiceBaseURL: http://127.0.0.1:8890
 
+CatalogProductIDs:
+  - 100
+

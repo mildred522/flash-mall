@@ -2,6 +2,7 @@ param(
   [switch]$SkipCompose,
   [switch]$SkipDbInit,
   [switch]$SkipSeedStock,
+  [switch]$SkipFrontend,
   [switch]$NoBrowser,
   [int]$PortWaitSeconds = 90
 )
@@ -222,6 +223,37 @@ if (-not $SkipSeedStock) {
   & go run ./app/order/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4
   if ($LASTEXITCODE -ne 0) {
     throw "redis stock seed failed"
+  }
+}
+
+if (-not $SkipFrontend) {
+  $webDir = Join-Path $repoRoot "web"
+  if (Test-Path (Join-Path $webDir "node_modules")) {
+    Write-Host "[STEP] build frontend (web/)"
+    Push-Location $webDir
+    try {
+      & npm run build
+      if ($LASTEXITCODE -ne 0) {
+        throw "frontend build failed"
+      }
+    } finally {
+      Pop-Location
+    }
+  } else {
+    Write-Host "[STEP] install and build frontend (web/)"
+    Push-Location $webDir
+    try {
+      & npm install
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm install failed"
+      }
+      & npm run build
+      if ($LASTEXITCODE -ne 0) {
+        throw "frontend build failed"
+      }
+    } finally {
+      Pop-Location
+    }
   }
 }
 
