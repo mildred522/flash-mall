@@ -9,6 +9,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# PS 5.1 treats native command stderr as error; this wrapper avoids that
+function Invoke-Native {
+    param(
+        [scriptblock]$Command,
+        [string]$ErrorMessage = "Native command failed"
+    )
+    $oldPref = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $Command 2>&1
+    } finally {
+        $ErrorActionPreference = $oldPref
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "$ErrorMessage (exit code: $LASTEXITCODE)"
+    }
+}
+
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $composeFile = Join-Path $repoRoot "deploy\docker-compose.yml"
 $runtimeDir = Join-Path $repoRoot ".runtime"
@@ -212,7 +230,11 @@ if (-not $SkipDbInit) {
   $sqlFile = Join-Path $repoRoot "scripts\k8s\init-db.sql"
   Write-Host "[STEP] initialize mysql schema"
   Wait-MySQLReady -TimeoutSeconds $PortWaitSeconds
-  Get-Content -Raw $sqlFile | & docker exec -i mysql mysql --force -uroot -p6494kj06
+  $oldPref = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    Get-Content -Raw $sqlFile | & docker exec -i mysql mysql --force -uroot -p6494kj06 2>&1
+  } finally { $ErrorActionPreference = $oldPref }
   if ($LASTEXITCODE -ne 0) {
     Write-Warning "mysql init returned non-zero. Existing schema may already exist; continue startup."
   }
@@ -220,10 +242,7 @@ if (-not $SkipDbInit) {
 
 if (-not $SkipSeedStock) {
   Write-Host "[STEP] seed redis stock shards"
-  & go run ./app/order/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4
-  if ($LASTEXITCODE -ne 0) {
-    throw "redis stock seed failed"
-  }
+  Invoke-Native { go run ./app/order/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4 } "redis stock seed failed"
 }
 
 if (-not $SkipFrontend) {
@@ -232,10 +251,7 @@ if (-not $SkipFrontend) {
     Write-Host "[STEP] build frontend (web/)"
     Push-Location $webDir
     try {
-      & npm run build
-      if ($LASTEXITCODE -ne 0) {
-        throw "frontend build failed"
-      }
+      Invoke-Native { npm run build } "frontend build failed"
     } finally {
       Pop-Location
     }
@@ -243,14 +259,8 @@ if (-not $SkipFrontend) {
     Write-Host "[STEP] install and build frontend (web/)"
     Push-Location $webDir
     try {
-      & npm install
-      if ($LASTEXITCODE -ne 0) {
-        throw "npm install failed"
-      }
-      & npm run build
-      if ($LASTEXITCODE -ne 0) {
-        throw "frontend build failed"
-      }
+      Invoke-Native { npm install } "npm install failed"
+      Invoke-Native { npm run build } "frontend build failed"
     } finally {
       Pop-Location
     }
