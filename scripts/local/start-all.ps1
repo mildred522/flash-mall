@@ -191,6 +191,7 @@ function Start-GoService {
     -WorkingDirectory $repoRoot `
     -RedirectStandardOutput $outLog `
     -RedirectStandardError $errLog `
+    -WindowStyle Hidden `
     -PassThru
 
   Write-Host "[START] $Name pid=$($proc.Id)"
@@ -220,7 +221,7 @@ if (-not $SkipCompose) {
   Invoke-Compose -Command $composeCmd -ComposeArgs @("-f", $composeFile, "up", "-d", "etcd", "mysql", "redis", "dtm", "rabbitmq")
 
   Wait-TcpPort -Name "etcd" -TargetHost "127.0.0.1" -Port 2379 -TimeoutSeconds $PortWaitSeconds
-  Wait-TcpPort -Name "mysql" -TargetHost "127.0.0.1" -Port 3306 -TimeoutSeconds $PortWaitSeconds
+  Wait-TcpPort -Name "mysql" -TargetHost "127.0.0.1" -Port 3307 -TimeoutSeconds $PortWaitSeconds
   Wait-TcpPort -Name "redis" -TargetHost "127.0.0.1" -Port 6379 -TimeoutSeconds $PortWaitSeconds
   Wait-TcpPort -Name "dtm" -TargetHost "127.0.0.1" -Port 36790 -TimeoutSeconds $PortWaitSeconds
   Wait-TcpPort -Name "rabbitmq" -TargetHost "127.0.0.1" -Port 5672 -TimeoutSeconds $PortWaitSeconds

@@ -15,7 +15,7 @@ Telemetry:
   Sampler: 1.0
   Batcher: jaeger
 
-DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
 
 RedisConf:
   Host: 127.0.0.1:6379

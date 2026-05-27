@@ -6,7 +6,7 @@ Timeout: 2000
 JwtAuthSecret: flashmall-order-api-jwt-secret
 JwtExpireSeconds: 7200
 DemoPassword: flashmall123
-DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Local
+DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_auth?charset=utf8mb4&parseTime=true&loc=Local
 RedisConf:
   Host: 127.0.0.1:6379
   Type: node

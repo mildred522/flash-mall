@@ -16,7 +16,7 @@ Telemetry:
   Sampler: 1.0
   Batcher: jaeger
 
-DataSource: root:6494kj06@tcp(127.0.0.1:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
+DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
 
 # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
 StockBucketCount: 4
