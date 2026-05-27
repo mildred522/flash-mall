@@ -1,6 +1,7 @@
 services:
   dtm:
     image: yedf/dtm
+    pull_policy: never
     container_name: dtm
     ports:
       - "36789:36789" # HTTP
@@ -11,6 +12,7 @@ services:
 
   etcd:
     image: bitnamilegacy/etcd:3.5
+    pull_policy: never
     container_name: etcd
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes
@@ -20,6 +22,7 @@ services:
 
   mysql:
     image: mysql:5.7
+    pull_policy: never
     container_name: mysql
     environment:
       # 注意：保持你原来的密码，确保你的 Go 配置文件里也是这个
@@ -32,12 +35,14 @@ services:
   # --- 新增的 Redis 部分 ---
   redis:
     image: redis:latest
+    pull_policy: never
     container_name: redis
     ports:
       - "6379:6379"
 
   rabbitmq:
     image: rabbitmq:3.12-management
+    pull_policy: never
     container_name: rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: flashmall

@@ -11,64 +11,92 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.top h1 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.top p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .top a, .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 14px;
-  border-radius: var(--radius-full);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
 .button.primary {
-  background: linear-gradient(135deg, var(--brand), var(--brand2));
-  border-color: transparent;
+  background: var(--brand);
+  border-color: var(--brand);
   color: #fff;
+}
+
+.button.primary:hover {
+  background: var(--brand-hover);
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
 
 .card {
   border: 1px solid var(--line);
-  background: var(--paper);
-  border-radius: 20px;
-  padding: 18px;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  padding: 20px;
   box-shadow: var(--shadow);
 }
 
 .card h2, .card h3 {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
+  font-size: 16px;
 }
 
-.card p, li {
+.card p {
   color: var(--muted);
   line-height: 1.7;
+  font-size: 13px;
+  margin: 0 0 12px;
 }
 
 .pill {
   display: inline-flex;
-  padding: 6px 10px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--line);
-  background: #fff;
+  padding: 2px 8px;
+  border-radius: 2px;
   font-size: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
 }
 
-.ok {
+.pill.ok {
+  background: #f6ffed;
+  border-color: #b7eb8f;
   color: var(--ok);
 }
 
-.bad {
+.pill.bad {
+  background: #fff2f0;
+  border-color: #ffccc7;
   color: var(--bad);
 }
 
@@ -81,20 +109,26 @@ table {
 th, td {
   text-align: left;
   padding: 8px 4px;
-  border-bottom: 1px dashed var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
 }
 
 pre {
   margin: 0;
-  background: #172028;
-  color: #dceff0;
-  border-radius: 14px;
-  padding: 12px;
-  min-height: 180px;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  min-height: 160px;
   white-space: pre-wrap;
   font-family: Consolas, Menlo, monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 @media (max-width: 860px) {

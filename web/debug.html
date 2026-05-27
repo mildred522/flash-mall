@@ -3,38 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flash Mall 调试页</title>
+  <title>Flash Mall - 调试</title>
   <link rel="stylesheet" href="./styles/debug.css" />
 </head>
 <body>
   <div class="wrap">
     <header class="top">
       <div>
-        <h1 style="margin:0">Flash Mall 调试页</h1>
-        <p style="margin:6px 0 0;color:var(--muted)">这个页面只保留联调和观察入口，不再承载旧版 demo 登录流程。</p>
+        <h1>Flash Mall 调试面板</h1>
+        <p>联调入口和健康检查，业务操作请到商城页</p>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <a href="/">返回首页</a>
-        <a class="button primary" href="/shop">打开商城</a>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <a href="/">首页</a>
+        <a class="button primary" href="/shop">商城</a>
       </div>
     </header>
 
     <section class="grid">
       <article class="card">
-        <h2>联调入口</h2>
-        <p>账号相关的真实业务链路已经统一到 <strong>/shop</strong>。登录、注册、验证码登录、重置密码、刷新令牌和退出登录，都请在商城页右下角开发者控制台里操作。</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <a class="button primary" href="/shop">去商城联调</a>
-          <a class="button" href="/shop#campaign-strip">去主推会场</a>
-        </div>
-      </article>
-
-      <article class="card">
         <h2>健康检查</h2>
-        <p><span id="overall" class="pill">尚未检查</span></p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-          <button id="run-health" class="button primary" type="button">执行健康检查</button>
-          <a class="button" href="/api/system/health" target="_blank" rel="noopener">查看原始 JSON</a>
+        <p><span id="overall" class="pill">未检查</span></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button id="run-health" class="button primary" type="button">执行检查</button>
+          <a class="button" href="/api/system/health" target="_blank" rel="noopener">JSON</a>
         </div>
         <table>
           <thead><tr><th>依赖</th><th>状态</th><th>详情</th></tr></thead>
@@ -43,17 +34,26 @@
       </article>
 
       <article class="card">
-        <h3>当前推荐的验收顺序</h3>
-        <ol style="padding-left:20px;margin:0">
-          <li>打开商城页，先走注册或密码登录。</li>
-          <li>确认右下角开发者控制台显示已登录。</li>
-          <li>执行下单、连点下单、退出登录、全部下线。</li>
-          <li>再返回这里做一次健康检查，确认依赖状态。</li>
+        <h2>联调入口</h2>
+        <p>登录、注册、下单等业务操作统一在商城页进行。</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="button primary" href="/shop">去商城</a>
+          <a class="button" href="/shop#campaign-strip">会场</a>
+        </div>
+      </article>
+
+      <article class="card">
+        <h3>验收顺序</h3>
+        <ol style="padding-left:20px;margin:0;font-size:13px;color:var(--text-secondary);line-height:1.8">
+          <li>商城页登录（密码或验证码）</li>
+          <li>确认控制台显示已登录</li>
+          <li>下单、连点下单、退出登录</li>
+          <li>返回此页做健康检查</li>
         </ol>
       </article>
 
       <article class="card">
-        <h3>日志输出</h3>
+        <h3>日志</h3>
         <pre id="debug-log">等待操作...</pre>
       </article>
     </section>

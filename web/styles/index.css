@@ -1,115 +1,178 @@
 @import "./variables.css";
 
-.shell, .hero, .entry-grid {
-  display: grid;
-  gap: 18px;
-}
-
 .shell {
-  width: min(1160px, 100%);
+  max-width: 1200px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: 28px 16px;
+  padding: 24px 16px;
   display: grid;
-  place-items: center;
+  gap: 20px;
+  align-content: center;
 }
 
 .hero {
+  display: grid;
   grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
   align-items: stretch;
 }
 
-.hero-copy, .entry-card, .note {
+.hero-copy {
+  background: linear-gradient(135deg, #e4393c, #ff6b35);
+  color: #fff;
   border-radius: var(--radius-lg);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
-}
-
-.hero-copy, .entry-card {
-  padding: 24px;
+  padding: 40px;
   display: grid;
   gap: 16px;
-}
-
-.note {
-  padding: 18px 22px;
-  color: var(--muted);
-  line-height: 1.7;
-  font-size: 14px;
+  align-content: center;
 }
 
 .eyebrow {
   display: inline-flex;
   width: fit-content;
-  padding: 9px 14px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
-  background: #fff;
-  border: 1px solid var(--line);
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(48px, 8vw, 82px);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
-  max-width: 720px;
-}
-
-.hero-copy p, .entry-card p {
-  margin: 0;
-  color: #454d60;
-  line-height: 1.6;
+  font-size: clamp(36px, 6vw, 52px);
+  line-height: 1.15;
+  font-weight: 800;
 }
 
 .hero-copy p {
-  max-width: 580px;
-  font-size: 19px;
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.9;
+  line-height: 1.6;
 }
 
-.entry-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.entry-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+  align-content: center;
+  box-shadow: var(--shadow);
 }
 
 .entry-card h2 {
   margin: 0;
-  font-size: 28px;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.entry-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.feature-list li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.feature-icon {
+  font-size: 24px;
+  width: 40px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.feature-list strong {
+  display: block;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.feature-list span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: fit-content;
-  padding: 14px 18px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--brand), var(--brand2));
-  color: #fff;
+  padding: 10px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 18px 30px rgba(255, 77, 109, 0.22);
-  border: none;
   cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.button.primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+.button.primary:hover {
+  background: var(--brand-hover);
 }
 
 .button.soft {
   background: #fff;
   color: var(--ink);
   border: 1px solid var(--line);
-  box-shadow: none;
+}
+
+.button.soft:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.note {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.note a {
+  color: var(--brand);
 }
 
 @media (max-width: 860px) {
   .hero, .entry-grid {
     grid-template-columns: 1fr;
+  }
+  .hero-copy {
+    padding: 28px;
   }
 }

@@ -3,42 +3,49 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flash Mall 入口</title>
+  <title>Flash Mall</title>
   <link rel="stylesheet" href="./styles/index.css" />
 </head>
 <body>
   <main class="shell">
     <section class="hero">
       <article class="hero-copy">
-        <span class="eyebrow">春日上新进行时</span>
-        <h1>今天想逛的衣橱灵感，从这里开始。</h1>
-        <p>把当季热卖、每日上新和限时好价放在一个入口里，先看值得买的单品，再挑适合自己的整套搭配。</p>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <a id="entry-shop" class="button" href="/shop">进入商城</a>
-          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">看今日主推</a>
+        <span class="eyebrow">限时特惠</span>
+        <h1>Flash Mall<br>精选好物一站购齐</h1>
+        <p>品质保证，限时特惠。精选当季热销单品，新人注册更有专属好礼。</p>
+        <div class="hero-actions">
+          <a id="entry-shop" class="button primary" href="/shop">进入商城</a>
+          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">今日会场</a>
         </div>
       </article>
-      <article class="entry-card">
-        <h2>首页怎么逛最省时间</h2>
-        <p>先看今日主推，再进精选商品区。喜欢的款可以直接登录下单，账号相关动作已经统一放进商城弹层和右下角控制台。</p>
-        <p>如果你是开发调试，可以额外打开 <strong>/debug</strong> 看健康检查和联调入口。</p>
+      <article class="entry-card feature-card">
+        <h2>为什么选择 Flash Mall</h2>
+        <ul class="feature-list">
+          <li><span class="feature-icon">🔥</span><div><strong>限时秒杀</strong><span>每日精选爆品，价格低到你想不到</span></div></li>
+          <li><span class="feature-icon">🚚</span><div><strong>极速发货</strong><span>下单后24小时内发货</span></div></li>
+          <li><span class="feature-icon">✅</span><div><strong>正品保障</strong><span>全场正品，七天无理由退换</span></div></li>
+          <li><span class="feature-icon">💰</span><div><strong>满减优惠</strong><span>满199减30，多买多省</span></div></li>
+        </ul>
       </article>
     </section>
 
     <section class="entry-grid">
       <article class="entry-card">
         <h2>今日上新</h2>
-        <p>适合先逛一圈看趋势。人气单品、早春新款和好搭不挑人的基础款，都整理在同一页里。</p>
-        <a class="button" href="/shop">前往商城</a>
+        <p>当季热卖、每日上新和限时好价，都整理在同一页里。</p>
+        <a class="button primary" href="/shop">前往商城</a>
       </article>
       <article class="entry-card">
         <h2>人气会场</h2>
-        <p>适合直接看主推。限时推荐、折扣提醒和本周最容易出片的单品，会优先排在前面。</p>
+        <p>限时推荐、折扣提醒和本周最容易出片的单品，优先排在前面。</p>
         <a class="button soft" href="/shop#campaign-strip">去看主推</a>
       </article>
     </section>
 
-    <div class="note">建议逛法：先看今日主推，再进精选商品区。想演示注册、登录、下单、刷新令牌这些完整链路，直接进商城页就行。</div>
+    <div class="note">
+      开发调试入口：<a href="/debug" style="color:var(--brand)">/debug</a> ·
+      商城页面包含完整的注册、登录、下单链路
+    </div>
   </main>
   <script type="module" src="./js/index.js"></script>
 </body>

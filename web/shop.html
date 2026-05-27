@@ -3,23 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flash Mall 商城首页</title>
+  <title>Flash Mall</title>
   <link rel="stylesheet" href="./styles/shop.css" />
   <link rel="stylesheet" href="./styles/console.css" />
 </head>
 <body>
   <header class="topbar">
     <div class="container topbar-inner">
-      <div class="brand"><span class="brand-mark"></span><span>Flash Mall</span></div>
+      <div class="brand"><span class="brand-mark">F</span><span>Flash Mall</span></div>
       <nav class="nav">
         <a href="#campaign-strip">今日会场</a>
-        <a href="#featured-products">精选单品</a>
-        <a href="#style-strip">穿搭灵感</a>
+        <a href="#featured-products">精选商品</a>
         <a href="#featured-products">热卖推荐</a>
       </nav>
       <div class="row">
-        <span id="auth-chip" class="chip">游客模式</span>
-        <button id="open-auth" class="button primary" type="button">登录 / 注册</button>
+        <span id="auth-chip" class="chip">游客</span>
+        <button id="open-auth" class="button primary" type="button">登录</button>
       </div>
     </div>
   </header>
@@ -27,50 +26,65 @@
   <main>
     <section class="section">
       <div class="container hero">
-        <article class="card hero-copy">
-          <span class="pill">春日上新进行时</span>
-          <h1>今天想买的那几件，先从首页挑。</h1>
-          <p>把通勤能穿、周末好看、现在下单更划算的单品先摆在前面。先逛主推，再挑细节，找到合适的直接下单。</p>
+        <article class="hero-copy">
+          <span class="pill">限时特惠</span>
+          <h1>春日焕新<br>精选好物限时抢</h1>
+          <p>精选当季热销单品，品质保证，限时特惠。新人注册更有专属好礼。</p>
           <div class="hero-actions">
-            <a class="button primary" href="#featured-products">马上开逛</a>
-            <button class="button soft" type="button" data-open-auth="register">领新人礼</button>
-          </div>
-          <div class="stats">
-            <article class="card hero-stat"><span class="pill">秒杀倒计时</span><strong id="hero-timer">02:15:08</strong></article>
-            <article class="card hero-stat"><span class="pill">今日精选</span><strong>4 组人气好物</strong></article>
-            <article class="card hero-stat"><span class="pill">今日优惠</span><strong>满 199 减 30</strong></article>
+            <a class="button primary" href="#featured-products">立即抢购</a>
+            <button class="button soft" type="button" data-open-auth="register">新人专享</button>
           </div>
         </article>
-        <aside class="card hero-side">
-          <span class="pill">本周主推</span>
-          <h2 style="margin:14px 0 0;font-size:34px;line-height:1.02;letter-spacing:-.05em">换季这几件，怎么搭都顺眼。</h2>
-          <p>通勤外套、轻薄针织和好穿内搭已经替你排好了，今天打开首页就能直接挑到顺手那一件。</p>
+        <aside class="hero-side">
+          <div class="card">
+            <h3>今日秒杀</h3>
+            <strong>限时直降，错过等一年</strong>
+            <p>每日精选爆品，价格低到你想不到</p>
+            <div class="timer-bar">
+              <span>距结束</span>
+              <strong id="hero-timer">02:15:08</strong>
+            </div>
+          </div>
+          <div class="card">
+            <h3>品质保证</h3>
+            <strong>正品保障 · 极速发货 · 七天退换</strong>
+            <p>全场包邮，下单即享无忧购物体验</p>
+          </div>
         </aside>
       </div>
     </section>
 
     <section id="campaign-strip" class="section">
-      <div class="container grid2">
-        <article class="card promo">
-          <h3 style="margin:0">今日主推</h3>
-          <strong>春装上新，轻松穿出好状态。</strong>
-          <p>从通勤外套到周末针织，把现在最值得入手的款一次看全。想买得省心，就先从这一屏开始逛。</p>
-        </article>
-        <div class="grid2">
-          <article id="style-strip" class="card promo"><h3 style="margin:0">穿搭灵感</h3><strong style="font-size:28px">今晚出门、明早通勤、周末约会，都能在这里找到顺手那一件。</strong></article>
-          <article class="card promo"><h3 style="margin:0">折扣提醒</h3><strong style="font-size:28px">限时直降、满减专区、精选好价，喜欢的款先加购更稳。</strong></article>
+      <div class="container">
+        <div class="section-title">
+          <h2>今日会场</h2>
+          <span class="pill outline">限时活动</span>
+        </div>
+        <div class="campaign-strip">
+          <article class="promo-card">
+            <h3>满减专区</h3>
+            <strong>满199减30</strong>
+            <p>精选商品参与满减，多买多省</p>
+          </article>
+          <article class="promo-card">
+            <h3>新品首发</h3>
+            <strong>新品尝鲜价</strong>
+            <p>当季新款，首发特惠不容错过</p>
+          </article>
+          <article class="promo-card">
+            <h3>热卖榜单</h3>
+            <strong>人气好物TOP</strong>
+            <p>大家都在买，跟着买不出错</p>
+          </article>
         </div>
       </div>
     </section>
 
     <section id="featured-products" class="section">
       <div class="container">
-        <div class="row" style="justify-content:space-between;align-items:flex-end">
-          <div>
-            <h2 style="margin:0">精选商品</h2>
-            <p class="note">挑了几件这个季节最容易穿出氛围的单品，日常通勤、周末出门、换季叠穿都很合适，看到喜欢的直接下单就行。</p>
-          </div>
-          <span class="pill">今日下单更省心</span>
+        <div class="section-title">
+          <h2>精选商品</h2>
+          <span class="pill outline">品质优选</span>
         </div>
         <div id="product-grid" class="product-grid"></div>
       </div>
@@ -78,46 +92,43 @@
   </main>
 
   <div id="auth-modal" class="auth-modal" aria-hidden="true">
-    <div class="card auth-box">
-      <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div class="auth-box">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
         <div>
-          <h2 id="auth-title" style="margin:0;font-size:46px;line-height:.92;letter-spacing:-.06em">登录</h2>
-          <p id="auth-subtitle" class="note" style="margin:10px 0 0">登录后下单、领券、查看当前状态都更顺手。</p>
+          <h2 id="auth-title">登录</h2>
+          <p id="auth-subtitle" class="note">登录后享受专属优惠</p>
         </div>
-        <button id="close-auth" class="button soft" type="button">关闭</button>
+        <button id="close-auth" class="button soft" type="button" style="padding:4px 12px">&times;</button>
       </div>
       <div class="tabs">
         <button id="auth-tab-password" class="active" type="button" data-auth-tab="password">密码登录</button>
-        <button id="auth-tab-register" type="button" data-auth-tab="register">手机号注册</button>
+        <button id="auth-tab-register" type="button" data-auth-tab="register">注册</button>
         <button id="auth-tab-code" type="button" data-auth-tab="code">验证码登录</button>
         <button id="auth-tab-reset" type="button" data-auth-tab="reset">找回密码</button>
       </div>
       <section id="auth-panel-password" class="panel active">
         <div class="field"><label for="login-phone">手机号</label><input id="login-phone" type="tel" value="13800000001" /></div>
         <div class="field"><label for="login-password">密码</label><input id="login-password" type="password" value="flashmall123" /></div>
-        <div class="actions"><button id="password-login-action" class="button primary submit" type="button">立即登录</button></div>
-        <div class="note">演示账号已预填，直接登录就能下单。也可以先注册一个新的手机号账号。</div>
+        <div class="actions"><button id="password-login-action" class="button primary submit" type="button">登录</button></div>
+        <div class="note" style="margin:0;font-size:12px;color:var(--muted)">演示账号已预填，直接登录即可体验</div>
       </section>
       <section id="auth-panel-register" class="panel">
         <div class="field"><label for="register-name">昵称</label><input id="register-name" type="text" value="新用户" /></div>
         <div class="field"><label for="register-phone">手机号</label><input id="register-phone" type="tel" value="13800138000" /></div>
         <div class="field"><label for="register-password">设置密码</label><input id="register-password" type="password" value="mall-pass-123" /></div>
         <div class="field"><label for="register-code">验证码</label><div class="code-row"><input id="register-code" type="text" /><button id="send-code-action" class="button soft" type="button">发送验证码</button></div></div>
-        <div class="actions"><button id="register-action" class="button primary submit" type="button">注册并登录</button></div>
-        <div class="note">注册成功后会自动进入登录状态，开发环境验证码只会出现在右下角开发者控制台。</div>
+        <div class="actions"><button id="register-action" class="button primary submit" type="button">注册</button></div>
       </section>
       <section id="auth-panel-code" class="panel">
         <div class="field"><label for="code-login-phone">手机号</label><input id="code-login-phone" type="tel" value="13800000001" /></div>
-        <div class="field"><label for="code-login-code">验证码</label><div class="code-row"><input id="code-login-code" type="text" /><button id="send-login-code-action" class="button soft" type="button">发送登录码</button></div></div>
+        <div class="field"><label for="code-login-code">验证码</label><div class="code-row"><input id="code-login-code" type="text" /><button id="send-login-code-action" class="button soft" type="button">发送验证码</button></div></div>
         <div class="actions"><button id="code-login-action" class="button primary submit" type="button">验证码登录</button></div>
-        <div class="note">适合直接演示手机号快速登录链路，不需要输入密码。</div>
       </section>
       <section id="auth-panel-reset" class="panel">
         <div class="field"><label for="reset-phone">手机号</label><input id="reset-phone" type="tel" value="13800000001" /></div>
         <div class="field"><label for="reset-code">验证码</label><div class="code-row"><input id="reset-code" type="text" /><button id="reset-password-action" class="button soft" type="button">发送重置码</button></div></div>
         <div class="field"><label for="reset-password">新密码</label><input id="reset-password" type="password" value="new-pass-456" /></div>
         <div class="actions"><button id="submit-reset-password" class="button primary submit" type="button">重置密码</button></div>
-        <div class="note">重置成功后，旧会话会立即失效，需要重新登录。</div>
       </section>
       <div id="auth-error" class="error"></div>
     </div>
@@ -125,40 +136,40 @@
 
   <aside id="developer-console" class="console">
     <div class="console-head">
-      <div><div style="font-size:12px;color:#9eb3e6;text-transform:uppercase">开发者控制台</div><strong>实时状态</strong></div>
-      <button id="console-toggle" class="button soft" type="button">-</button>
+      <div><div style="font-size:11px;color:#6b7db3;text-transform:uppercase;letter-spacing:0.05em">Developer Console</div><strong style="font-size:14px">实时状态</strong></div>
+      <button id="console-toggle" class="button soft" type="button" style="padding:2px 10px;font-size:16px;line-height:1">-</button>
     </div>
     <div class="console-body">
       <div class="console-grid">
-        <section class="console-card"><h4>鉴权状态</h4><strong id="console-auth-text">游客模式</strong><div class="status-line"><span id="auth-dot" class="dot bad"></span><span id="console-token">暂无令牌</span></div></section>
-        <section class="console-card"><h4>健康状态</h4><strong id="health-summary">尚未检查</strong><div class="status-line"><span id="health-dot" class="dot"></span><span id="health-detail">点击执行健康检查</span></div></section>
+        <section class="console-card"><h4>鉴权</h4><strong id="console-auth-text">游客</strong><div class="status-line"><span id="auth-dot" class="dot bad"></span><span id="console-token">无令牌</span></div></section>
+        <section class="console-card"><h4>健康</h4><strong id="health-summary">未检查</strong><div class="status-line"><span id="health-dot" class="dot"></span><span id="health-detail">点击检查</span></div></section>
       </div>
       <section class="console-card">
-        <h4>快捷动作</h4>
+        <h4>快捷操作</h4>
         <div class="console-actions">
-          <button id="console-login-action" class="button primary" type="button">打开登录</button>
+          <button id="console-login-action" class="button primary" type="button">登录</button>
           <button id="console-health-action" class="button soft" type="button">健康检查</button>
-          <button id="console-buy-action" class="button soft" type="button">下单 x1</button>
-          <button id="console-burst-action" class="button soft" type="button">连点 x3</button>
-          <button id="console-logout-action" class="button soft" type="button">退出登录</button>
+          <button id="console-buy-action" class="button soft" type="button">下单x1</button>
+          <button id="console-burst-action" class="button soft" type="button">连点x3</button>
+          <button id="console-logout-action" class="button soft" type="button">退出</button>
           <button id="console-logout-all-action" class="button soft" type="button">全部下线</button>
         </div>
       </section>
       <section class="console-summary">
-        <div>当前用户：<strong id="current-user-name">暂无</strong></div>
-        <div>最近订单：<strong id="latest-order">暂无</strong></div>
-        <div>最近请求：<strong id="latest-request">暂无</strong></div>
+        <div>用户：<strong id="current-user-name">无</strong></div>
+        <div>订单：<strong id="latest-order">无</strong></div>
+        <div>请求：<strong id="latest-request">无</strong></div>
       </section>
       <section class="console-summary">
         <div>Login risk: <strong id="login-risk-summary">normal</strong></div>
         <div>Code risk: <strong id="code-risk-summary">normal</strong></div>
-        <div><a id="security-events-link" class="pill" href="/api/auth/security/events/recent">/api/auth/security/events/recent</a></div>
+        <div><a id="security-events-link" class="pill" href="/api/auth/security/events/recent" style="font-size:11px">security events</a></div>
       </section>
       <section class="console-card">
-        <h4>安全可见性</h4>
+        <h4>安全事件</h4>
         <pre id="security-events" class="console-log">No recent security events yet.</pre>
       </section>
-      <section class="console-card"><h4>实时日志</h4><pre id="console-log" class="console-log"></pre></section>
+      <section class="console-card"><h4>日志</h4><pre id="console-log" class="console-log"></pre></section>
     </div>
   </aside>
   <script type="module" src="./js/bootstrap.js"></script>

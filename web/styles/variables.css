@@ -1,17 +1,33 @@
 :root {
-  --bg: #f6f7fb;
-  --paper: rgba(255, 255, 255, 0.92);
-  --line: rgba(20, 24, 33, 0.08);
-  --ink: #161922;
-  --muted: #5f6879;
-  --brand: #ff4d6d;
-  --brand2: #ff8a65;
-  --ok: #33c38e;
-  --bad: #ff6b6b;
-  --warn: #ffc857;
-  --shadow: 0 22px 60px rgba(20, 24, 33, 0.14);
-  --radius-lg: 26px;
-  --radius-sm: 14px;
+  /* E-commerce color palette */
+  --bg: #f5f5f5;
+  --paper: #ffffff;
+  --line: #e8e8e8;
+  --ink: #222222;
+  --muted: #999999;
+  --text-secondary: #666666;
+
+  /* Promotion colors (Chinese e-commerce standard) */
+  --brand: #e4393c;
+  --brand-hover: #c1272d;
+  --brand-light: #fff0f0;
+  --brand2: #ff6b35;
+  --brand-gradient: linear-gradient(135deg, #e4393c, #ff6b35);
+
+  /* Status */
+  --ok: #52c41a;
+  --bad: #ff4d4f;
+  --warn: #faad14;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.15);
+
+  /* Radius */
+  --radius-lg: 12px;
+  --radius-sm: 6px;
   --radius-full: 999px;
 }
 
@@ -22,11 +38,11 @@
 body {
   margin: 0;
   color: var(--ink);
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background:
-    radial-gradient(circle at 0 0, rgba(255, 77, 109, 0.18) 0, transparent 28%),
-    radial-gradient(circle at 100% 16%, rgba(255, 138, 101, 0.18) 0, transparent 24%),
-    linear-gradient(180deg, #fff8f8 0, #f7f8fb 42%, #f4f6fb 100%);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -36,4 +52,9 @@ a {
 
 button, input {
   font: inherit;
+}
+
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 600;
 }

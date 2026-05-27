@@ -3,21 +3,37 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Flash Mall 入口</title>
+  <title>Flash Mall</title>
     <style>:root {
-  --bg: #f6f7fb;
-  --paper: rgba(255, 255, 255, 0.92);
-  --line: rgba(20, 24, 33, 0.08);
-  --ink: #161922;
-  --muted: #5f6879;
-  --brand: #ff4d6d;
-  --brand2: #ff8a65;
-  --ok: #33c38e;
-  --bad: #ff6b6b;
-  --warn: #ffc857;
-  --shadow: 0 22px 60px rgba(20, 24, 33, 0.14);
-  --radius-lg: 26px;
-  --radius-sm: 14px;
+  /* E-commerce color palette */
+  --bg: #f5f5f5;
+  --paper: #ffffff;
+  --line: #e8e8e8;
+  --ink: #222222;
+  --muted: #999999;
+  --text-secondary: #666666;
+
+  /* Promotion colors (Chinese e-commerce standard) */
+  --brand: #e4393c;
+  --brand-hover: #c1272d;
+  --brand-light: #fff0f0;
+  --brand2: #ff6b35;
+  --brand-gradient: linear-gradient(135deg, #e4393c, #ff6b35);
+
+  /* Status */
+  --ok: #52c41a;
+  --bad: #ff4d4f;
+  --warn: #faad14;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
+  --shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.15);
+
+  /* Radius */
+  --radius-lg: 12px;
+  --radius-sm: 6px;
   --radius-full: 999px;
 }
 
@@ -28,11 +44,11 @@
 body {
   margin: 0;
   color: var(--ink);
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  background:
-    radial-gradient(circle at 0 0, rgba(255, 77, 109, 0.18) 0, transparent 28%),
-    radial-gradient(circle at 100% 16%, rgba(255, 138, 101, 0.18) 0, transparent 24%),
-    linear-gradient(180deg, #fff8f8 0, #f7f8fb 42%, #f4f6fb 100%);
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
@@ -44,119 +60,187 @@ button, input {
   font: inherit;
 }
 
-@import "./variables.css";
-
-.shell, .hero, .entry-grid {
-  display: grid;
-  gap: 18px;
+h1, h2, h3, h4 {
+  margin: 0;
+  font-weight: 600;
 }
 
+@import "./variables.css";
+
 .shell {
-  width: min(1160px, 100%);
+  max-width: 1200px;
   margin: 0 auto;
   min-height: 100vh;
-  padding: 28px 16px;
+  padding: 24px 16px;
   display: grid;
-  place-items: center;
+  gap: 20px;
+  align-content: center;
 }
 
 .hero {
+  display: grid;
   grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
   align-items: stretch;
 }
 
-.hero-copy, .entry-card, .note {
+.hero-copy {
+  background: linear-gradient(135deg, #e4393c, #ff6b35);
+  color: #fff;
   border-radius: var(--radius-lg);
-  background: var(--paper);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(16px);
-}
-
-.hero-copy, .entry-card {
-  padding: 24px;
+  padding: 40px;
   display: grid;
   gap: 16px;
-}
-
-.note {
-  padding: 18px 22px;
-  color: var(--muted);
-  line-height: 1.7;
-  font-size: 14px;
+  align-content: center;
 }
 
 .eyebrow {
   display: inline-flex;
   width: fit-content;
-  padding: 9px 14px;
+  padding: 4px 12px;
   border-radius: var(--radius-full);
-  background: #fff;
-  border: 1px solid var(--line);
-  color: var(--muted);
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(48px, 8vw, 82px);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
-  max-width: 720px;
-}
-
-.hero-copy p, .entry-card p {
-  margin: 0;
-  color: #454d60;
-  line-height: 1.6;
+  font-size: clamp(36px, 6vw, 52px);
+  line-height: 1.15;
+  font-weight: 800;
 }
 
 .hero-copy p {
-  max-width: 580px;
-  font-size: 19px;
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.9;
+  line-height: 1.6;
 }
 
-.entry-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.entry-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+  align-content: center;
+  box-shadow: var(--shadow);
 }
 
 .entry-card h2 {
   margin: 0;
-  font-size: 28px;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.entry-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.feature-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.feature-list li {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.feature-icon {
+  font-size: 24px;
+  width: 40px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.feature-list strong {
+  display: block;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.feature-list span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
 .button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: fit-content;
-  padding: 14px 18px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--brand), var(--brand2));
-  color: #fff;
+  padding: 10px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 18px 30px rgba(255, 77, 109, 0.22);
-  border: none;
   cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.button.primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+.button.primary:hover {
+  background: var(--brand-hover);
 }
 
 .button.soft {
   background: #fff;
   color: var(--ink);
   border: 1px solid var(--line);
-  box-shadow: none;
+}
+
+.button.soft:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.note {
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.note a {
+  color: var(--brand);
 }
 
 @media (max-width: 860px) {
   .hero, .entry-grid {
     grid-template-columns: 1fr;
+  }
+  .hero-copy {
+    padding: 28px;
   }
 }
 
@@ -166,35 +250,42 @@ h1 {
   <main class="shell">
     <section class="hero">
       <article class="hero-copy">
-        <span class="eyebrow">春日上新进行时</span>
-        <h1>今天想逛的衣橱灵感，从这里开始。</h1>
-        <p>把当季热卖、每日上新和限时好价放在一个入口里，先看值得买的单品，再挑适合自己的整套搭配。</p>
-        <div style="display:flex;gap:12px;flex-wrap:wrap">
-          <a id="entry-shop" class="button" href="/shop">进入商城</a>
-          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">看今日主推</a>
+        <span class="eyebrow">限时特惠</span>
+        <h1>Flash Mall<br>精选好物一站购齐</h1>
+        <p>品质保证，限时特惠。精选当季热销单品，新人注册更有专属好礼。</p>
+        <div class="hero-actions">
+          <a id="entry-shop" class="button primary" href="/shop">进入商城</a>
+          <a id="entry-campaign" class="button soft" href="/shop#campaign-strip">今日会场</a>
         </div>
       </article>
-      <article class="entry-card">
-        <h2>首页怎么逛最省时间</h2>
-        <p>先看今日主推，再进精选商品区。喜欢的款可以直接登录下单，账号相关动作已经统一放进商城弹层和右下角控制台。</p>
-        <p>如果你是开发调试，可以额外打开 <strong>/debug</strong> 看健康检查和联调入口。</p>
+      <article class="entry-card feature-card">
+        <h2>为什么选择 Flash Mall</h2>
+        <ul class="feature-list">
+          <li><span class="feature-icon">🔥</span><div><strong>限时秒杀</strong><span>每日精选爆品，价格低到你想不到</span></div></li>
+          <li><span class="feature-icon">🚚</span><div><strong>极速发货</strong><span>下单后24小时内发货</span></div></li>
+          <li><span class="feature-icon">✅</span><div><strong>正品保障</strong><span>全场正品，七天无理由退换</span></div></li>
+          <li><span class="feature-icon">💰</span><div><strong>满减优惠</strong><span>满199减30，多买多省</span></div></li>
+        </ul>
       </article>
     </section>
 
     <section class="entry-grid">
       <article class="entry-card">
         <h2>今日上新</h2>
-        <p>适合先逛一圈看趋势。人气单品、早春新款和好搭不挑人的基础款，都整理在同一页里。</p>
-        <a class="button" href="/shop">前往商城</a>
+        <p>当季热卖、每日上新和限时好价，都整理在同一页里。</p>
+        <a class="button primary" href="/shop">前往商城</a>
       </article>
       <article class="entry-card">
         <h2>人气会场</h2>
-        <p>适合直接看主推。限时推荐、折扣提醒和本周最容易出片的单品，会优先排在前面。</p>
+        <p>限时推荐、折扣提醒和本周最容易出片的单品，优先排在前面。</p>
         <a class="button soft" href="/shop#campaign-strip">去看主推</a>
       </article>
     </section>
 
-    <div class="note">建议逛法：先看今日主推，再进精选商品区。想演示注册、登录、下单、刷新令牌这些完整链路，直接进商城页就行。</div>
+    <div class="note">
+      开发调试入口：<a href="/debug" style="color:var(--brand)">/debug</a> ·
+      商城页面包含完整的注册、登录、下单链路
+    </div>
   </main>
   <script>
 </script>
