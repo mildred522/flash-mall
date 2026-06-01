@@ -18,6 +18,7 @@ This file is the single source of truth for multi-agent collaboration in this re
 7. If a task changes API contracts, state the exact request/response change in `Handoff Notes`.
 8. A task is not complete until `Verification` and `Commit / Branch` are filled in.
 9. If an agent needs to touch a task owned by another agent, it must add a note in `Handoff Notes` first and wait for explicit coordination.
+10. When a status sweep shows all tasks in the current round are `DONE`, the next agent action must be main-branch integration before any new feature planning.
 
 ## Strict Status Model
 
@@ -34,6 +35,35 @@ Invalid patterns:
 - changing code while the row is still `TODO`
 - marking `DONE` without a commit or verification command
 - keeping a task in `IN_PROGRESS` after implementation is already finished
+- starting a new feature round while the completed round has not been integrated into the main integration branch
+
+## Main Integration Protocol
+
+Main integration branch:
+- `main`
+
+Automatic trigger:
+- Every time an agent reads this board and finds that all tasks in the current round are `DONE`, it must stop feature work and integrate the completed round into the main integration branch.
+- If an integration task already exists, the agent must claim that task instead of creating a duplicate.
+- If no integration task exists, the agent must add one with the next `C*` ID, set it to `IN_PROGRESS`, and record the scope.
+
+Required integration steps:
+
+1. Confirm all source worktrees are clean or contain only documented board updates.
+2. Confirm every completed task has a commit, branch, and verification command.
+3. Integrate task commits into the main integration branch using the safest available method:
+   - prefer cherry-pick for isolated task commits
+   - use merge only when the branch history is already known to be safe
+4. Resolve conflicts explicitly; never choose one side wholesale without reviewing the files.
+5. Run the integration verification command recorded on the integration task.
+6. Commit the integration result on the main integration branch.
+7. Update the integration task to `DONE` with commit, verification, and handoff notes.
+
+Safety gates:
+
+- If conflicts are large or ambiguous, set the integration task to `BLOCKED` and document the exact files.
+- If verification fails, keep the integration task `IN_PROGRESS` or `BLOCKED`; do not mark it `DONE`.
+- Do not start the next functional workstream until integration is `DONE`.
 
 ## Claim Protocol
 
@@ -128,6 +158,15 @@ Goal:
 - build admin pages for user/order/product/dashboard
 - add monitor and metrics UI
 
+### Workstream C: Mainline Integration
+
+Owner: Core Agent
+
+Goal:
+- integrate completed A/B round into `main`
+- resolve cross-branch API/UI conflicts
+- prove the merged project can build and run through the core demo flow
+
 ## Task Board
 
 | ID | Task | Owner | Status | Scope | Key Files | Verification | Commit / Branch | Last Update | Handoff Notes |
@@ -138,6 +177,7 @@ Goal:
 | B1 | Storefront payment-state UX | Product Agent | DONE | Show pending-payment, paid, closed states and polling behavior in shop UI | `frontend/**`, `web/**`, `app/order/api/internal/handler/web/**` | `go build ./app/order/api/` + `node web/build.js` + `pnpm run build:shop` all pass | `codex/auth-service-baseline` | 2026-06-01 15:20:00 | Completed by Product Agent. Changes: web/js/order.js (polling+banner+goToOrders), web/js/bootstrap.js (use goToOrders), web/styles/shop.css (banner CSS), frontend shop App.tsx/HomePage.tsx/OrdersPage.tsx (polling+banner+auto-navigate). Both web/ and React frontends updated. |
 | B2 | Admin dashboard and order/product/user pages | Product Agent | DONE | Build admin list/detail pages and handler wiring | `app/order/api/internal/handler/admin*`, `app/order/api/internal/handler/web/admin.html` | `go test ./app/order/api/internal/handler/ -count=1` passes | `codex/auth-service-baseline` | 2026-06-01 15:35:00 | Completed by Product Agent. Changes: web/admin.html (new), web/js/admin.js (new), web/styles/admin.css (new), web/build.js (added admin page), webuihandler_test.go (case-insensitive HTML check). Admin page has dashboard/orders/products/users tabs. |
 | B3 | Monitor and metrics UI | Product Agent | DONE | Add monitor page and metrics display | `app/order/api/internal/handler/monitor*`, `web/**` | `go test ./app/order/api/internal/handler/ -count=1` passes (13/13) | `codex/auth-service-baseline` | 2026-06-01 15:45:00 | Completed by Product Agent. Changes: monitoruihandler.go (enhanced with Prometheus metrics parsing, summary cards, full metrics table), webuihandler_test.go (added TestMonitorUIReturnsHTML). Monitor page shows health + dependencies + business metrics. |
+| C0 | Integrate completed A/B round into main | Core Agent | TODO | Bring `codex/auth-service-baseline` and `codex/trading-loop-v2` work into `main` safely | shared API contracts, generated proto files, route wiring, frontend/web assets | `go test ./app/order/rpc/... ./app/order/api/... ./app/product/rpc/... ./app/auth/api/... -count=1`; frontend/web build commands if package managers are available | | 2026-06-01 17:45:00 | Auto-created after A/B completion sweep. Next agent must claim this before starting new feature work. |
 
 ## Update Log
 
@@ -145,6 +185,14 @@ Append new entries at the top.
 
 ### 2026-06-01
 
+- Time: 17:45:00
+- Task ID: Board Rule
+- Status: DONE
+- Commit / Branch: `codex/auth-service-baseline`
+- Verification:
+  - `git diff -- AGENT_TASK_BOARD.md`
+- Summary: added automatic main integration protocol and created `C0` as the required integration task after the completed A/B round.
+- Follow-up / Risks: next agent action must claim `C0`; no new feature work should start before `C0` is integrated and verified.
 - Time: 17:37:25
 - Task ID: A3
 - Status: DONE
