@@ -32,8 +32,22 @@ message RevertStockReq {
 }
 message RevertStockResp {}
 
+message ListProductsReq {
+  repeated int64 product_ids = 1;
+  int64 page_size = 2;
+  int64 page_num = 3;
+  int32 status_filter = 4; // 0=all, 1=active only
+}
+
+message ListProductsResp {
+  repeated GetProductCardResp items = 1;
+  int64 total = 2;
+}
+
 service Product {
   rpc GetProductCard(GetProductCardReq) returns(GetProductCardResp);
+  // 批量查询商品
+  rpc ListProducts(ListProductsReq) returns(ListProductsResp);
   // 扣减库存（正向操作）
   rpc Deduct(DeductReq) returns(Empty);
   // 回滚库存（补偿操作，用于事务失败）

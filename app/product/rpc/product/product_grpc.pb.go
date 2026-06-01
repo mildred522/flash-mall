@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	Product_GetProductCard_FullMethodName = "/product.Product/GetProductCard"
+	Product_ListProducts_FullMethodName   = "/product.Product/ListProducts"
 	Product_Deduct_FullMethodName         = "/product.Product/Deduct"
 	Product_DeductRollback_FullMethodName = "/product.Product/DeductRollback"
 	Product_RevertStock_FullMethodName    = "/product.Product/RevertStock"
@@ -30,6 +31,8 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ProductClient interface {
 	GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error)
+	// 批量查询商品
+	ListProducts(ctx context.Context, in *ListProductsReq, opts ...grpc.CallOption) (*ListProductsResp, error)
 	// 扣减库存（正向操作）
 	Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error)
 	// 回滚库存（补偿操作，用于事务失败）
@@ -50,6 +53,16 @@ func (c *productClient) GetProductCard(ctx context.Context, in *GetProductCardRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetProductCardResp)
 	err := c.cc.Invoke(ctx, Product_GetProductCard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productClient) ListProducts(ctx context.Context, in *ListProductsReq, opts ...grpc.CallOption) (*ListProductsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProductsResp)
+	err := c.cc.Invoke(ctx, Product_ListProducts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +104,8 @@ func (c *productClient) RevertStock(ctx context.Context, in *RevertStockReq, opt
 // for forward compatibility.
 type ProductServer interface {
 	GetProductCard(context.Context, *GetProductCardReq) (*GetProductCardResp, error)
+	// 批量查询商品
+	ListProducts(context.Context, *ListProductsReq) (*ListProductsResp, error)
 	// 扣减库存（正向操作）
 	Deduct(context.Context, *DeductReq) (*Empty, error)
 	// 回滚库存（补偿操作，用于事务失败）
@@ -109,6 +124,9 @@ type UnimplementedProductServer struct{}
 
 func (UnimplementedProductServer) GetProductCard(context.Context, *GetProductCardReq) (*GetProductCardResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetProductCard not implemented")
+}
+func (UnimplementedProductServer) ListProducts(context.Context, *ListProductsReq) (*ListProductsResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProducts not implemented")
 }
 func (UnimplementedProductServer) Deduct(context.Context, *DeductReq) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Deduct not implemented")
@@ -154,6 +172,24 @@ func _Product_GetProductCard_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServer).GetProductCard(ctx, req.(*GetProductCardReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Product_ListProducts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProductsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServer).ListProducts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Product_ListProducts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServer).ListProducts(ctx, req.(*ListProductsReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -222,6 +258,10 @@ var Product_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetProductCard",
 			Handler:    _Product_GetProductCard_Handler,
+		},
+		{
+			MethodName: "ListProducts",
+			Handler:    _Product_ListProducts_Handler,
 		},
 		{
 			MethodName: "Deduct",

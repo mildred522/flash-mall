@@ -10,6 +10,7 @@ const pages = [
   { html: "index.html", css: ["styles/variables.css", "styles/index.css"], js: "js/index.js", out: "home.html" },
   { html: "shop.html", css: ["styles/variables.css", "styles/shop.css", "styles/console.css"], js: "js/bootstrap.js", out: "shop.html" },
   { html: "debug.html", css: ["styles/variables.css", "styles/debug.css"], js: "js/debug.js", out: "debug.html" },
+  { html: "admin.html", css: ["styles/variables.css", "styles/admin.css"], js: "js/admin.js", out: "admin.html" },
 ];
 
 async function main() {

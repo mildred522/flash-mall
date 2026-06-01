@@ -32,6 +32,21 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
+				Path:    "/admin",
+				Handler: AdminUIHandler(),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/admin/*any",
+				Handler: AdminUIHandler(),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/monitor",
+				Handler: MonitorUIHandler(),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/api/system/health",
 				Handler: SystemHealthHandler(serverCtx),
 			},
@@ -39,6 +54,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Method:  http.MethodGet,
 				Path:    "/api/shop/catalog",
 				Handler: CatalogHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/order/status",
+				Handler: OrderStatusPollHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/metrics",
+				Handler: MetricsHandler(),
 			},
 		},
 	)
@@ -103,6 +128,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		},
 	)
 
+	// Rate-limited order endpoints (JWT protected)
 	server.AddRoutes(
 		rest.WithMiddlewares(
 			[]rest.Middleware{
@@ -113,6 +139,74 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/order/create",
 				Handler: CreateOrderHandler(serverCtx),
 			},
+		),
+		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
+	)
+	server.AddRoutes(
+		rest.WithMiddlewares(
+			[]rest.Middleware{
+				middleware.NewRateLimitMiddleware(serverCtx.OrderLimiter),
+			},
+			rest.Route{
+				Method:  http.MethodPost,
+				Path:    "/api/order/pay",
+				Handler: PayOrderHandler(serverCtx),
+			},
+		),
+		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
+	)
+
+	// JWT-protected order query endpoints (no rate limit needed)
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/orders",
+				Handler: OrderListHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/orders/detail",
+				Handler: OrderDetailHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
+	)
+
+	// JWT-protected order lifecycle endpoints
+	server.AddRoutes(
+		[]rest.Route{
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/order/ship",
+				Handler: ShipOrderHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/order/confirm-receipt",
+				Handler: ConfirmReceiptHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/order/refund",
+				Handler: RefundOrderHandler(serverCtx),
+			},
+		},
+		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
+	)
+
+	// Admin API routes (JWT + admin role required)
+	adminMW := []rest.Middleware{middleware.NewAdminAuthMiddleware()}
+	server.AddRoutes(
+		rest.WithMiddlewares(adminMW,
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders", Handler: AdminOrderListHandler(serverCtx)},
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders/detail", Handler: AdminOrderDetailHandler(serverCtx)},
+			rest.Route{Method: http.MethodPost, Path: "/api/admin/orders/ship", Handler: AdminShipOrderHandler(serverCtx)},
+			rest.Route{Method: http.MethodPost, Path: "/api/admin/orders/refund", Handler: AdminRefundOrderHandler(serverCtx)},
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/products", Handler: AdminProductListHandler(serverCtx)},
+			rest.Route{Method: http.MethodPost, Path: "/api/admin/products/update", Handler: AdminProductUpdateHandler(serverCtx)},
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/users", Handler: AdminUserListHandler(serverCtx)},
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/dashboard/stats", Handler: AdminDashboardStatsHandler(serverCtx)},
 		),
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)

@@ -33,6 +33,7 @@ type User struct {
 	DisplayName    string
 	PasswordHash   string
 	SessionVersion int64
+	Role           string
 }
 
 type verifyCode struct {
@@ -99,10 +100,29 @@ func (s *Store) seedDemoUser(password string) error {
 		DisplayName:    "Flash Mall 用户 1001",
 		PasswordHash:   string(hash),
 		SessionVersion: 1,
+		Role:           "user",
 	}
 	s.usersByID[user.ID] = user
 	s.usersByPhone[user.Phone] = user
 	s.syncUserVersionLocked(user.ID)
+
+	// Admin demo user
+	adminHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	admin := &User{
+		ID:             1002,
+		Phone:          "13800000002",
+		DisplayName:    "Flash Mall 管理员",
+		PasswordHash:   string(adminHash),
+		SessionVersion: 1,
+		Role:           "admin",
+	}
+	s.usersByID[admin.ID] = admin
+	s.usersByPhone[admin.Phone] = admin
+	s.nextUserID = 1003
+	s.syncUserVersionLocked(admin.ID)
 	return nil
 }
 
@@ -181,6 +201,7 @@ func (s *Store) CreateUser(phone, displayName, password string) (*User, error) {
 		DisplayName:    displayName,
 		PasswordHash:   string(hash),
 		SessionVersion: 1,
+		Role:           "user",
 	}
 	s.nextUserID++
 	s.usersByID[user.ID] = user
@@ -220,6 +241,16 @@ func (s *Store) GetUserByID(userID int64) (*User, bool) {
 	defer s.mu.RUnlock()
 	user, ok := s.usersByID[userID]
 	return user, ok
+}
+
+func (s *Store) ListAllUsers() []*User {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	users := make([]*User, 0, len(s.usersByID))
+	for _, u := range s.usersByID {
+		users = append(users, u)
+	}
+	return users
 }
 
 func (s *Store) GetActiveSession(sessionID string) (*Session, bool) {

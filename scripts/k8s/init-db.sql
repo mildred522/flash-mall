@@ -1,5 +1,8 @@
 ﻿-- 初始化数据库与表结构（K8s MySQL）
 
+SET NAMES utf8mb4;
+SET CHARACTER SET utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS mall_order DEFAULT CHARSET utf8mb4;
 CREATE DATABASE IF NOT EXISTS mall_product DEFAULT CHARSET utf8mb4;
 CREATE DATABASE IF NOT EXISTS mall_auth DEFAULT CHARSET utf8mb4;
@@ -13,13 +16,43 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
   product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
   amount int NOT NULL DEFAULT 0 COMMENT '数量',
-  status tinyint NOT NULL DEFAULT 0 COMMENT '订单状态 0-待支付 1-已支付 2-已关闭',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '订单状态 0-待支付 1-已支付 2-已关闭 3-已发货 4-已收货 5-申请退款 6-已退款',
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uniq_request_id (request_id),
   KEY ix_user_id (user_id),
   KEY ix_create_time (create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 订单生命周期：新增时间戳列（幂等迁移）
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'shipped_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN shipped_at timestamp NULL DEFAULT NULL AFTER status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'completed_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN completed_at timestamp NULL DEFAULT NULL AFTER shipped_at', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'refund_requested_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN refund_requested_at timestamp NULL DEFAULT NULL AFTER completed_at', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'refunded_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN refunded_at timestamp NULL DEFAULT NULL AFTER refund_requested_at', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 订单状态变更日志
+CREATE TABLE IF NOT EXISTS order_status_log (
+  id bigint NOT NULL AUTO_INCREMENT,
+  order_id varchar(64) NOT NULL COMMENT '订单id',
+  from_status tinyint NOT NULL COMMENT '原状态',
+  to_status tinyint NOT NULL COMMENT '新状态',
+  operator_id bigint NOT NULL DEFAULT 0 COMMENT '操作人id',
+  remark varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS order_price_snapshot (
@@ -256,6 +289,32 @@ WHERE product_id = 100
 
 INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, starts_at, ends_at, status)
 VALUES (100, 'LIMITED_PRICE', 9900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
+
+-- 新增商品 101-104
+INSERT INTO product (id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+VALUES
+  (101, '轻薄羽绒服', 10000, 0, 39900, 25900, 1, 200),
+  (102, '纯棉T恤三件套', 10000, 0, 15900, 9900, 1, 200),
+  (103, '运动休闲鞋', 10000, 0, 49900, 32900, 1, 200),
+  (104, '便携充电宝', 10000, 0, 12900, 7900, 1, 200)
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name), stock = VALUES(stock),
+  origin_price_fen = VALUES(origin_price_fen), sale_price_fen = VALUES(sale_price_fen),
+  status = VALUES(status), supplier_id = VALUES(supplier_id);
+
+INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES
+  (101, 0, 2500, 0), (101, 1, 2500, 0), (101, 2, 2500, 0), (101, 3, 2500, 0),
+  (102, 0, 2500, 0), (102, 1, 2500, 0), (102, 2, 2500, 0), (102, 3, 2500, 0),
+  (103, 0, 2500, 0), (103, 1, 2500, 0), (103, 2, 2500, 0), (103, 3, 2500, 0),
+  (104, 0, 2500, 0), (104, 1, 2500, 0), (104, 2, 2500, 0), (104, 3, 2500, 0)
+ON DUPLICATE KEY UPDATE stock = VALUES(stock), version = VALUES(version);
+
+DELETE FROM promotion_rule WHERE product_id IN (101, 102, 103, 104) AND type = 'LIMITED_PRICE';
+INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, starts_at, ends_at, status) VALUES
+  (101, 'LIMITED_PRICE', 25900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1),
+  (102, 'LIMITED_PRICE', 9900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1),
+  (103, 'LIMITED_PRICE', 32900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1),
+  (104, 'LIMITED_PRICE', 7900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
 
 USE mall_auth;
 

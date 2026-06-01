@@ -19,6 +19,76 @@ type CreateOrderResp struct {
 	PaymentOrderId   string `json:"payment_order_id"`
 }
 
+type PayOrderReq struct {
+	OrderId string `json:"order_id"`
+}
+
+type PayOrderResp struct {
+	OrderId string `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+type ShipOrderReq struct {
+	OrderId string `json:"order_id"`
+}
+
+type ShipOrderResp struct {
+	OrderId string `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+type ConfirmReceiptReq struct {
+	OrderId string `json:"order_id"`
+}
+
+type ConfirmReceiptResp struct {
+	OrderId string `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+type RefundOrderReq struct {
+	OrderId string `json:"order_id"`
+	Reason  string `json:"reason,optional"`
+}
+
+type RefundOrderResp struct {
+	OrderId string `json:"order_id"`
+	Status  string `json:"status"`
+}
+
+type OrderListItem struct {
+	OrderId          string `json:"order_id"`
+	ProductId        int64  `json:"product_id"`
+	ProductName      string `json:"product_name"`
+	Amount           int64  `json:"amount"`
+	Status           int64  `json:"status"`
+	StatusText       string `json:"status_text"`
+	PayableAmountFen int64  `json:"payable_amount_fen"`
+	CreateTime       string `json:"create_time"`
+}
+
+type OrderListResp struct {
+	Items []OrderListItem `json:"items"`
+}
+
+type OrderDetailResp struct {
+	OrderId             string `json:"order_id"`
+	ProductId           int64  `json:"product_id"`
+	ProductName         string `json:"product_name"`
+	Amount              int64  `json:"amount"`
+	Status              int64  `json:"status"`
+	StatusText          string `json:"status_text"`
+	OriginUnitPriceFen  int64  `json:"origin_unit_price_fen"`
+	SaleUnitPriceFen    int64  `json:"sale_unit_price_fen"`
+	PayableAmountFen    int64  `json:"payable_amount_fen"`
+	DiscountAmountFen   int64  `json:"discount_amount_fen"`
+	PromotionType       string `json:"promotion_type"`
+	PromotionTag        string `json:"promotion_tag"`
+	PaymentOrderId      string `json:"payment_order_id"`
+	PaymentStatus       int64  `json:"payment_status"`
+	CreateTime          string `json:"create_time"`
+}
+
 type ProductCard struct {
 	ProductId      int64  `json:"product_id"`
 	Name           string `json:"name"`
@@ -26,6 +96,16 @@ type ProductCard struct {
 	FinalPriceFen  int64  `json:"final_price_fen"`
 	PromotionTag   string `json:"promotion_tag"`
 	StockAvailable int64  `json:"stock_available"`
+}
+
+type OrderStatusPollReq struct {
+	RequestId string `form:"request_id"`
+}
+
+type OrderStatusPollResp struct {
+	RequestId string `json:"request_id"`
+	OrderId   string `json:"order_id,omitempty"`
+	Status    string `json:"status"`
 }
 
 type DependencyStatus struct {
@@ -36,6 +116,83 @@ type DependencyStatus struct {
 
 type SystemHealthResp struct {
 	Overall      bool               `json:"overall"`
+	Version      string             `json:"version"`
+	Uptime       string             `json:"uptime"`
+	Goroutines   int                `json:"goroutines"`
 	ServerTime   int64              `json:"server_time"`
 	Dependencies []DependencyStatus `json:"dependencies"`
+}
+
+// Admin API types
+type AdminOrderListReq struct {
+	Page     int64  `form:"page,optional,default=1"`
+	PageSize int64  `form:"page_size,optional,default=20"`
+	Status   int64  `form:"status,optional,default=-1"`
+	UserId   int64  `form:"user_id,optional"`
+	OrderId  string `form:"order_id,optional"`
+}
+
+type AdminOrderListItem struct {
+	OrderId          string `json:"order_id"`
+	UserId           int64  `json:"user_id"`
+	ProductId        int64  `json:"product_id"`
+	ProductName      string `json:"product_name"`
+	Amount           int64  `json:"amount"`
+	Status           int64  `json:"status"`
+	StatusText       string `json:"status_text"`
+	PayableAmountFen int64  `json:"payable_amount_fen"`
+	CreateTime       string `json:"create_time"`
+}
+
+type AdminOrderListResp struct {
+	Items []AdminOrderListItem `json:"items"`
+	Total int64                `json:"total"`
+}
+
+type AdminProductListReq struct {
+	Page     int64 `form:"page,optional,default=1"`
+	PageSize int64 `form:"page_size,optional,default=20"`
+}
+
+type AdminProductItem struct {
+	ProductId      int64  `json:"product_id"`
+	Name           string `json:"name"`
+	OriginPriceFen int64  `json:"origin_price_fen"`
+	SalePriceFen   int64  `json:"sale_price_fen"`
+	StockAvailable int64  `json:"stock_available"`
+	Status         int64  `json:"status"`
+}
+
+type AdminProductListResp struct {
+	Items []AdminProductItem `json:"items"`
+	Total int64              `json:"total"`
+}
+
+type AdminUserListReq struct {
+	Page     int64 `form:"page,optional,default=1"`
+	PageSize int64 `form:"page_size,optional,default=20"`
+}
+
+type AdminUserItem struct {
+	UserId      int64  `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	Phone       string `json:"phone"`
+	Role        string `json:"role"`
+	CreateTime  string `json:"create_time"`
+}
+
+type AdminUserListResp struct {
+	Items []AdminUserItem `json:"items"`
+	Total int64           `json:"total"`
+}
+
+type AdminDashboardStats struct {
+	TotalOrders     int64 `json:"total_orders"`
+	TotalRevenueFen int64 `json:"total_revenue_fen"`
+	TotalUsers      int64 `json:"total_users"`
+	TotalProducts   int64 `json:"total_products"`
+	PendingOrders   int64 `json:"pending_orders"`
+	PaidOrders      int64 `json:"paid_orders"`
+	ShippedOrders   int64 `json:"shipped_orders"`
+	CompletedOrders int64 `json:"completed_orders"`
 }

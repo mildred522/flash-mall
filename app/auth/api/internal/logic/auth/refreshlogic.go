@@ -55,6 +55,7 @@ func (l *RefreshLogic) Refresh(refreshToken string) (*types.LoginResp, error) {
 		newRefreshToken,
 		user.DisplayName,
 		user.Phone,
+		user.Role,
 	)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "sign jwt failed")

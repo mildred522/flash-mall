@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"runtime"
 	"strings"
 	"time"
 
@@ -52,8 +53,13 @@ func (l *SystemHealthLogic) SystemHealth() (*types.SystemHealthResp, error) {
 	rabbitOK, rabbitDetail := l.checkRabbit()
 	appendDep("rabbitmq", rabbitOK, rabbitDetail)
 
+	uptime := time.Since(l.svcCtx.StartTime).Truncate(time.Second).String()
+
 	return &types.SystemHealthResp{
 		Overall:      overall,
+		Version:      "dev",
+		Uptime:       uptime,
+		Goroutines:   runtime.NumGoroutine(),
 		ServerTime:   time.Now().Unix(),
 		Dependencies: deps,
 	}, nil
@@ -64,7 +70,7 @@ func (l *SystemHealthLogic) checkMySQL() (bool, string) {
 	if err != nil {
 		return false, fmt.Sprintf("raw db error: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(l.ctx, 1500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(l.ctx, 500*time.Millisecond)
 	defer cancel()
 	if pingErr := rawDB.PingContext(ctx); pingErr != nil {
 		return false, pingErr.Error()
@@ -92,7 +98,7 @@ func (l *SystemHealthLogic) checkTCP(addr string) (bool, string) {
 	if addr == "" {
 		return false, "empty address"
 	}
-	conn, err := net.DialTimeout("tcp", addr, 1500*time.Millisecond)
+	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
 	if err != nil {
 		return false, err.Error()
 	}

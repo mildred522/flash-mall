@@ -43,6 +43,10 @@ func (s *stubAuthStore) GetUserByID(int64) (*authstore.User, bool) {
 	return nil, false
 }
 
+func (s *stubAuthStore) ListAllUsers() []*authstore.User {
+	return nil
+}
+
 func (s *stubAuthStore) GetActiveSession(string) (*authstore.Session, bool) {
 	return nil, false
 }

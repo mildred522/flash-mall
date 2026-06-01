@@ -43,6 +43,10 @@ func (s *stubProductRPC) RevertStock(context.Context, *productclient.RevertStock
 	panic("unexpected RevertStock call")
 }
 
+func (s *stubProductRPC) ListProducts(context.Context, *productclient.ListProductsReq, ...grpc.CallOption) (*productclient.ListProductsResp, error) {
+	panic("unexpected ListProducts call")
+}
+
 func TestCreateOrderLogic_CreateOrder_RejectsExpectedPriceMismatch(t *testing.T) {
 	svcCtx := &svc.ServiceContext{
 		ProductRpc: &stubProductRPC{

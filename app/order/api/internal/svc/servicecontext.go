@@ -1,6 +1,9 @@
 package svc
 
 import (
+	"time"
+
+	"flash-mall/app/order/api/internal/cache"
 	"flash-mall/app/order/api/internal/config"
 	"flash-mall/app/order/api/internal/idgen"
 	"flash-mall/app/order/api/internal/model"
@@ -24,8 +27,10 @@ type ServiceContext struct {
 	OrderModel       model.OrdersModel
 	SessionValidator sessionstate.Validator
 	// CHG 2026-02-24: 变更=新增下单限流器; 之前=无显式限流; 原因=高峰期快速失败保护后端。
-	OrderLimiter *rate.Limiter
-	OrderIdGen   idgen.Generator
+	OrderLimiter  *rate.Limiter
+	OrderIdGen    idgen.Generator
+	CatalogCache  *cache.CatalogCache
+	StartTime     time.Time
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -58,5 +63,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		SessionValidator: validator,
 		OrderLimiter:     limiter,
 		OrderIdGen:       orderIDGen,
+		CatalogCache:     cache.NewCatalogCache(rds),
+		StartTime:        time.Now(),
 	}
 }

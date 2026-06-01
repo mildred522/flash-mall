@@ -28,6 +28,12 @@ func (s *ProductServer) GetProductCard(ctx context.Context, in *product.GetProdu
 	return l.GetProductCard(in)
 }
 
+// 批量查询商品
+func (s *ProductServer) ListProducts(ctx context.Context, in *product.ListProductsReq) (*product.ListProductsResp, error) {
+	l := logic.NewListProductsLogic(ctx, s.svcCtx)
+	return l.ListProducts(in)
+}
+
 // 扣减库存（正向操作）
 func (s *ProductServer) Deduct(ctx context.Context, in *product.DeductReq) (*product.Empty, error) {
 	l := logic.NewDeductLogic(ctx, s.svcCtx)

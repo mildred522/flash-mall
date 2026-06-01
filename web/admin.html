@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Flash Mall - 后台管理</title>
+  <link rel="stylesheet" href="./styles/variables.css" />
+  <link rel="stylesheet" href="./styles/admin.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container topbar-inner">
+      <div class="brand"><span class="brand-mark">F</span><span>Flash Mall 后台</span></div>
+      <nav class="admin-nav">
+        <button class="admin-tab active" data-tab="dashboard">仪表盘</button>
+        <button class="admin-tab" data-tab="orders">订单管理</button>
+        <button class="admin-tab" data-tab="products">商品管理</button>
+        <button class="admin-tab" data-tab="users">用户管理</button>
+      </nav>
+      <div class="row">
+        <a href="/shop" class="pill outline" style="text-decoration:none">返回商城</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container admin-main" id="admin-main">
+    <!-- Dashboard -->
+    <div id="panel-dashboard" class="admin-panel active">
+      <h2>仪表盘</h2>
+      <div id="dashboard-content"><div class="loading">加载中...</div></div>
+    </div>
+
+    <!-- Orders -->
+    <div id="panel-orders" class="admin-panel">
+      <div class="panel-header">
+        <h2>订单管理</h2>
+        <div class="filters">
+          <select id="order-status-filter">
+            <option value="">全部状态</option>
+            <option value="0">待支付</option>
+            <option value="1">已支付</option>
+            <option value="2">已关闭</option>
+            <option value="3">已发货</option>
+            <option value="4">已收货</option>
+            <option value="5">退款中</option>
+            <option value="6">已退款</option>
+          </select>
+          <button id="order-filter-apply" class="button primary">筛选</button>
+          <span id="orders-total" class="total-label"></span>
+        </div>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>订单号</th><th>用户ID</th><th>商品</th><th>数量</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
+        <tbody id="orders-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Products -->
+    <div id="panel-products" class="admin-panel">
+      <h2>商品管理</h2>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>名称</th><th>原价</th><th>售价</th><th>库存</th><th>状态</th></tr></thead>
+        <tbody id="products-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Users -->
+    <div id="panel-users" class="admin-panel">
+      <h2>用户管理</h2>
+      <table class="admin-table">
+        <thead><tr><th>用户ID</th><th>昵称</th><th>手机号</th><th>注册时间</th></tr></thead>
+        <tbody id="users-tbody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div id="login-hint" class="login-hint" style="display:none">
+    <div class="login-card">
+      <h2>请先登录</h2>
+      <p>后台管理需要管理员权限，请先在商城登录后再访问。</p>
+      <a href="/shop" class="button primary">前往商城登录</a>
+    </div>
+  </div>
+
+  <div class="console-box" id="console-box">
+    <div class="console-header" id="console-toggle">
+      <span>开发者控制台</span>
+      <span class="console-chevron">▼</span>
+    </div>
+    <pre class="console-log" id="console-log"></pre>
+  </div>
+
+  <script type="module" src="./js/admin.js"></script>
+</body>
+</html>

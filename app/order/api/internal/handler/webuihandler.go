@@ -21,6 +21,10 @@ func DebugUIHandler() http.HandlerFunc {
 	return serveEmbeddedHTML("web/debug.html")
 }
 
+func AdminUIHandler() http.HandlerFunc {
+	return serveEmbeddedHTML("web/admin.html")
+}
+
 func serveEmbeddedHTML(path string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		content, err := webUIFS.ReadFile(path)

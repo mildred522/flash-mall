@@ -211,6 +211,16 @@ New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Set-Location $repoRoot
 
+# Kill any leftover service processes from previous runs
+$ErrorActionPreference = "Continue"
+& taskkill /IM auth.exe /F 2>&1 | Out-Null
+& taskkill /IM product.exe /F 2>&1 | Out-Null
+& taskkill /IM order.exe /F 2>&1 | Out-Null
+& taskkill /IM order-rpc.exe /F 2>&1 | Out-Null
+$ErrorActionPreference = "Stop"
+Start-Sleep -Seconds 2
+Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+
 Stop-StaleServices -PidFilePath $pidFile
 
 $composeCmd = $null
@@ -247,18 +257,18 @@ if (-not $SkipSeedStock) {
 }
 
 if (-not $SkipFrontend) {
-  $webDir = Join-Path $repoRoot "web"
-  if (Test-Path (Join-Path $webDir "node_modules")) {
-    Write-Host "[STEP] build frontend (web/)"
-    Push-Location $webDir
+  $frontendDir = Join-Path $repoRoot "frontend"
+  if (Test-Path (Join-Path $frontendDir "node_modules")) {
+    Write-Host "[STEP] build frontend (frontend/)"
+    Push-Location $frontendDir
     try {
       Invoke-Native { npm run build } "frontend build failed"
     } finally {
       Pop-Location
     }
   } else {
-    Write-Host "[STEP] install and build frontend (web/)"
-    Push-Location $webDir
+    Write-Host "[STEP] install and build frontend (frontend/)"
+    Push-Location $frontendDir
     try {
       Invoke-Native { npm install } "npm install failed"
       Invoke-Native { npm run build } "frontend build failed"
@@ -299,9 +309,11 @@ try {
 
 Write-Host ""
 Write-Host "========== Flash Mall Ready =========="
-Write-Host "UI:          http://127.0.0.1:8888/"
-Write-Host "Auth API:    http://127.0.0.1:8890/api/auth/login"
+Write-Host "Shop:        http://127.0.0.1:8888/shop"
+Write-Host "Admin:       http://127.0.0.1:8888/admin (13800000002 / admin123)"
+Write-Host "Debug:       http://127.0.0.1:8888/debug"
 Write-Host "Health API:  http://127.0.0.1:8888/api/system/health"
+Write-Host "Auth API:    http://127.0.0.1:8890/api/auth/login"
 Write-Host "Metrics:     http://127.0.0.1:9090/metrics"
 Write-Host "PProf:       http://127.0.0.1:6060/debug/pprof/"
 Write-Host "PID file:    $pidFile"
@@ -310,5 +322,5 @@ Write-Host "Stop cmd:    powershell -ExecutionPolicy Bypass -File scripts/local/
 Write-Host "======================================"
 
 if (-not $NoBrowser) {
-  Start-Process "http://127.0.0.1:8888/"
+  Start-Process "http://127.0.0.1:8888/shop"
 }

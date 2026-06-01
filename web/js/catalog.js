@@ -2,28 +2,43 @@ import { state, $, log } from "./state.js";
 import { api } from "./api-client.js";
 import { order } from "./order.js";
 
-export const PRODUCT_META = [
-  {
+export const PRODUCT_META = new Map([
+  [100, {
+    image: "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=400&h=400&fit=crop&auto=format",
+    icon: "🧥",
     desc: "利落版型配轻盈面料，通勤出门都好搭",
     tags: ["限时秒杀", "包邮"],
     accent: "linear-gradient(135deg, #fff1f4, #ffe8e0)",
-  },
-  {
-    desc: "轻薄透气，春季必备百搭款",
-    tags: ["新品首发", "包邮"],
-    accent: "linear-gradient(135deg, #f0f4ff, #e8f0ff)",
-  },
-  {
-    desc: "经典款型，品质面料，日常通勤首选",
+  }],
+  [101, {
+    image: "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=400&h=400&fit=crop&auto=format",
+    icon: "🧥",
+    desc: "90%白鸭绒填充，轻暖不臃肿",
+    tags: ["限时秒杀", "保暖"],
+    accent: "linear-gradient(135deg, #e8f0ff, #d8e8ff)",
+  }],
+  [102, {
+    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&h=400&fit=crop&auto=format",
+    icon: "👕",
+    desc: "100%纯棉面料，三色随心搭配",
     tags: ["热卖", "满减"],
     accent: "linear-gradient(135deg, #fff8f0, #fff0e0)",
-  },
-  {
-    desc: "时尚设计，舒适穿着，换季必备",
+  }],
+  [103, {
+    image: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=400&fit=crop&auto=format",
+    icon: "👟",
+    desc: "飞织透气鞋面，缓震回弹鞋底",
     tags: ["人气款", "包邮"],
     accent: "linear-gradient(135deg, #f0fff4, #e0ffe8)",
-  },
-];
+  }],
+  [104, {
+    image: "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=400&fit=crop&auto=format",
+    icon: "🔋",
+    desc: "20000mAh大容量，22.5W快充",
+    tags: ["新品首发", "包邮"],
+    accent: "linear-gradient(135deg, #fef4ff, #f0e8ff)",
+  }],
+]);
 
 export function formatPriceFen(value) {
   return (Number(value || 0) / 100).toFixed(2);
@@ -43,7 +58,7 @@ export function renderProducts(items) {
 
   grid.innerHTML = state.products
     .map((product, index) => {
-      const meta = PRODUCT_META[index % PRODUCT_META.length] || PRODUCT_META[0];
+      const meta = PRODUCT_META.get(product.product_id) || PRODUCT_META.values().next().value;
       const hasDiscount = product.origin_price_fen > product.final_price_fen;
       const discountPercent = hasDiscount
         ? Math.round((1 - product.final_price_fen / product.origin_price_fen) * 100)
@@ -58,7 +73,8 @@ export function renderProducts(items) {
             <span class="pill">${badge}</span>
             ${meta.tags.length > 1 ? `<span class="pill orange">${meta.tags[1]}</span>` : ""}
           </div>
-          <span class="placeholder-icon">📦</span>
+          <img class="thumb-img" src="${meta.image}" alt="${product.name || '商品图片'}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+          <span class="thumb-icon" style="display:none">${meta.icon}</span>
         </div>
         <div class="product-info">
           <div class="product-name">${product.name || "精选好物"}</div>

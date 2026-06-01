@@ -43,5 +43,5 @@ type Config struct {
 	JwtExpireSeconds int64
 	AuthServiceBaseURL string
 
-	CatalogProductIDs []int64
+	CatalogProductIDs []int64 `json:",optional"`
 }

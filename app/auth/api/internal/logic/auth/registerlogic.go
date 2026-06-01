@@ -61,6 +61,7 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 		refreshToken,
 		user.DisplayName,
 		user.Phone,
+		user.Role,
 	)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "sign jwt failed")

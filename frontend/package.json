@@ -1,0 +1,17 @@
+{
+  "name": "flash-mall-frontend",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "packages/shop",
+    "packages/admin"
+  ],
+  "scripts": {
+    "dev:shop": "npm run dev -w packages/shop",
+    "dev:admin": "npm run dev -w packages/admin",
+    "build:shop": "npm run build -w packages/shop",
+    "build:admin": "npm run build -w packages/admin",
+    "build": "node build.js"
+  }
+}

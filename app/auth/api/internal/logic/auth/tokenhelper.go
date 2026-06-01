@@ -8,7 +8,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-func issueLoginResp(secret string, accessTTLSeconds int64, userID int64, sessionVersion int64, sessionID, refreshToken, displayName, phone string) (*types.LoginResp, error) {
+func issueLoginResp(secret string, accessTTLSeconds int64, userID int64, sessionVersion int64, sessionID, refreshToken, displayName, phone, role string) (*types.LoginResp, error) {
 	if accessTTLSeconds <= 0 {
 		accessTTLSeconds = 2 * 60 * 60
 	}
@@ -19,7 +19,7 @@ func issueLoginResp(secret string, accessTTLSeconds int64, userID int64, session
 		"sub":             fmt.Sprintf("%d", userID),
 		"sid":             sessionID,
 		"session_version": sessionVersion,
-		"role":            "user",
+		"role":            role,
 		"iat":             now.Unix(),
 		"exp":             expiresAt.Unix(),
 	})

@@ -52,8 +52,63 @@ var (
 		},
 		[]string{"result"},
 	)
+
+	CatalogRequestTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "flashmall",
+			Subsystem: "catalog",
+			Name:      "request_total",
+			Help:      "Total number of catalog requests by result.",
+		},
+		[]string{"result"},
+	)
+
+	CatalogRequestDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "flashmall",
+			Subsystem: "catalog",
+			Name:      "request_duration_seconds",
+			Help:      "Catalog request duration in seconds.",
+			Buckets:   []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+	)
+
+	PaymentTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "flashmall",
+			Subsystem: "order",
+			Name:      "payment_total",
+			Help:      "Total number of payment attempts by result.",
+		},
+		[]string{"result"},
+	)
+
+	OrderStatusTransitionTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "flashmall",
+			Subsystem: "order",
+			Name:      "status_transition_total",
+			Help:      "Total number of order status transitions.",
+		},
+		[]string{"from_status", "to_status"},
+	)
+
+	CatalogCacheHitTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "flashmall",
+			Subsystem: "catalog",
+			Name:      "cache_hit_total",
+			Help:      "Total number of catalog cache lookups by result.",
+		},
+		[]string{"result"},
+	)
 )
 
 func init() {
-	prometheus.MustRegister(OrderCreateTotal, OrderSagaSubmitTotal, OrderCompensationTotal, DelayQueueBacklog, OrderEventConsumeTotal)
+	prometheus.MustRegister(
+		OrderCreateTotal, OrderSagaSubmitTotal, OrderCompensationTotal,
+		DelayQueueBacklog, OrderEventConsumeTotal,
+		CatalogRequestTotal, CatalogRequestDuration, PaymentTotal,
+		OrderStatusTransitionTotal, CatalogCacheHitTotal,
+	)
 }

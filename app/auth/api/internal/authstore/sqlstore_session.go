@@ -81,7 +81,7 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 	user, err := queryUser(
 		tx.QueryRowContext(
 			ctx,
-			`SELECT u.id, COALESCE(i.identity_value, ''), u.display_name, COALESCE(c.password_hash, ''), u.session_version
+			`SELECT u.id, COALESCE(i.identity_value, ''), u.display_name, COALESCE(c.password_hash, ''), u.session_version, COALESCE(u.role, 'user')
 			 FROM users u
 			 LEFT JOIN user_identities i ON i.user_id = u.id AND i.identity_type = 'phone'
 			 LEFT JOIN user_credentials c ON c.user_id = u.id AND c.credential_type = 'password'

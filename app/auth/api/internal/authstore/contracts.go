@@ -10,6 +10,7 @@ type AuthStore interface {
 	Authenticate(userID int64, phone, password string) (*User, error)
 	GetUserByPhone(phone string) (*User, bool)
 	GetUserByID(userID int64) (*User, bool)
+	ListAllUsers() []*User
 	GetActiveSession(sessionID string) (*Session, bool)
 	CreateSession(userID int64, ttlSeconds int64) (string, string, error)
 	CreateSessionForDevice(userID int64, deviceType string, ttlSeconds int64) (string, string, error)

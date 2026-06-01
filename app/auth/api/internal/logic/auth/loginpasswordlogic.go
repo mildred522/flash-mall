@@ -80,6 +80,7 @@ func (l *LoginPasswordLogic) Login(req *types.LoginReq) (*types.LoginResp, error
 		refreshToken,
 		user.DisplayName,
 		user.Phone,
+		user.Role,
 	)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "sign jwt failed")

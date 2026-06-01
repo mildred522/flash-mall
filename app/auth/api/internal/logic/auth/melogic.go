@@ -61,6 +61,7 @@ func (l *MeLogic) Me() (*types.MeResp, error) {
 		UserId:      userID,
 		DisplayName: user.DisplayName,
 		Phone:       user.Phone,
+		Role:        user.Role,
 	}, nil
 }
 

@@ -66,6 +66,7 @@ type MeResp struct {
 	UserId      int64  `json:"user_id"`
 	DisplayName string `json:"display_name"`
 	Phone       string `json:"phone"`
+	Role        string `json:"role"`
 }
 
 type SecurityEventItem struct {

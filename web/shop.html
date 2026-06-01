@@ -15,6 +15,7 @@
         <a href="#campaign-strip">今日会场</a>
         <a href="#featured-products">精选商品</a>
         <a href="#featured-products">热卖推荐</a>
+        <a href="javascript:void(0)" id="nav-orders">我的订单</a>
       </nav>
       <div class="row">
         <span id="auth-chip" class="chip">游客</span>
@@ -87,6 +88,16 @@
           <span class="pill outline">品质优选</span>
         </div>
         <div id="product-grid" class="product-grid"></div>
+      </div>
+    </section>
+
+    <section id="orders-section" class="section" style="display:none">
+      <div class="container">
+        <div class="section-title">
+          <h2>我的订单</h2>
+          <a href="javascript:void(0)" id="back-to-shop" class="pill outline" style="cursor:pointer;text-decoration:none">返回商城</a>
+        </div>
+        <div id="orders-list" class="orders-list"></div>
       </div>
     </section>
   </main>

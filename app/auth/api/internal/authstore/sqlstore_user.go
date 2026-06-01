@@ -120,7 +120,7 @@ func (s *SQLStore) GetUserByPhone(phone string) (*User, bool) {
 	user, err := queryUser(
 		db.QueryRowContext(
 			context.Background(),
-			`SELECT u.id, i.identity_value, u.display_name, COALESCE(c.password_hash, ''), u.session_version
+			`SELECT u.id, i.identity_value, u.display_name, COALESCE(c.password_hash, ''), u.session_version, COALESCE(u.role, 'user')
 			 FROM users u
 			 JOIN user_identities i ON i.user_id = u.id AND i.identity_type = 'phone'
 			 LEFT JOIN user_credentials c ON c.user_id = u.id AND c.credential_type = 'password'
@@ -151,7 +151,7 @@ func (s *SQLStore) GetUserByID(userID int64) (*User, bool) {
 	user, err := queryUser(
 		db.QueryRowContext(
 			context.Background(),
-			`SELECT u.id, COALESCE(i.identity_value, ''), u.display_name, COALESCE(c.password_hash, ''), u.session_version
+			`SELECT u.id, COALESCE(i.identity_value, ''), u.display_name, COALESCE(c.password_hash, ''), u.session_version, COALESCE(u.role, 'user')
 			 FROM users u
 			 LEFT JOIN user_identities i ON i.user_id = u.id AND i.identity_type = 'phone'
 			 LEFT JOIN user_credentials c ON c.user_id = u.id AND c.credential_type = 'password'
@@ -194,7 +194,7 @@ func (s *SQLStore) UpdatePassword(phone, newPassword string) (*User, error) {
 	user, err := queryUser(
 		tx.QueryRowContext(
 			ctx,
-			`SELECT u.id, i.identity_value, u.display_name, COALESCE(c.password_hash, ''), u.session_version
+			`SELECT u.id, i.identity_value, u.display_name, COALESCE(c.password_hash, ''), u.session_version, COALESCE(u.role, 'user')
 			 FROM users u
 			 JOIN user_identities i ON i.user_id = u.id AND i.identity_type = 'phone'
 			 LEFT JOIN user_credentials c ON c.user_id = u.id AND c.credential_type = 'password'
@@ -254,6 +254,36 @@ type userScanner interface {
 	Scan(dest ...any) error
 }
 
+func (s *SQLStore) ListAllUsers() []*User {
+	if err := s.ensureDemoUser(); err != nil {
+		return nil
+	}
+	db, err := s.rawDB()
+	if err != nil {
+		return nil
+	}
+	rows, err := db.QueryContext(context.Background(),
+		`SELECT u.id, COALESCE(i.identity_value, ''), u.display_name, COALESCE(c.password_hash, ''), u.session_version, COALESCE(u.role, 'user')
+		 FROM users u
+		 LEFT JOIN user_identities i ON i.user_id = u.id AND i.identity_type = 'phone'
+		 LEFT JOIN user_credentials c ON c.user_id = u.id AND c.credential_type = 'password'
+		 WHERE u.status = ?`, statusActive)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		user, err := queryUser(rows)
+		if err != nil {
+			continue
+		}
+		users = append(users, user)
+	}
+	return users
+}
+
 func queryUser(row userScanner) (*User, error) {
 	var user User
 	if err := row.Scan(
@@ -262,6 +292,7 @@ func queryUser(row userScanner) (*User, error) {
 		&user.DisplayName,
 		&user.PasswordHash,
 		&user.SessionVersion,
+		&user.Role,
 	); err != nil {
 		return nil, err
 	}

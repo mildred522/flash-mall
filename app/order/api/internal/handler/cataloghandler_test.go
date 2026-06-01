@@ -13,12 +13,9 @@ import (
 	"google.golang.org/grpc"
 )
 
-type stubProductRPC struct {
-	lastProductID int64
-}
+type stubProductRPC struct{}
 
 func (s *stubProductRPC) GetProductCard(_ context.Context, in *productclient.GetProductCardReq, _ ...grpc.CallOption) (*productclient.GetProductCardResp, error) {
-	s.lastProductID = in.ProductId
 	return &productclient.GetProductCardResp{
 		ProductId:      in.ProductId,
 		Name:           "首发风衣",
@@ -41,6 +38,20 @@ func (s *stubProductRPC) RevertStock(context.Context, *productclient.RevertStock
 	return nil, nil
 }
 
+func (s *stubProductRPC) ListProducts(context.Context, *productclient.ListProductsReq, ...grpc.CallOption) (*productclient.ListProductsResp, error) {
+	return &productclient.ListProductsResp{
+		Items: []*productclient.GetProductCardResp{{
+			ProductId:      100,
+			Name:           "首发风衣",
+			OriginPriceFen: 12900,
+			FinalPriceFen:  9900,
+			PromotionTag:   "限时价",
+			StockAvailable: 10,
+		}},
+		Total: 1,
+	}, nil
+}
+
 func TestCatalogHandler_ReturnsProductCards(t *testing.T) {
 	productRPC := &stubProductRPC{}
 	svcCtx := &svc.ServiceContext{
@@ -54,9 +65,6 @@ func TestCatalogHandler_ReturnsProductCards(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
-	}
-	if productRPC.lastProductID != 100 {
-		t.Fatalf("unexpected product id: %d", productRPC.lastProductID)
 	}
 
 	body := rec.Body.String()

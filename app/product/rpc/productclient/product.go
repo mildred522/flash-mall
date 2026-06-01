@@ -18,11 +18,15 @@ type (
 	Empty              = product.Empty
 	GetProductCardReq  = product.GetProductCardReq
 	GetProductCardResp = product.GetProductCardResp
+	ListProductsReq    = product.ListProductsReq
+	ListProductsResp   = product.ListProductsResp
 	RevertStockReq     = product.RevertStockReq
 	RevertStockResp    = product.RevertStockResp
 
 	Product interface {
 		GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error)
+		// 批量查询商品
+		ListProducts(ctx context.Context, in *ListProductsReq, opts ...grpc.CallOption) (*ListProductsResp, error)
 		// 扣减库存（正向操作）
 		Deduct(ctx context.Context, in *DeductReq, opts ...grpc.CallOption) (*Empty, error)
 		// 回滚库存（补偿操作，用于事务失败）
@@ -45,6 +49,12 @@ func NewProduct(cli zrpc.Client) Product {
 func (m *defaultProduct) GetProductCard(ctx context.Context, in *GetProductCardReq, opts ...grpc.CallOption) (*GetProductCardResp, error) {
 	client := product.NewProductClient(m.cli.Conn())
 	return client.GetProductCard(ctx, in, opts...)
+}
+
+// 批量查询商品
+func (m *defaultProduct) ListProducts(ctx context.Context, in *ListProductsReq, opts ...grpc.CallOption) (*ListProductsResp, error) {
+	client := product.NewProductClient(m.cli.Conn())
+	return client.ListProducts(ctx, in, opts...)
 }
 
 // 扣减库存（正向操作）

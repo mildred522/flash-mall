@@ -26,6 +26,13 @@ Etcd:
   - 127.0.0.1:2379
   Key: order.rpc
 
+ProductRpcConf:
+  Etcd:
+    Hosts:
+      - 127.0.0.1:2379
+    Key: product.rpc
+  Timeout: 2000
+
 PprofAddr: 0.0.0.0:6061
 MetricsAddr: 0.0.0.0:9091
 StockShardCount: 4

@@ -84,4 +84,8 @@ AuthServiceBaseURL: http://127.0.0.1:8890
 
 CatalogProductIDs:
   - 100
+  - 101
+  - 102
+  - 103
+  - 104
 

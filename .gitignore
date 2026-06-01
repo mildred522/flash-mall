@@ -8,6 +8,12 @@ tmp/
 
 *.exe
 *.out
+bin/
+
+# Frontend
+frontend/node_modules/
+frontend/packages/*/dist/
+frontend/.turbo/
 *.pid
 *.log
 *.test
@@ -17,6 +23,7 @@ build/*.tar
 build/hosts.from.container
 
 docs/perf/
+docs/archive/
 docs/k6-job.log
 
 deploy/data/

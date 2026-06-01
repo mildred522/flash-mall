@@ -6,7 +6,7 @@ import {
   sendCode, logout, logoutAll, me, authed,
 } from "./auth.js";
 import { loadCatalog } from "./catalog.js";
-import { burst, order } from "./order.js";
+import { burst, order, showOrders, goToOrders } from "./order.js";
 import { loadSecurityEvents } from "./security.js";
 import { health } from "./health.js";
 import { timerTick } from "./timer.js";
@@ -61,6 +61,19 @@ $("console-health-action").addEventListener("click", health);
 $("console-buy-action").addEventListener("click", () => order(100, 1, "console-buy"));
 $("console-burst-action").addEventListener("click", burst);
 $("console-toggle").addEventListener("click", () => collapse(!state.consoleCollapsed));
+
+// My Orders navigation
+$("nav-orders").addEventListener("click", async () => {
+  if (!state.token) { openAuth("password"); return; }
+  await goToOrders();
+});
+$("back-to-shop").addEventListener("click", () => {
+  $("orders-section").style.display = "none";
+  $("featured-products").style.display = "";
+  $("campaign-strip").style.display = "";
+  const heroParent = document.querySelector(".hero")?.parentElement;
+  if (heroParent) heroParent.style.display = "";
+});
 
 // Initialize
 import { renderProducts } from "./catalog.js";
