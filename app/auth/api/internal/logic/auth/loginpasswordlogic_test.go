@@ -261,7 +261,7 @@ func TestLoginPasswordLogic_Login_DoesNotResetSharedIPBucketOnSuccess(t *testing
 		LoginFailPhoneMaxAttempts: 10,
 		LoginFailIPMaxAttempts:    2,
 	})
-	if _, err := svcCtx.Store.CreateUser("13800000002", "User 2", "pwd2"); err != nil {
+	if _, err := svcCtx.Store.CreateUser("13800000003", "User 3", "pwd3"); err != nil {
 		t.Fatalf("create second user: %v", err)
 	}
 
@@ -276,8 +276,8 @@ func TestLoginPasswordLogic_Login_DoesNotResetSharedIPBucketOnSuccess(t *testing
 		t.Fatalf("expected first failure to be unauthenticated, got %v", err)
 	}
 	if _, err := l.Login(&types.LoginReq{
-		Phone:    "13800000002",
-		Password: "pwd2",
+		Phone:    "13800000003",
+		Password: "pwd3",
 		ClientIP: ip,
 	}); err != nil {
 		t.Fatalf("expected successful login for second user, got %v", err)

@@ -51,6 +51,10 @@ func (p *closeOrderProductRPC) GetProductCard(context.Context, *productclient.Ge
 	panic("unexpected GetProductCard call")
 }
 
+func (p *closeOrderProductRPC) ListProducts(context.Context, *productclient.ListProductsReq, ...grpc.CallOption) (*productclient.ListProductsResp, error) {
+	panic("unexpected ListProducts call")
+}
+
 func (p *closeOrderProductRPC) Deduct(context.Context, *productclient.DeductReq, ...grpc.CallOption) (*productclient.Empty, error) {
 	panic("unexpected Deduct call")
 }
