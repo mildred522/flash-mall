@@ -150,9 +150,32 @@ func (j *CloseOrderJob) handleCloseOrder(orderId string) error {
 	}
 
 	// 2) 仅处理未支付订单。
-	if order.Status != 0 {
+	if order.Status == 1 {
 		j.Infof("order status=%d, skip: %s", order.Status, orderId)
 		return nil
+	}
+	if order.Status != 0 && order.Status != 2 {
+		j.Infof("order status=%d, skip: %s", order.Status, orderId)
+		return nil
+	}
+
+	if order.Status == 0 {
+		result, err := j.svcCtx.SqlConn.ExecCtx(
+			j.ctx,
+			"UPDATE orders SET status = 2, update_time = NOW() WHERE id = ? AND status = 0",
+			orderId,
+		)
+		if err != nil {
+			return err
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			j.Infof("order close skipped by status race: %s", orderId)
+			return nil
+		}
 	}
 
 	// 3) 通过 RPC 归还库存。
@@ -175,12 +198,7 @@ func (j *CloseOrderJob) handleCloseOrder(orderId string) error {
 		return err
 	}
 
-	// 4) 更新订单状态为已关闭。
-	order.Status = 2
-	if err := j.svcCtx.OrderModel.Update(j.ctx, order); err != nil {
-		return err
-	}
-
+	// 4) 库存与预扣补偿均为幂等操作，允许已关闭订单重放补偿。
 	metrics.OrderCompensationTotal.WithLabelValues("close").Inc()
 	j.Infof("order closed: %s", orderId)
 	return nil
