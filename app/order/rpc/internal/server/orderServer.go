@@ -50,3 +50,8 @@ func (s *OrderServer) MarkOrderPaid(ctx context.Context, in *order.MarkOrderPaid
 	l := logic.NewMarkOrderPaidLogic(ctx, s.svcCtx)
 	return l.MarkPaid(in)
 }
+
+func (s *OrderServer) GetOrderDetail(ctx context.Context, in *order.GetOrderDetailReq) (*order.GetOrderDetailResp, error) {
+	l := logic.NewGetOrderDetailLogic(ctx, s.svcCtx)
+	return l.GetOrderDetail(in)
+}

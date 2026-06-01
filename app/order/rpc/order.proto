@@ -38,6 +38,20 @@ message MarkOrderPaidResp {
   string order_status = 2;
 }
 
+message GetOrderDetailReq {
+  string order_id = 1;
+}
+
+message GetOrderDetailResp {
+  string order_id = 1;
+  int64 user_id = 2;
+  string order_status = 3;
+  int64 payable_amount_fen = 4;
+  string payment_status = 5;
+  int64 origin_price_fen = 6;
+  int64 discount_amount_fen = 7;
+}
+
 message Empty {}
 
 service Order {
@@ -50,4 +64,5 @@ service Order {
   // 订单回滚/关闭（补偿）
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
   rpc MarkOrderPaid(MarkOrderPaidReq) returns (MarkOrderPaidResp);
+  rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailResp);
 }

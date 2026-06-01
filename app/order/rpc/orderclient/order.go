@@ -13,12 +13,14 @@ import (
 )
 
 type (
-	PreDeductReq      = order.PreDeductReq
-	CreateOrderReq    = order.CreateOrderReq
-	CreateOrderResp   = order.CreateOrderResp
-	MarkOrderPaidReq  = order.MarkOrderPaidReq
-	MarkOrderPaidResp = order.MarkOrderPaidResp
-	Empty             = order.Empty
+	PreDeductReq       = order.PreDeductReq
+	CreateOrderReq     = order.CreateOrderReq
+	CreateOrderResp    = order.CreateOrderResp
+	MarkOrderPaidReq   = order.MarkOrderPaidReq
+	MarkOrderPaidResp  = order.MarkOrderPaidResp
+	GetOrderDetailReq  = order.GetOrderDetailReq
+	GetOrderDetailResp = order.GetOrderDetailResp
+	Empty              = order.Empty
 
 	Order interface {
 		// Redis 预扣库存（正向）
@@ -30,6 +32,7 @@ type (
 		// 订单回滚/关闭（补偿）
 		CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
 		MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
+		GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
 	}
 
 	defaultOrder struct {
@@ -66,4 +69,9 @@ func (m *defaultOrder) CreateOrderRollback(ctx context.Context, in *CreateOrderR
 func (m *defaultOrder) MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error) {
 	client := order.NewOrderClient(m.cli.Conn())
 	return client.MarkOrderPaid(ctx, in, opts...)
+}
+
+func (m *defaultOrder) GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.GetOrderDetail(ctx, in, opts...)
 }

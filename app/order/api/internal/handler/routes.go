@@ -144,6 +144,11 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/order/pay",
 				Handler: PayOrderHandler(serverCtx),
 			},
+			rest.Route{
+				Method:  http.MethodGet,
+				Path:    "/api/order/detail",
+				Handler: OrderDetailHandler(serverCtx),
+			},
 		),
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)
