@@ -177,7 +177,7 @@ Goal:
 | B1 | Storefront payment-state UX | Product Agent | DONE | Show pending-payment, paid, closed states and polling behavior in shop UI | `frontend/**`, `web/**`, `app/order/api/internal/handler/web/**` | `go build ./app/order/api/` + `node web/build.js` + `pnpm run build:shop` all pass | `codex/auth-service-baseline` | 2026-06-01 15:20:00 | Completed by Product Agent. Changes: web/js/order.js (polling+banner+goToOrders), web/js/bootstrap.js (use goToOrders), web/styles/shop.css (banner CSS), frontend shop App.tsx/HomePage.tsx/OrdersPage.tsx (polling+banner+auto-navigate). Both web/ and React frontends updated. |
 | B2 | Admin dashboard and order/product/user pages | Product Agent | DONE | Build admin list/detail pages and handler wiring | `app/order/api/internal/handler/admin*`, `app/order/api/internal/handler/web/admin.html` | `go test ./app/order/api/internal/handler/ -count=1` passes | `codex/auth-service-baseline` | 2026-06-01 15:35:00 | Completed by Product Agent. Changes: web/admin.html (new), web/js/admin.js (new), web/styles/admin.css (new), web/build.js (added admin page), webuihandler_test.go (case-insensitive HTML check). Admin page has dashboard/orders/products/users tabs. |
 | B3 | Monitor and metrics UI | Product Agent | DONE | Add monitor page and metrics display | `app/order/api/internal/handler/monitor*`, `web/**` | `go test ./app/order/api/internal/handler/ -count=1` passes (13/13) | `codex/auth-service-baseline` | 2026-06-01 15:45:00 | Completed by Product Agent. Changes: monitoruihandler.go (enhanced with Prometheus metrics parsing, summary cards, full metrics table), webuihandler_test.go (added TestMonitorUIReturnsHTML). Monitor page shows health + dependencies + business metrics. |
-| C0 | Integrate completed A/B round into main | Core Agent | IN_PROGRESS | Bring `codex/auth-service-baseline` and `codex/trading-loop-v2` work into `main` safely | shared API contracts, generated proto files, route wiring, frontend/web assets | `go test ./app/order/rpc/... ./app/order/api/... ./app/product/rpc/... ./app/auth/api/... -count=1`; frontend/web build commands if package managers are available | `codex/auth-service-baseline` | 2026-06-01 17:42:47 | Claimed by Core Agent. Scope: integrate completed A/B branch work into `main`, resolve shared API conflicts, and run focused integration verification. |
+| C0 | Integrate completed A/B round into main | Core Agent | DONE | Bring `codex/auth-service-baseline` and `codex/trading-loop-v2` work into `main` safely | shared API contracts, generated proto files, route wiring, frontend/web assets | `go test ./app/order/rpc/... ./app/order/api/... ./app/product/rpc/... ./app/auth/api/... -count=1`; `node web/build.js`; `pnpm run build:shop`; `pnpm run build:admin` | `main @ de289e0` | 2026-06-01 17:48:37 | Integrated B line by fast-forwarding `main`, cherry-picked A1/A2/A3, resolved pay/detail handler conflicts, and fixed integration test drift. |
 
 ## Update Log
 
@@ -185,6 +185,17 @@ Append new entries at the top.
 
 ### 2026-06-01
 
+- Time: 17:48:37
+- Task ID: C0
+- Status: DONE
+- Commit / Branch: `main @ de289e0`
+- Verification:
+  - `go test ./app/order/rpc/... ./app/order/api/... ./app/product/rpc/... ./app/auth/api/... -count=1`
+  - `node web/build.js`
+  - `pnpm run build:shop`
+  - `pnpm run build:admin`
+- Summary: fast-forwarded `main` to B line, cherry-picked A line commits `64189fd`, `ed39829`, `9efab05`, resolved API handler conflicts, and committed integration test drift fixes.
+- Follow-up / Risks: `pnpm` builds pass with a workspace warning; optional cleanup is to add `pnpm-workspace.yaml`.
 - Time: 17:42:47
 - Task ID: C0
 - Status: IN_PROGRESS
