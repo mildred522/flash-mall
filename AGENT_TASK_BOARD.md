@@ -133,8 +133,8 @@ Goal:
 | ID | Task | Owner | Status | Scope | Key Files | Verification | Commit / Branch | Last Update | Handoff Notes |
 |---|---|---|---|---|---|---|---|---|---|
 | A1 | Payment success callback and idempotency | Core Agent | DONE | Add mark-paid path and ensure repeated callbacks are safe | `app/order/rpc/**`, `app/order/api/internal/handler/payorderhandler.go` | `go test ./app/order/rpc/internal/logic ./app/order/api/internal/handler -run "MarkOrderPaid|PayOrderHandler" -count=1`; `go test ./app/order/rpc/... ./app/order/api/... -count=1` | `codex/trading-loop-v2 @ 64189fd` | 2026-06-01 14:50:00 | Added `MarkOrderPaid` RPC, idempotent pay transition logic, `/api/order/pay` handler, route wiring, and payment-order schema compatibility fields. |
-| A2 | Order detail read path | Core Agent | IN_PROGRESS | Return snapshot-backed order/payment detail for UI and admin | `app/order/rpc/**`, `app/order/api/internal/handler/orderdetailhandler.go` | `go test ./app/order/rpc/internal/logic ./app/order/api/internal/handler -run "GetOrderDetail|OrderDetail" -count=1` | `codex/trading-loop-v2` | 2026-06-01 14:51:30 | Claimed by Core Agent. Scope: order detail RPC, API handler, and focused tests only. |
-| A3 | Timeout close and stock release hardening | Core Agent | TODO | Close unpaid orders only and release reserved stock safely | `app/order/api/job/**`, `app/product/rpc/internal/logic/revertstocklogic.go` | `go test ./app/order/api/job ./app/product/rpc/internal/logic -run "CloseOrder|RevertStock" -count=1` | | 2026-06-01 14:35:55 | Reserved for Core Agent |
+| A2 | Order detail read path | Core Agent | DONE | Return snapshot-backed order/payment detail for UI and admin | `app/order/rpc/**`, `app/order/api/internal/handler/orderdetailhandler.go` | `go test ./app/order/rpc/internal/logic ./app/order/api/internal/handler -run "MarkOrderPaid|GetOrderDetail|PayOrderHandler|OrderDetailHandler" -count=1`; `go test ./app/order/rpc/... ./app/order/api/... -count=1` | `codex/trading-loop-v2 @ ed39829` | 2026-06-01 15:03:00 | Added `GetOrderDetail` RPC, snapshot-backed detail query, `/api/order/detail` handler, and protected route wiring. |
+| A3 | Timeout close and stock release hardening | Core Agent | DONE | Close unpaid orders only and release reserved stock safely | `app/order/api/job/**`, `app/product/rpc/internal/logic/revertstocklogic.go` | `go test ./app/order/api/job ./app/product/rpc/internal/logic -run "CloseOrder|RevertStock" -count=1`; `go test ./app/order/api/job ./app/product/rpc/internal/logic -count=1` | `codex/trading-loop-v2 @ 9efab05` | 2026-06-01 17:37:25 | Added conditional close CAS to prevent pay-vs-close stock release races, allowed closed-order compensation replay, and fixed empty-order-id revert stock idempotency. |
 | B1 | Storefront payment-state UX | Product Agent | DONE | Show pending-payment, paid, closed states and polling behavior in shop UI | `frontend/**`, `web/**`, `app/order/api/internal/handler/web/**` | `go build ./app/order/api/` + `node web/build.js` + `pnpm run build:shop` all pass | `codex/auth-service-baseline` | 2026-06-01 15:20:00 | Completed by Product Agent. Changes: web/js/order.js (polling+banner+goToOrders), web/js/bootstrap.js (use goToOrders), web/styles/shop.css (banner CSS), frontend shop App.tsx/HomePage.tsx/OrdersPage.tsx (polling+banner+auto-navigate). Both web/ and React frontends updated. |
 | B2 | Admin dashboard and order/product/user pages | Product Agent | DONE | Build admin list/detail pages and handler wiring | `app/order/api/internal/handler/admin*`, `app/order/api/internal/handler/web/admin.html` | `go test ./app/order/api/internal/handler/ -count=1` passes | `codex/auth-service-baseline` | 2026-06-01 15:35:00 | Completed by Product Agent. Changes: web/admin.html (new), web/js/admin.js (new), web/styles/admin.css (new), web/build.js (added admin page), webuihandler_test.go (case-insensitive HTML check). Admin page has dashboard/orders/products/users tabs. |
 | B3 | Monitor and metrics UI | Product Agent | DONE | Add monitor page and metrics display | `app/order/api/internal/handler/monitor*`, `web/**` | `go test ./app/order/api/internal/handler/ -count=1` passes (13/13) | `codex/auth-service-baseline` | 2026-06-01 15:45:00 | Completed by Product Agent. Changes: monitoruihandler.go (enhanced with Prometheus metrics parsing, summary cards, full metrics table), webuihandler_test.go (added TestMonitorUIReturnsHTML). Monitor page shows health + dependencies + business metrics. |
@@ -145,6 +145,24 @@ Append new entries at the top.
 
 ### 2026-06-01
 
+- Time: 17:37:25
+- Task ID: A3
+- Status: DONE
+- Commit / Branch: `codex/trading-loop-v2 @ 9efab05`
+- Verification:
+  - `go test ./app/order/api/job ./app/product/rpc/internal/logic -run "CloseOrder|RevertStock" -count=1`
+  - `go test ./app/order/api/job ./app/product/rpc/internal/logic -count=1`
+- Summary: hardened timeout close with conditional DB status transition before stock release, preserved idempotent compensation replay for closed orders, and fixed `RevertStock` fallback key consistency.
+- Follow-up / Risks: A3 is ready for integration; branch still needs merge coordination with Product Agent work on `codex/auth-service-baseline`.
+- Time: 15:03:00
+- Task ID: A2
+- Status: DONE
+- Commit / Branch: `codex/trading-loop-v2 @ ed39829`
+- Verification:
+  - `go test ./app/order/rpc/internal/logic ./app/order/api/internal/handler -run "MarkOrderPaid|GetOrderDetail|PayOrderHandler|OrderDetailHandler" -count=1`
+  - `go test ./app/order/rpc/... ./app/order/api/... -count=1`
+- Summary: added snapshot-backed order detail RPC, API handler, and protected route wiring.
+- Follow-up / Risks: Product Agent can now wire payment-state UI to `/api/order/pay` and `/api/order/detail`.
 - Time: 14:50:00
 - Task ID: A1
 - Status: DONE
