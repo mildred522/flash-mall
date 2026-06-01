@@ -87,6 +87,36 @@ CREATE TABLE IF NOT EXISTS payment_order (
   UNIQUE KEY uniq_out_trade_no (out_trade_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'payment_order'
+      AND COLUMN_NAME = 'paid_at'
+  ),
+  'SELECT 1',
+  'ALTER TABLE payment_order ADD COLUMN paid_at timestamp NULL DEFAULT NULL'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'payment_order'
+      AND COLUMN_NAME = 'callback_payload'
+  ),
+  'SELECT 1',
+  'ALTER TABLE payment_order ADD COLUMN callback_payload json DEFAULT NULL'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 CREATE TABLE IF NOT EXISTS order_outbox (
   id bigint NOT NULL AUTO_INCREMENT,
   event_id varchar(128) NOT NULL,

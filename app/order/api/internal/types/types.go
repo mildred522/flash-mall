@@ -20,7 +20,9 @@ type CreateOrderResp struct {
 }
 
 type PayOrderReq struct {
-	OrderId string `json:"order_id"`
+	OrderId        string `json:"order_id"`
+	PaymentOrderId string `json:"payment_order_id,optional"`
+	OutTradeNo     string `json:"out_trade_no,optional"`
 }
 
 type PayOrderResp struct {
@@ -72,21 +74,21 @@ type OrderListResp struct {
 }
 
 type OrderDetailResp struct {
-	OrderId             string `json:"order_id"`
-	ProductId           int64  `json:"product_id"`
-	ProductName         string `json:"product_name"`
-	Amount              int64  `json:"amount"`
-	Status              int64  `json:"status"`
-	StatusText          string `json:"status_text"`
-	OriginUnitPriceFen  int64  `json:"origin_unit_price_fen"`
-	SaleUnitPriceFen    int64  `json:"sale_unit_price_fen"`
-	PayableAmountFen    int64  `json:"payable_amount_fen"`
-	DiscountAmountFen   int64  `json:"discount_amount_fen"`
-	PromotionType       string `json:"promotion_type"`
-	PromotionTag        string `json:"promotion_tag"`
-	PaymentOrderId      string `json:"payment_order_id"`
-	PaymentStatus       int64  `json:"payment_status"`
-	CreateTime          string `json:"create_time"`
+	OrderId            string `json:"order_id"`
+	ProductId          int64  `json:"product_id"`
+	ProductName        string `json:"product_name"`
+	Amount             int64  `json:"amount"`
+	Status             int64  `json:"status"`
+	StatusText         string `json:"status_text"`
+	OriginUnitPriceFen int64  `json:"origin_unit_price_fen"`
+	SaleUnitPriceFen   int64  `json:"sale_unit_price_fen"`
+	PayableAmountFen   int64  `json:"payable_amount_fen"`
+	DiscountAmountFen  int64  `json:"discount_amount_fen"`
+	PromotionType      string `json:"promotion_type"`
+	PromotionTag       string `json:"promotion_tag"`
+	PaymentOrderId     string `json:"payment_order_id"`
+	PaymentStatus      int64  `json:"payment_status"`
+	CreateTime         string `json:"create_time"`
 }
 
 type ProductCard struct {

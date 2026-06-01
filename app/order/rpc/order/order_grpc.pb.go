@@ -23,6 +23,7 @@ const (
 	Order_PreDeductRollback_FullMethodName   = "/order.Order/PreDeductRollback"
 	Order_CreateOrder_FullMethodName         = "/order.Order/CreateOrder"
 	Order_CreateOrderRollback_FullMethodName = "/order.Order/CreateOrderRollback"
+	Order_MarkOrderPaid_FullMethodName       = "/order.Order/MarkOrderPaid"
 )
 
 // OrderClient is the client API for Order service.
@@ -37,6 +38,7 @@ type OrderClient interface {
 	CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
+	MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
 }
 
 type orderClient struct {
@@ -87,6 +89,16 @@ func (c *orderClient) CreateOrderRollback(ctx context.Context, in *CreateOrderRe
 	return out, nil
 }
 
+func (c *orderClient) MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MarkOrderPaidResp)
+	err := c.cc.Invoke(ctx, Order_MarkOrderPaid_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OrderServer is the server API for Order service.
 // All implementations must embed UnimplementedOrderServer
 // for forward compatibility.
@@ -99,6 +111,7 @@ type OrderServer interface {
 	CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error)
+	MarkOrderPaid(context.Context, *MarkOrderPaidReq) (*MarkOrderPaidResp, error)
 	mustEmbedUnimplementedOrderServer()
 }
 
@@ -120,6 +133,9 @@ func (UnimplementedOrderServer) CreateOrder(context.Context, *CreateOrderReq) (*
 }
 func (UnimplementedOrderServer) CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOrderRollback not implemented")
+}
+func (UnimplementedOrderServer) MarkOrderPaid(context.Context, *MarkOrderPaidReq) (*MarkOrderPaidResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MarkOrderPaid not implemented")
 }
 func (UnimplementedOrderServer) mustEmbedUnimplementedOrderServer() {}
 func (UnimplementedOrderServer) testEmbeddedByValue()               {}
@@ -214,6 +230,24 @@ func _Order_CreateOrderRollback_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Order_MarkOrderPaid_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MarkOrderPaidReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).MarkOrderPaid(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_MarkOrderPaid_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).MarkOrderPaid(ctx, req.(*MarkOrderPaidReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Order_ServiceDesc is the grpc.ServiceDesc for Order service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -236,6 +270,10 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateOrderRollback",
 			Handler:    _Order_CreateOrderRollback_Handler,
+		},
+		{
+			MethodName: "MarkOrderPaid",
+			Handler:    _Order_MarkOrderPaid_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

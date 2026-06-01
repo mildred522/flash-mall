@@ -26,6 +26,18 @@ message CreateOrderResp {
   string payment_order_id = 4;
 }
 
+message MarkOrderPaidReq {
+  string order_id = 1;
+  string payment_order_id = 2;
+  string out_trade_no = 3;
+  string callback_body = 4;
+}
+
+message MarkOrderPaidResp {
+  bool updated = 1;
+  string order_status = 2;
+}
+
 message Empty {}
 
 service Order {
@@ -37,4 +49,5 @@ service Order {
   rpc CreateOrder(CreateOrderReq) returns (CreateOrderResp);
   // 订单回滚/关闭（补偿）
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
+  rpc MarkOrderPaid(MarkOrderPaidReq) returns (MarkOrderPaidResp);
 }

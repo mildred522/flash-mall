@@ -45,3 +45,8 @@ func (s *OrderServer) CreateOrderRollback(ctx context.Context, in *order.CreateO
 	l := logic.NewCreateOrderRollbackLogic(ctx, s.svcCtx)
 	return l.CreateOrderRollback(in)
 }
+
+func (s *OrderServer) MarkOrderPaid(ctx context.Context, in *order.MarkOrderPaidReq) (*order.MarkOrderPaidResp, error) {
+	l := logic.NewMarkOrderPaidLogic(ctx, s.svcCtx)
+	return l.MarkPaid(in)
+}
