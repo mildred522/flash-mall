@@ -39,9 +39,10 @@ type Config struct {
 	OrderEventConsumerEnabled bool
 	EventDedupTTLSeconds      int64
 
-	JwtAuthSecret    string
-	JwtExpireSeconds int64
-	AuthServiceBaseURL string
+	JwtAuthSecret         string
+	JwtExpireSeconds      int64
+	AuthServiceBaseURL    string
+	PaymentCallbackSecret string
 
 	CatalogProductIDs []int64 `json:",optional"`
 }

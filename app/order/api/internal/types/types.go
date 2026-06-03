@@ -23,6 +23,12 @@ type PayOrderReq struct {
 	OrderId        string `json:"order_id"`
 	PaymentOrderId string `json:"payment_order_id,optional"`
 	OutTradeNo     string `json:"out_trade_no,optional"`
+	PaidAmountFen  int64  `json:"paid_amount_fen,optional"`
+	Provider       string `json:"provider,optional"`
+	EventId        string `json:"event_id,optional"`
+	Timestamp      string `json:"timestamp,optional"`
+	Nonce          string `json:"nonce,optional"`
+	Signature      string `json:"signature,optional"`
 }
 
 type PayOrderResp struct {

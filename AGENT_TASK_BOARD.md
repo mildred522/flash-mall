@@ -189,6 +189,15 @@ Goal:
 - resolve cross-branch API/UI conflicts
 - prove the merged project can build and run through the core demo flow
 
+### Workstream D: Payment Validation Hardening
+
+Owner: Primary Agent
+
+Goal:
+- bind payment callbacks to the exact order and payment order
+- validate callback amount and mock signature
+- persist callback audit events for replay and troubleshooting
+
 ## Task Board
 
 Historical A/B/C rows are retained for audit. New task rows must use `Primary Agent` as owner.
@@ -202,12 +211,32 @@ Historical A/B/C rows are retained for audit. New task rows must use `Primary Ag
 | B2 | Admin dashboard and order/product/user pages | Product Agent | DONE | Build admin list/detail pages and handler wiring | `app/order/api/internal/handler/admin*`, `app/order/api/internal/handler/web/admin.html` | `go test ./app/order/api/internal/handler/ -count=1` passes | `codex/auth-service-baseline` | 2026-06-01 15:35:00 | Completed by Product Agent. Changes: web/admin.html (new), web/js/admin.js (new), web/styles/admin.css (new), web/build.js (added admin page), webuihandler_test.go (case-insensitive HTML check). Admin page has dashboard/orders/products/users tabs. |
 | B3 | Monitor and metrics UI | Product Agent | DONE | Add monitor page and metrics display | `app/order/api/internal/handler/monitor*`, `web/**` | `go test ./app/order/api/internal/handler/ -count=1` passes (13/13) | `codex/auth-service-baseline` | 2026-06-01 15:45:00 | Completed by Product Agent. Changes: monitoruihandler.go (enhanced with Prometheus metrics parsing, summary cards, full metrics table), webuihandler_test.go (added TestMonitorUIReturnsHTML). Monitor page shows health + dependencies + business metrics. |
 | C0 | Integrate completed A/B round into main | Core Agent | DONE | Bring `codex/auth-service-baseline` and `codex/trading-loop-v2` work into `main` safely | shared API contracts, generated proto files, route wiring, frontend/web assets | `go test ./app/order/rpc/... ./app/order/api/... ./app/product/rpc/... ./app/auth/api/... -count=1`; `node web/build.js`; `pnpm run build:shop`; `pnpm run build:admin` | `main @ de289e0` | 2026-06-01 17:48:37 | Integrated B line by fast-forwarding `main`, cherry-picked A1/A2/A3, resolved pay/detail handler conflicts, and fixed integration test drift. |
+| D1 | Payment callback validation hardening | Primary Agent | DONE | Add strong payment-order binding, mock HMAC signature validation, amount validation, and callback audit events | `app/order/api/internal/handler/payorderhandler.go`, `app/order/rpc/internal/logic/markorderpaidlogic.go`, `scripts/k8s/init-db.sql` | `go test ./app/order/api/internal/...`; `go test ./app/order/rpc/internal/logic` | `main @ pending D1 commit` | 2026-06-03 22:37:06 | Added callback request fields `paid_amount_fen/provider/event_id/timestamp/nonce/signature`; configured-secret callbacks require valid HMAC; RPC now binds order/payment/out_trade_no together, validates amount, and records callback audit events. |
 
 ## Update Log
 
 Append new entries at the top.
 
 ### 2026-06-03
+
+- Time: 22:37:06
+- Task ID: D1
+- Status: DONE
+- Commit / Branch: `main @ pending D1 commit`
+- Verification:
+  - `go test ./app/order/api/internal/...`
+  - `go test ./app/order/rpc/internal/logic`
+- Summary: hardened payment success callbacks with API HMAC validation, required paid amount propagation, RPC-side order/payment/out_trade_no binding, payable amount validation, and `payment_callback_event` audit persistence.
+- Follow-up / Risks: `types.go` is the compiled API contract in this repo; if a complete goctl API source is restored later, mirror the new callback fields there before regenerating.
+
+- Time: 22:26:34
+- Task ID: D1
+- Status: IN_PROGRESS
+- Commit / Branch: `main`
+- Verification:
+  - pending
+- Summary: claimed payment callback validation hardening before code changes.
+- Follow-up / Risks: shared API types and generated proto changes may be required.
 
 - Time: 22:17:29
 - Task ID: Board Rule

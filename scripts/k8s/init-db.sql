@@ -117,6 +117,25 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+CREATE TABLE IF NOT EXISTS payment_callback_event (
+  id bigint NOT NULL AUTO_INCREMENT,
+  provider varchar(32) NOT NULL DEFAULT 'mock' COMMENT '支付渠道',
+  event_id varchar(128) NOT NULL DEFAULT '' COMMENT '渠道事件id',
+  payment_order_id varchar(64) NOT NULL COMMENT '支付单id',
+  order_id varchar(64) NOT NULL COMMENT '订单id',
+  out_trade_no varchar(64) NOT NULL COMMENT '外部交易号',
+  paid_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '实付金额分',
+  signature_valid tinyint NOT NULL DEFAULT 1 COMMENT '签名是否有效',
+  process_status varchar(32) NOT NULL DEFAULT 'SUCCESS' COMMENT '处理状态',
+  error_message varchar(255) NOT NULL DEFAULT '' COMMENT '错误信息',
+  raw_payload json DEFAULT NULL COMMENT '回调原文',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_provider_event (provider, event_id),
+  KEY ix_payment_order_id (payment_order_id),
+  KEY ix_order_id (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS order_outbox (
   id bigint NOT NULL AUTO_INCREMENT,
   event_id varchar(128) NOT NULL,

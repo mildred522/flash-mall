@@ -3,11 +3,16 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"flash-mall/app/order/api/internal/config"
 	"flash-mall/app/order/api/internal/svc"
 	orderclient "flash-mall/app/order/rpc/orderclient"
 
@@ -51,7 +56,7 @@ func TestPayOrderHandler_DelegatesToOrderRPC(t *testing.T) {
 		OrderRpc: orderRPC,
 	}
 
-	req := httptest.NewRequest(http.MethodPost, "/api/order/pay", bytes.NewBufferString(`{"order_id":"o-1","payment_order_id":"pay:o-1","out_trade_no":"mock-o-1"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/order/pay", bytes.NewBufferString(`{"order_id":"o-1","payment_order_id":"pay:o-1","out_trade_no":"mock-o-1","paid_amount_fen":9900}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
@@ -69,4 +74,66 @@ func TestPayOrderHandler_DelegatesToOrderRPC(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"updated":true`) || !strings.Contains(rec.Body.String(), `"order_status":"PAID"`) {
 		t.Fatalf("unexpected response body: %s", rec.Body.String())
 	}
+}
+
+func TestPayOrderHandler_RejectsInvalidCallbackSignature(t *testing.T) {
+	orderRPC := &stubOrderRPC{
+		resp: &orderclient.MarkOrderPaidResp{
+			Updated:     true,
+			OrderStatus: "PAID",
+		},
+	}
+	svcCtx := &svc.ServiceContext{
+		Config:   config.Config{PaymentCallbackSecret: "test-secret"},
+		OrderRpc: orderRPC,
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/order/pay", bytes.NewBufferString(`{"order_id":"o-1","payment_order_id":"pay:o-1","out_trade_no":"mock-o-1","paid_amount_fen":9900,"timestamp":"1710000000","nonce":"n-1","signature":"bad"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	PayOrderHandler(svcCtx).ServeHTTP(rec, req)
+
+	if rec.Code == http.StatusOK {
+		t.Fatalf("expected invalid signature to be rejected, body=%s", rec.Body.String())
+	}
+	if orderRPC.lastReq != nil {
+		t.Fatalf("order rpc should not be called for invalid signature: %#v", orderRPC.lastReq)
+	}
+}
+
+func TestPayOrderHandler_AcceptsSignedCallback(t *testing.T) {
+	orderRPC := &stubOrderRPC{
+		resp: &orderclient.MarkOrderPaidResp{
+			Updated:     true,
+			OrderStatus: "PAID",
+		},
+	}
+	svcCtx := &svc.ServiceContext{
+		Config:   config.Config{PaymentCallbackSecret: "test-secret"},
+		OrderRpc: orderRPC,
+	}
+	signature := mockPaymentSignature("test-secret", "1710000000", "n-1", "o-1", "pay:o-1", "mock-o-1", 9900)
+	body := fmt.Sprintf(`{"order_id":"o-1","payment_order_id":"pay:o-1","out_trade_no":"mock-o-1","paid_amount_fen":9900,"provider":"mock","event_id":"evt-1","timestamp":"1710000000","nonce":"n-1","signature":"%s"}`, signature)
+	req := httptest.NewRequest(http.MethodPost, "/api/order/pay", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+
+	PayOrderHandler(svcCtx).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	if orderRPC.lastReq == nil {
+		t.Fatal("expected order rpc request")
+	}
+	if !strings.Contains(orderRPC.lastReq.CallbackBody, `"paid_amount_fen":9900`) || !strings.Contains(orderRPC.lastReq.CallbackBody, `"event_id":"evt-1"`) {
+		t.Fatalf("unexpected callback body: %s", orderRPC.lastReq.CallbackBody)
+	}
+}
+
+func mockPaymentSignature(secret, timestamp, nonce, orderID, paymentOrderID, outTradeNo string, paidAmountFen int64) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(fmt.Sprintf("%s.%s.%s.%s.%s.%d", timestamp, nonce, orderID, paymentOrderID, outTradeNo, paidAmountFen)))
+	return hex.EncodeToString(mac.Sum(nil))
 }

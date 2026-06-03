@@ -10,6 +10,8 @@ import (
 	orderpb "flash-mall/app/order/rpc/order"
 
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const markPaidTestDSN = "root:6494kj06@tcp(127.0.0.1:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local"
@@ -29,7 +31,7 @@ func TestMarkOrderPaidLogic_MarkPaid_IsIdempotent(t *testing.T) {
 		OrderId:        orderID,
 		PaymentOrderId: paymentOrderID,
 		OutTradeNo:     "mock-o-paid-1",
-		CallbackBody:   `{"trade_status":"SUCCESS"}`,
+		CallbackBody:   paymentCallbackBody(9900, "evt-o-paid-1"),
 	})
 	if err != nil || !first.Updated {
 		t.Fatalf("first callback should update, resp=%#v err=%v", first, err)
@@ -39,10 +41,70 @@ func TestMarkOrderPaidLogic_MarkPaid_IsIdempotent(t *testing.T) {
 		OrderId:        orderID,
 		PaymentOrderId: paymentOrderID,
 		OutTradeNo:     "mock-o-paid-1",
-		CallbackBody:   `{"trade_status":"SUCCESS"}`,
+		CallbackBody:   paymentCallbackBody(9900, "evt-o-paid-1"),
 	})
 	if err != nil || second.Updated {
 		t.Fatalf("second callback should be idempotent, resp=%#v err=%v", second, err)
+	}
+}
+
+func TestMarkOrderPaidLogic_MarkPaid_RejectsPaymentOrderForDifferentOrder(t *testing.T) {
+	svcCtx := newMarkPaidServiceContext()
+	orderA := "o-bind-a"
+	paymentA := "pay:o-bind-a"
+	orderB := "o-bind-b"
+	paymentB := "pay:o-bind-b"
+
+	ensureMarkPaidSchema(t, svcCtx)
+	cleanupMarkPaidRows(t, svcCtx, orderA, paymentA)
+	cleanupMarkPaidRows(t, svcCtx, orderB, paymentB)
+	seedPendingPaymentOrder(t, svcCtx, orderA, paymentA)
+	seedPendingPaymentOrder(t, svcCtx, orderB, paymentB)
+
+	l := NewMarkOrderPaidLogic(context.Background(), svcCtx)
+
+	resp, err := l.MarkPaid(&orderpb.MarkOrderPaidReq{
+		OrderId:        orderA,
+		PaymentOrderId: paymentB,
+		OutTradeNo:     "mock-o-bind-b",
+		CallbackBody:   paymentCallbackBody(9900, "evt-bind-mismatch"),
+	})
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("expected not found for mismatched order/payment binding, resp=%#v err=%v", resp, err)
+	}
+	if got := queryOrderStatus(t, svcCtx, orderA); got != 0 {
+		t.Fatalf("order %s should remain pending, got status=%d", orderA, got)
+	}
+	if got := queryPaymentStatus(t, svcCtx, paymentB); got != 0 {
+		t.Fatalf("payment %s should remain pending, got status=%d", paymentB, got)
+	}
+}
+
+func TestMarkOrderPaidLogic_MarkPaid_RejectsAmountMismatch(t *testing.T) {
+	svcCtx := newMarkPaidServiceContext()
+	orderID := "o-amount-mismatch"
+	paymentOrderID := "pay:o-amount-mismatch"
+
+	ensureMarkPaidSchema(t, svcCtx)
+	cleanupMarkPaidRows(t, svcCtx, orderID, paymentOrderID)
+	seedPendingPaymentOrder(t, svcCtx, orderID, paymentOrderID)
+
+	l := NewMarkOrderPaidLogic(context.Background(), svcCtx)
+
+	resp, err := l.MarkPaid(&orderpb.MarkOrderPaidReq{
+		OrderId:        orderID,
+		PaymentOrderId: paymentOrderID,
+		OutTradeNo:     "mock-o-amount-mismatch",
+		CallbackBody:   paymentCallbackBody(1, "evt-amount-mismatch"),
+	})
+	if status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("expected failed precondition for amount mismatch, resp=%#v err=%v", resp, err)
+	}
+	if got := queryOrderStatus(t, svcCtx, orderID); got != 0 {
+		t.Fatalf("order should remain pending, got status=%d", got)
+	}
+	if got := queryPaymentStatus(t, svcCtx, paymentOrderID); got != 0 {
+		t.Fatalf("payment should remain pending, got status=%d", got)
 	}
 }
 
@@ -84,6 +146,24 @@ func ensureMarkPaidSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			UNIQUE KEY uniq_order_id (order_id),
 			UNIQUE KEY uniq_out_trade_no (out_trade_no)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS payment_callback_event (
+			id bigint NOT NULL AUTO_INCREMENT,
+			provider varchar(32) NOT NULL DEFAULT 'mock',
+			event_id varchar(128) NOT NULL DEFAULT '',
+			payment_order_id varchar(64) NOT NULL,
+			order_id varchar(64) NOT NULL,
+			out_trade_no varchar(64) NOT NULL,
+			paid_amount_fen bigint NOT NULL DEFAULT 0,
+			signature_valid tinyint NOT NULL DEFAULT 1,
+			process_status varchar(32) NOT NULL DEFAULT 'SUCCESS',
+			error_message varchar(255) NOT NULL DEFAULT '',
+			raw_payload json DEFAULT NULL,
+			create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uniq_provider_event (provider, event_id),
+			KEY ix_payment_order_id (payment_order_id),
+			KEY ix_order_id (order_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, statement := range statements {
@@ -100,6 +180,7 @@ func cleanupMarkPaidRows(t *testing.T, svcCtx *svc.ServiceContext, orderID, paym
 	t.Helper()
 
 	statements := []string{
+		fmt.Sprintf("DELETE FROM payment_callback_event WHERE order_id = '%s' OR payment_order_id = '%s'", orderID, paymentOrderID),
 		fmt.Sprintf("DELETE FROM payment_order WHERE id = '%s'", paymentOrderID),
 		fmt.Sprintf("DELETE FROM orders WHERE id = '%s'", orderID),
 	}
@@ -124,6 +205,30 @@ func seedPendingPaymentOrder(t *testing.T, svcCtx *svc.ServiceContext, orderID, 
 			t.Fatalf("seed failed for %q: %v", statement, err)
 		}
 	}
+}
+
+func paymentCallbackBody(paidAmountFen int64, eventID string) string {
+	return fmt.Sprintf(`{"trade_status":"SUCCESS","provider":"mock","event_id":"%s","paid_amount_fen":%d}`, eventID, paidAmountFen)
+}
+
+func queryOrderStatus(t *testing.T, svcCtx *svc.ServiceContext, orderID string) int64 {
+	t.Helper()
+
+	var got int64
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got, "SELECT status FROM orders WHERE id = ?", orderID); err != nil {
+		t.Fatalf("query order status failed: %v", err)
+	}
+	return got
+}
+
+func queryPaymentStatus(t *testing.T, svcCtx *svc.ServiceContext, paymentOrderID string) int64 {
+	t.Helper()
+
+	var got int64
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got, "SELECT status FROM payment_order WHERE id = ?", paymentOrderID); err != nil {
+		t.Fatalf("query payment status failed: %v", err)
+	}
+	return got
 }
 
 func ensurePaymentOrderColumn(t *testing.T, svcCtx *svc.ServiceContext, columnName string, alterSQL string) {

@@ -81,6 +81,7 @@ EventDedupTTLSeconds: 86400
 JwtAuthSecret: flashmall-order-api-jwt-secret
 JwtExpireSeconds: 7200
 AuthServiceBaseURL: http://127.0.0.1:8890
+PaymentCallbackSecret: flashmall-payment-callback-secret
 
 CatalogProductIDs:
   - 100
@@ -88,4 +89,3 @@ CatalogProductIDs:
   - 102
   - 103
   - 104
-
