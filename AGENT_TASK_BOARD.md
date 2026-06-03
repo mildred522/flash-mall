@@ -1,10 +1,34 @@
 # Agent Task Board
 
-This file is the single source of truth for multi-agent collaboration in this repo.
+This file is the single source of truth for task control in this repo.
+
+## Current Operating Model
+
+The previous multi-agent ownership model is retired.
+
+Future work is coordinated by one primary agent:
+- Primary Agent: Codex
+- Responsibility: planning, task ownership, implementation decisions, code edits, verification, commits, and integration
+- Auxiliary tool: Local MCP Brain `delegate_code`
+
+The MiMo-backed MCP API may be used for high-volume, low-criticality drafting work:
+- repetitive frontend drafts
+- scaffolding ideas
+- boilerplate code sketches
+- copy and UI state drafts
+- broad implementation alternatives
+
+The MiMo-backed MCP API must not own tasks, edit files, run commands, commit code, or make final correctness claims. All delegated output is draft material. Codex must review, adapt, test, and commit final changes.
+
+Deprecated:
+- Core Agent / Product Agent task split
+- assigning workstreams to separate agents
+- waiting for another agent to claim UI/backend tasks
+- using branch integration as a substitute for single-owner control
 
 ## Rules
 
-1. Before starting a task, an agent must claim it in the task table.
+1. Before starting a task, Codex must claim it in the task table.
 2. No code changes are allowed before the task row is updated to `IN_PROGRESS`.
 3. After finishing a task, the agent must update:
    - `Status`
@@ -17,8 +41,8 @@ This file is the single source of truth for multi-agent collaboration in this re
 6. If blocked, set `Status` to `BLOCKED` and describe the blocker clearly.
 7. If a task changes API contracts, state the exact request/response change in `Handoff Notes`.
 8. A task is not complete until `Verification` and `Commit / Branch` are filled in.
-9. If an agent needs to touch a task owned by another agent, it must add a note in `Handoff Notes` first and wait for explicit coordination.
-10. When a status sweep shows all tasks in the current round are `DONE`, the next agent action must be main-branch integration before any new feature planning.
+9. No task may be assigned to an external agent. External model output is only advisory draft material.
+10. When a status sweep shows all tasks in the current round are `DONE`, the next action must be main-branch integration before any new feature planning.
 
 ## Strict Status Model
 
@@ -36,6 +60,7 @@ Invalid patterns:
 - marking `DONE` without a commit or verification command
 - keeping a task in `IN_PROGRESS` after implementation is already finished
 - starting a new feature round while the completed round has not been integrated into the main integration branch
+- assigning future project ownership to Core Agent, Product Agent, or any other external agent
 
 ## Main Integration Protocol
 
@@ -67,16 +92,16 @@ Safety gates:
 
 ## Claim Protocol
 
-To claim a task, an agent must update the row with all of the following:
+To claim a task, Codex must update the row with all of the following:
 
-1. keep the assigned `Owner` unless the task is explicitly reassigned
+1. set `Owner` to `Primary Agent`
 2. set `Status` to `IN_PROGRESS`
 3. set `Last Update`
-4. write one line in `Handoff Notes` starting with `Claimed by ...`
+4. write one line in `Handoff Notes` starting with `Claimed by Codex`
 
 Example:
 
-`Claimed by Product Agent. Scope: storefront payment-state UI only. No RPC contract changes.`
+`Claimed by Codex. Scope: storefront payment-state UI only. MiMo delegate may draft copy/components; Codex owns final edits and verification.`
 
 When implementation is done:
 
@@ -87,29 +112,41 @@ When implementation is done:
 
 ## Ownership
 
-### Core Agent
+### Primary Agent
+
+Owner:
+- Codex
 
 Primary focus:
-- `app/order/rpc/**`
-- `app/product/rpc/**`
-- `app/auth/api/**`
-- `scripts/k8s/init-db.sql`
-- transaction consistency, pricing, payment, timeout close, stock recovery, auth/session semantics
+- all backend services
+- all frontend and web assets
+- task planning and decomposition
+- implementation and verification
+- mainline integration
+- interview-value prioritization
 
-### Product Agent
+### Auxiliary MCP Delegate
 
-Primary focus:
-- `frontend/**`
-- `web/**`
-- `app/order/api/internal/handler/web/**`
-- `app/order/api/internal/handler/admin*`
-- `app/order/api/internal/handler/monitor*`
-- thin order-api handlers for UI flows
-- dashboard, storefront, admin, monitor, visual polish
+Tool:
+- Local MCP Brain `delegate_code`
+
+Recommended use:
+- draft frontend components
+- draft repetitive handlers or DTO mappings
+- generate rough UI copy
+- produce alternative code sketches
+- enumerate boilerplate implementation options
+
+Restrictions:
+- does not own task rows
+- does not modify files
+- does not run tests
+- does not commit
+- must be reviewed by Codex before any output is used
 
 ### Shared Files
 
-These require explicit coordination before editing:
+These remain high-risk files. Codex must inspect current state before editing:
 - `app/order/api/internal/handler/routes.go`
 - `app/order/api/internal/types/types.go`
 - `app/order/api/internal/svc/servicecontext.go`
@@ -117,30 +154,15 @@ These require explicit coordination before editing:
 
 ## Current Claim Order
 
-### Core Agent
+No separate agent claim order exists.
 
-Claim in this order:
-
-1. `A1`
-2. `A2`
-3. `A3`
-
-### Product Agent
-
-Claim only these tasks, in this order:
-
-1. `B1`
-2. `B2`
-3. `B3`
-
-Product Agent should not claim `A*` tasks.
-Core Agent should not offload `A*` transaction-truth work unless the board is explicitly updated first.
+Codex claims the next highest-value task. If the task contains large amounts of low-risk drafting, Codex may call Local MCP Brain `delegate_code` and record that usage in `Handoff Notes`.
 
 ## Active Workstreams
 
 ### Workstream A: Trading Loop V2 Core
 
-Owner: Core Agent
+Owner: Historical Core Agent record
 
 Goal:
 - finish payment success callback
@@ -150,7 +172,7 @@ Goal:
 
 ### Workstream B: Storefront And Admin Productization
 
-Owner: Product Agent
+Owner: Historical Product Agent record
 
 Goal:
 - improve storefront product and order flows
@@ -160,7 +182,7 @@ Goal:
 
 ### Workstream C: Mainline Integration
 
-Owner: Core Agent
+Owner: Historical Core Agent record
 
 Goal:
 - integrate completed A/B round into `main`
@@ -168,6 +190,8 @@ Goal:
 - prove the merged project can build and run through the core demo flow
 
 ## Task Board
+
+Historical A/B/C rows are retained for audit. New task rows must use `Primary Agent` as owner.
 
 | ID | Task | Owner | Status | Scope | Key Files | Verification | Commit / Branch | Last Update | Handoff Notes |
 |---|---|---|---|---|---|---|---|---|---|
@@ -182,6 +206,17 @@ Goal:
 ## Update Log
 
 Append new entries at the top.
+
+### 2026-06-03
+
+- Time: 22:17:29
+- Task ID: Board Rule
+- Status: DONE
+- Commit / Branch: `main`
+- Verification:
+  - `git diff -- AGENT_TASK_BOARD.md`
+- Summary: retired the multi-agent ownership model. Future work is controlled by Codex as Primary Agent; Local MCP Brain `delegate_code` may only provide low-risk draft material for Codex review.
+- Follow-up / Risks: next feature planning should use `Primary Agent` as owner and record any MiMo delegate usage in handoff notes.
 
 ### 2026-06-01
 
