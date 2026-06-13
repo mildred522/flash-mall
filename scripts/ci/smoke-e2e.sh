@@ -134,7 +134,7 @@ cd "${REPO_ROOT}"
 docker compose -f deploy/docker-compose.yml up -d etcd mysql redis dtm rabbitmq
 
 wait_for_port "etcd" "127.0.0.1" "2379" 90
-wait_for_port "mysql" "127.0.0.1" "3306" 90
+wait_for_port "mysql" "127.0.0.1" "3307" 90
 wait_for_port "redis" "127.0.0.1" "6379" 90
 wait_for_port "dtm-grpc" "127.0.0.1" "36790" 90
 wait_for_port "rabbitmq" "127.0.0.1" "5672" 90
