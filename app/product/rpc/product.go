@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+
 	"github.com/dtm-labs/dtm/client/dtmcli/dtmimp"
 
+	"flash-mall/app/common/observability"
 	"flash-mall/app/product/rpc/internal/config"
 	"flash-mall/app/product/rpc/internal/server"
 	"flash-mall/app/product/rpc/internal/svc"
@@ -26,7 +29,15 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
+
+	shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
 	ctx := svc.NewServiceContext(c)
+	observability.StartDiagnostics(c.MetricsAddr, c.PprofAddr)
 
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
 		product.RegisterProductServer(grpcServer, server.NewProductServer(ctx))

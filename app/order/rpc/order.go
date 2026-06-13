@@ -1,20 +1,19 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"net/http"
-	_ "net/http/pprof"
 
 	"github.com/dtm-labs/dtm/client/dtmcli/dtmimp"
 
+	"flash-mall/app/common/observability"
 	"flash-mall/app/order/rpc/internal/config"
 	"flash-mall/app/order/rpc/internal/job"
 	"flash-mall/app/order/rpc/internal/server"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/service"
 	"github.com/zeromicro/go-zero/zrpc"
@@ -31,20 +30,17 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
+
+	shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
 	ctx := svc.NewServiceContext(c)
 	job.NewOutboxPublisher(ctx).Start()
 
-	if c.MetricsAddr != "" {
-		http.Handle("/metrics", promhttp.Handler())
-		go func() {
-			_ = http.ListenAndServe(c.MetricsAddr, nil)
-		}()
-	}
-	if c.PprofAddr != "" {
-		go func() {
-			_ = http.ListenAndServe(c.PprofAddr, nil)
-		}()
-	}
+	observability.StartDiagnostics(c.MetricsAddr, c.PprofAddr)
 
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
 		order.RegisterOrderServer(grpcServer, server.NewOrderServer(ctx))

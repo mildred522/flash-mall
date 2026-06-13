@@ -4,17 +4,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"net/http"
-	_ "net/http/pprof"
 
+	"flash-mall/app/common/observability"
 	"flash-mall/app/order/api/internal/config"
 	"flash-mall/app/order/api/internal/handler"
 	"flash-mall/app/order/api/internal/svc"
 	"flash-mall/app/order/api/job"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/rest"
 )
@@ -27,17 +26,13 @@ func main() {
 	var c config.Config
 	conf.MustLoad(*configFile, &c)
 
-	if c.MetricsAddr != "" {
-		http.Handle("/metrics", promhttp.Handler())
-		go func() {
-			_ = http.ListenAndServe(c.MetricsAddr, nil)
-		}()
+	shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
+	if err != nil {
+		panic(err)
 	}
-	if c.PprofAddr != "" {
-		go func() {
-			_ = http.ListenAndServe(c.PprofAddr, nil)
-		}()
-	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
+
+	observability.StartDiagnostics(c.MetricsAddr, c.PprofAddr)
 
 	server := rest.MustNewServer(c.RestConf)
 	defer server.Stop()
