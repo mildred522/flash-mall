@@ -36,3 +36,34 @@ func TestTracingConfigSampleRatio(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupTracingDisabled(t *testing.T) {
+	shutdown, err := SetupTracing(t.Context(), TracingConfig{})
+	if err != nil {
+		t.Fatalf("SetupTracing disabled returned error: %v", err)
+	}
+	if shutdown == nil {
+		t.Fatal("expected no-op shutdown")
+	}
+	if err := shutdown(t.Context()); err != nil {
+		t.Fatalf("disabled shutdown returned error: %v", err)
+	}
+}
+
+func TestSetupTracingStdout(t *testing.T) {
+	shutdown, err := SetupTracing(t.Context(), TracingConfig{
+		Enabled:     true,
+		ServiceName: "test-service",
+		Exporter:    "stdout",
+		SampleRatio: 1,
+	})
+	if err != nil {
+		t.Fatalf("SetupTracing stdout returned error: %v", err)
+	}
+	if shutdown == nil {
+		t.Fatal("expected shutdown")
+	}
+	if err := shutdown(t.Context()); err != nil {
+		t.Fatalf("shutdown returned error: %v", err)
+	}
+}
