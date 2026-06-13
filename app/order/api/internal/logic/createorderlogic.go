@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	commonobs "flash-mall/app/common/observability"
 	"flash-mall/app/order/api/internal/metrics"
 	"flash-mall/app/order/api/internal/model"
 	"flash-mall/app/order/api/internal/svc"
@@ -56,13 +57,14 @@ func NewCreateOrderLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Creat
 
 func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.CreateOrderResp, err error) {
 	requestId := strings.TrimSpace(req.RequestId)
-	l.Infow("create order request",
-		logx.Field("request_id", requestId),
+	fields := commonobs.OrderFields(l.ctx, "", requestId)
+	fields = append(fields,
 		logx.Field("user_id", req.UserId),
 		logx.Field("product_id", req.ProductId),
 		logx.Field("amount", req.Amount),
 		logx.Field("expected_price_fen", req.ExpectedPriceFen),
 	)
+	l.Infow("create order request", fields...)
 
 	result := "fail"
 	defer func() {
@@ -82,10 +84,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 			_ = l.svcCtx.Redis.SetexCtx(l.ctx, requestResultKey, existOrder.Id, int(requestTTLSeconds))
 			_, _ = l.svcCtx.Redis.DelCtx(l.ctx, requestLockKey)
 
-			l.Infow("request_id hit db cache",
-				logx.Field("request_id", requestId),
-				logx.Field("order_id", existOrder.Id),
-			)
+			l.Infow("request_id hit db cache", commonobs.OrderFields(l.ctx, existOrder.Id, requestId)...)
 			result = "hit"
 			return l.loadSnapshotResult(existOrder.Id)
 		} else if lookupErr != model.ErrNotFound {
@@ -93,10 +92,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 		}
 
 		if cachedOrderId, _ := l.svcCtx.Redis.GetCtx(l.ctx, requestResultKey); cachedOrderId != "" {
-			l.Infow("request_id hit redis cache",
-				logx.Field("request_id", requestId),
-				logx.Field("order_id", cachedOrderId),
-			)
+			l.Infow("request_id hit redis cache", commonobs.OrderFields(l.ctx, cachedOrderId, requestId)...)
 			result = "hit"
 			return l.loadSnapshotResult(cachedOrderId)
 		}
@@ -126,10 +122,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	}
 	if !setOk {
 		if cachedOrderId, _ := l.svcCtx.Redis.GetCtx(l.ctx, requestResultKey); cachedOrderId != "" {
-			l.Infow("request_id locked, return existing",
-				logx.Field("request_id", requestId),
-				logx.Field("order_id", cachedOrderId),
-			)
+			l.Infow("request_id locked, return existing", commonobs.OrderFields(l.ctx, cachedOrderId, requestId)...)
 			result = "hit"
 			return l.loadSnapshotResult(cachedOrderId)
 		}

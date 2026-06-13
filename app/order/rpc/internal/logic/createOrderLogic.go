@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	commonobs "flash-mall/app/common/observability"
 	"flash-mall/app/order/rpc/internal/job"
 	"flash-mall/app/order/rpc/internal/pricing"
 	"flash-mall/app/order/rpc/internal/svc"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/dtm-labs/dtm/client/dtmgrpc"
 	"github.com/zeromicro/go-zero/core/logx"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -55,6 +58,16 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 		requestID = in.OrderId
 	}
 	paymentOrderID := paymentOrderIDFor(in.OrderId)
+
+	span := trace.SpanFromContext(l.ctx)
+	span.SetAttributes(
+		attribute.String("order.id", in.GetOrderId()),
+		attribute.String("order.request_id", requestID),
+		attribute.Int64("user.id", in.GetUserId()),
+		attribute.Int64("product.id", in.GetProductId()),
+		attribute.Int64("order.amount", in.GetAmount()),
+	)
+	l.Infow("order rpc create order", commonobs.OrderFields(l.ctx, in.GetOrderId(), requestID)...)
 
 	card, err := l.svcCtx.ProductRpc.GetProductCard(l.ctx, &productclient.GetProductCardReq{
 		ProductId: in.ProductId,

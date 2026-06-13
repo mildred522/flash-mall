@@ -10,6 +10,8 @@ import (
 
 	"github.com/dtm-labs/dtm/client/dtmgrpc"
 	"github.com/zeromicro/go-zero/core/logx"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -30,6 +32,13 @@ func NewDeductLogic(ctx context.Context, svcCtx *svc.ServiceContext) *DeductLogi
 
 // Deduct 扣减库存（SAGA 正向操作）
 func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
+	span := trace.SpanFromContext(l.ctx)
+	span.SetAttributes(
+		attribute.Int64("product.id", in.GetId()),
+		attribute.Int64("stock.amount", in.GetNum()),
+		attribute.String("order.id", in.GetOrderId()),
+	)
+
 	// 1) 获取 DTM Barrier
 	barrier, err := dtmgrpc.BarrierFromGrpc(l.ctx)
 	if err != nil {
@@ -49,6 +58,7 @@ func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
 		orderId = strconv.FormatInt(in.Id, 10)
 	}
 	bucketIdx := stockBucketIndex(orderId, bucketCount)
+	span.SetAttributes(attribute.Int("stock.bucket_idx", bucketIdx))
 
 	// 3) 在 Barrier 保护下执行本地事务
 	err = barrier.CallWithDB(db, func(tx *sql.Tx) error {
