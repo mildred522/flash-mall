@@ -370,6 +370,7 @@ USE mall_auth;
 CREATE TABLE IF NOT EXISTS users (
   id bigint NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   display_name varchar(64) NOT NULL DEFAULT '' COMMENT '展示昵称',
+  role varchar(32) NOT NULL DEFAULT 'user' COMMENT '用户角色',
   status tinyint NOT NULL DEFAULT 1 COMMENT '状态 1-正常 2-禁用',
   session_version int NOT NULL DEFAULT 1 COMMENT '会话版本号',
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -462,6 +463,10 @@ CREATE TABLE IF NOT EXISTS auth_audit_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ========== auth migration: add missing columns if tables already exist ==========
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE users ADD COLUMN role varchar(32) NOT NULL DEFAULT ''user'' AFTER display_name', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_credentials' AND COLUMN_NAME = 'credential_type');
 SET @sql = IF(@has_col = 0, 'ALTER TABLE user_credentials ADD COLUMN credential_type varchar(32) NOT NULL DEFAULT ''password'' AFTER user_id', 'SELECT 1');

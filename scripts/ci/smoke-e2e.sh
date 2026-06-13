@@ -83,7 +83,7 @@ wait_for_mysql() {
   local deadline=$((SECONDS + timeout))
 
   while (( SECONDS < deadline )); do
-    if docker exec mysql mysqladmin ping -uroot -p6494kj06 --silent >/dev/null 2>&1; then
+    if docker exec mysql mysql -N -uroot -p6494kj06 -e "SELECT 1" >/dev/null 2>&1; then
       echo "[ok] mysql accepting connections"
       return 0
     fi
@@ -138,7 +138,7 @@ wait_for_port "mysql" "127.0.0.1" "3307" 90
 wait_for_port "redis" "127.0.0.1" "6379" 90
 wait_for_port "dtm-grpc" "127.0.0.1" "36790" 90
 wait_for_port "rabbitmq" "127.0.0.1" "5672" 90
-wait_for_mysql 120
+wait_for_mysql 600
 
 docker exec -i mysql mysql --force -uroot -p6494kj06 < scripts/k8s/init-db.sql
 
@@ -150,7 +150,16 @@ wait_for_port "product-rpc" "127.0.0.1" "8080" 90
 start_go_service "order-rpc" "./app/order/rpc/order.go" "./app/order/rpc/etc/order.yaml"
 wait_for_port "order-rpc" "127.0.0.1" "8090" 90
 
-start_go_service "order-api" "./app/order/api/order.go" "./app/order/api/etc/order-api.yaml"
+start_go_service "auth-api" "./app/auth/api/auth.go" "./app/auth/api/etc/auth-api.yaml"
+wait_for_port "auth-api" "127.0.0.1" "8890" 90
+
+order_api_smoke_config="${LOG_DIR}/order-api-smoke.yaml"
+sed \
+  -e 's/ProductRpcTarget: 127.0.0.1:8080/ProductRpcTarget: host.docker.internal:8080/' \
+  -e 's/OrderRpcTarget: 127.0.0.1:8090/OrderRpcTarget: host.docker.internal:8090/' \
+  ./app/order/api/etc/order-api.yaml > "${order_api_smoke_config}"
+
+start_go_service "order-api" "./app/order/api/order.go" "${order_api_smoke_config}"
 wait_for_http "order-api" "http://127.0.0.1:8888/api/system/health" 90
 
 health_json="$(curl -fsS http://127.0.0.1:8888/api/system/health)"
@@ -163,9 +172,26 @@ if not payload.get("overall"):
     raise SystemExit("system health overall=false")
 PY
 
-login_json="$(curl -fsS -X POST http://127.0.0.1:8888/api/auth/login \
+phone="$(printf "139%08d" $(( $(date +%s) % 100000000 )))"
+code_json="$(curl -fsS -X POST http://127.0.0.1:8888/api/auth/code/send \
   -H 'Content-Type: application/json' \
-  -d '{"user_id":1001,"password":"flashmall123"}')"
+  -d "{\"phone\":\"${phone}\",\"scene\":\"register\"}")"
+
+code="$(python3 - "${code_json}" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+code = payload.get("debug_code", "")
+if not code:
+    raise SystemExit("missing debug_code")
+print(code)
+PY
+)"
+
+login_json="$(curl -fsS -X POST http://127.0.0.1:8888/api/auth/register \
+  -H 'Content-Type: application/json' \
+  -d "{\"phone\":\"${phone}\",\"password\":\"flashmall123\",\"code\":\"${code}\",\"display_name\":\"CI Smoke User\"}")"
 
 token="$(python3 - "${login_json}" <<'PY'
 import json
@@ -179,11 +205,23 @@ print(token)
 PY
 )"
 
+user_id="$(python3 - "${login_json}" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+user_id = payload.get("user_id", 0)
+if not user_id:
+    raise SystemExit("missing user_id")
+print(user_id)
+PY
+)"
+
 request_id="ci-$(date +%s)-$$"
 create_json="$(curl -fsS -X POST http://127.0.0.1:8888/api/order/create \
   -H 'Content-Type: application/json' \
   -H "Authorization: Bearer ${token}" \
-  -d "{\"request_id\":\"${request_id}\",\"user_id\":9999,\"product_id\":100,\"amount\":1}")"
+  -d "{\"request_id\":\"${request_id}\",\"user_id\":${user_id},\"product_id\":100,\"amount\":1}")"
 
 order_id="$(python3 - "${create_json}" <<'PY'
 import json

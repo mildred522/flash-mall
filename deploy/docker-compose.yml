@@ -3,6 +3,8 @@ services:
     image: yedf/dtm
     pull_policy: never
     container_name: dtm
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "36789:36789" # HTTP
       - "36790:36790" # gRPC
@@ -61,6 +63,7 @@ services:
     ports:
       - "16686:16686"
       - "4318:4318"
+      - "14268:14268"
 
 volumes:
   mysql-data:

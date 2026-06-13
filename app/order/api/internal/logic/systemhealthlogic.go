@@ -99,11 +99,31 @@ func (l *SystemHealthLogic) checkTCP(addr string) (bool, string) {
 		return false, "empty address"
 	}
 	conn, err := net.DialTimeout("tcp", addr, 500*time.Millisecond)
-	if err != nil {
-		return false, err.Error()
+	if err == nil {
+		_ = conn.Close()
+		return true, "tcp connect ok"
 	}
-	_ = conn.Close()
-	return true, "tcp connect ok"
+
+	if fallback, ok := localhostFallbackForDockerHost(addr); ok {
+		fallbackConn, fallbackErr := net.DialTimeout("tcp", fallback, 500*time.Millisecond)
+		if fallbackErr == nil {
+			_ = fallbackConn.Close()
+			return true, fmt.Sprintf("tcp connect ok via %s fallback", fallback)
+		}
+	}
+
+	return false, err.Error()
+}
+
+func localhostFallbackForDockerHost(addr string) (string, bool) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", false
+	}
+	if !strings.EqualFold(host, "host.docker.internal") {
+		return "", false
+	}
+	return net.JoinHostPort("127.0.0.1", port), true
 }
 
 func (l *SystemHealthLogic) checkRabbit() (bool, string) {

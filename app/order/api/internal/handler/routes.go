@@ -152,20 +152,6 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		),
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)
-	server.AddRoutes(
-		rest.WithMiddlewares(
-			[]rest.Middleware{
-				middleware.NewRateLimitMiddleware(serverCtx.OrderLimiter),
-			},
-			rest.Route{
-				Method:  http.MethodPost,
-				Path:    "/api/order/pay",
-				Handler: PayOrderHandler(serverCtx),
-			},
-		),
-		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
-	)
-
 	// JWT-protected order query endpoints (no rate limit needed)
 	server.AddRoutes(
 		[]rest.Route{
