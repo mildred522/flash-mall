@@ -161,7 +161,7 @@ func TestCreateOrderLogic_CreateOrder_ReturnsSnapshotBackedPaymentInfo(t *testin
 		t.Fatalf("expected expected_price_fen to propagate, got %d", capturedCreateOrderReq.ExpectedPriceFen)
 	}
 	if capturedCreateOrderReq.OrderId != "o-100" || capturedCreateOrderReq.RequestId != "req-100" {
-		t.Fatalf("unexpected create order payload: %#v", capturedCreateOrderReq)
+		t.Fatalf("unexpected create order payload: order_id=%q request_id=%q", capturedCreateOrderReq.OrderId, capturedCreateOrderReq.RequestId)
 	}
 }
 
