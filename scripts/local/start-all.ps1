@@ -3,6 +3,12 @@ param(
   [switch]$SkipDbInit,
   [switch]$SkipSeedStock,
   [switch]$SkipFrontend,
+  [switch]$SkipLocalExeBuild,
+  [switch]$SkipLocalExeSigning,
+  [switch]$TrustLocalCodeSigningCert,
+  [switch]$TrustLocalCodeSigningRoot,
+  [switch]$UpdateLocalFirewall,
+  [switch]$PrepareOnly,
   [switch]$NoBrowser,
   [int]$PortWaitSeconds = 90
 )
@@ -176,6 +182,31 @@ function Stop-StaleServices {
   }
 }
 
+function Ensure-LocalExecutables {
+  if ($SkipLocalExeBuild) {
+    Write-Host "[SKIP] local executable build"
+    return
+  }
+
+  $prepareScript = Join-Path $repoRoot "scripts\local\prepare-local-exes.ps1"
+  $prepareArgs = @{}
+  if ($SkipLocalExeSigning) {
+    $prepareArgs["SkipSigning"] = $true
+  }
+  if ($TrustLocalCodeSigningCert) {
+    $prepareArgs["TrustCert"] = $true
+  }
+  if ($TrustLocalCodeSigningRoot) {
+    $prepareArgs["TrustRootCert"] = $true
+  }
+  if (-not $UpdateLocalFirewall) {
+    $prepareArgs["SkipFirewall"] = $true
+  }
+
+  Write-Host "[STEP] build and sign stable local executables"
+  & $prepareScript @prepareArgs
+}
+
 function Start-GoService {
   param(
     [string]$Name,
@@ -238,6 +269,13 @@ Start-Sleep -Seconds 2
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
 
 Stop-StaleServices -PidFilePath $pidFile
+
+Ensure-LocalExecutables
+
+if ($PrepareOnly) {
+  Write-Host "[DONE] local executable preparation complete"
+  return
+}
 
 $composeCmd = $null
 if (-not $SkipCompose) {

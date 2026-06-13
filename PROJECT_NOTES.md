@@ -29,6 +29,10 @@ operational demo readiness.
   evidence paths.
 - Demo readiness: Docker-based local dependencies, one-click scripts, and web
   pages for shop/admin/monitor/debug flows.
+- Windows local startup now rebuilds fixed `.runtime\bin` service executables
+  and signs them before launch; firewall rules stay stable because the paths do
+  not change. Use `scripts/local/start-all.ps1 -PrepareOnly` to rebuild and
+  sign without starting the full stack.
 
 ## Best Interview Talking Points
 
