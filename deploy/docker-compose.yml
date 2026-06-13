@@ -51,3 +51,13 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    pull_policy: if_not_present
+    container_name: jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "4318:4318"

@@ -25,9 +25,9 @@ Observability:
   Tracing:
     Enabled: false
     ServiceName: product-rpc
-    Exporter: stdout
+    Exporter: otlphttp
     Endpoint: http://127.0.0.1:4318/v1/traces
-    SampleRatio: 1.0
+    SampleRatio: 1
 
 # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
 StockBucketCount: 4

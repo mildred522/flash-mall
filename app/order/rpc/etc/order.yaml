@@ -40,9 +40,9 @@ Observability:
   Tracing:
     Enabled: false
     ServiceName: order-rpc
-    Exporter: stdout
+    Exporter: otlphttp
     Endpoint: http://127.0.0.1:4318/v1/traces
-    SampleRatio: 1.0
+    SampleRatio: 1
 
 StockShardCount: 4
 
