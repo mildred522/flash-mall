@@ -1,6 +1,8 @@
 package config
 
 import (
+	commonobs "flash-mall/app/common/observability"
+
 	"github.com/zeromicro/go-zero/core/stores/cache"
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/rest"
@@ -13,6 +15,7 @@ type Config struct {
 	ProductRpcConf zrpc.RpcClientConf
 	OrderRpcConf   zrpc.RpcClientConf
 	RedisConf      redis.RedisConf
+	Observability  commonobs.Config `json:",optional"`
 
 	DtmServer           string
 	ProductRpcTarget    string

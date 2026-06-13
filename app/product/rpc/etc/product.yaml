@@ -18,6 +18,17 @@ Telemetry:
 
 DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
 
+PprofAddr: 0.0.0.0:6062
+MetricsAddr: 0.0.0.0:9092
+
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: product-rpc
+    Exporter: stdout
+    Endpoint: http://127.0.0.1:4318/v1/traces
+    SampleRatio: 1.0
+
 # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
 StockBucketCount: 4
 

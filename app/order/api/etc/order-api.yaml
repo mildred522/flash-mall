@@ -56,6 +56,14 @@ CacheConf:
 PprofAddr: 0.0.0.0:6060
 MetricsAddr: 0.0.0.0:9090
 
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: order-api
+    Exporter: stdout
+    Endpoint: http://127.0.0.1:4318/v1/traces
+    SampleRatio: 1.0
+
 DtmServer: 127.0.0.1:36790
 ProductRpcTarget: 127.0.0.1:8080
 OrderTimeoutSeconds: 60

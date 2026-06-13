@@ -35,6 +35,15 @@ ProductRpcConf:
 
 PprofAddr: 0.0.0.0:6061
 MetricsAddr: 0.0.0.0:9091
+
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: order-rpc
+    Exporter: stdout
+    Endpoint: http://127.0.0.1:4318/v1/traces
+    SampleRatio: 1.0
+
 StockShardCount: 4
 
 RabbitMQURL: amqp://flashmall:flashmall123@127.0.0.1:5672/
@@ -48,4 +57,3 @@ OutboxMaxRetries: 8
 OutboxSingleActive: true
 OutboxLeaderLockKey: order:outbox:publisher:leader
 OutboxLeaderLockTTL: 90
-

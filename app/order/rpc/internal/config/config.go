@@ -1,6 +1,8 @@
 package config
 
 import (
+	commonobs "flash-mall/app/common/observability"
+
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/zrpc"
 )
@@ -10,6 +12,7 @@ type Config struct {
 	DataSource     string
 	RedisConf      redis.RedisConf
 	ProductRpcConf zrpc.RpcClientConf `json:",optional"`
+	Observability  commonobs.Config   `json:",optional"`
 
 	PprofAddr   string
 	MetricsAddr string
