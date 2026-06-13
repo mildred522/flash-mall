@@ -32,6 +32,7 @@ $composeFile = Join-Path $repoRoot "deploy\docker-compose.yml"
 $runtimeDir = Join-Path $repoRoot ".runtime"
 $pidFile = Join-Path $runtimeDir "local-services.json"
 $logDir = Join-Path $repoRoot "logs\local"
+$binDir = Join-Path $runtimeDir "bin"
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
 
 function Test-TcpPort {
@@ -184,15 +185,27 @@ function Start-GoService {
 
   $outLog = Join-Path $logDir "$Name.$runStamp.out.log"
   $errLog = Join-Path $logDir "$Name.$runStamp.err.log"
+  $exePath = Join-Path $binDir "$Name.exe"
 
-  $proc = Start-Process `
-    -FilePath "go" `
-    -ArgumentList @("run", $Entry, "-f", $Config) `
-    -WorkingDirectory $repoRoot `
-    -RedirectStandardOutput $outLog `
-    -RedirectStandardError $errLog `
-    -WindowStyle Hidden `
-    -PassThru
+  if (Test-Path $exePath) {
+    $proc = Start-Process `
+      -FilePath $exePath `
+      -ArgumentList @("-f", $Config) `
+      -WorkingDirectory $repoRoot `
+      -RedirectStandardOutput $outLog `
+      -RedirectStandardError $errLog `
+      -WindowStyle Hidden `
+      -PassThru
+  } else {
+    $proc = Start-Process `
+      -FilePath "go" `
+      -ArgumentList @("run", $Entry, "-f", $Config) `
+      -WorkingDirectory $repoRoot `
+      -RedirectStandardOutput $outLog `
+      -RedirectStandardError $errLog `
+      -WindowStyle Hidden `
+      -PassThru
+  }
 
   Write-Host "[START] $Name pid=$($proc.Id)"
   return @{
@@ -214,9 +227,12 @@ Set-Location $repoRoot
 # Kill any leftover service processes from previous runs
 $ErrorActionPreference = "Continue"
 & taskkill /IM auth.exe /F 2>&1 | Out-Null
+& taskkill /IM auth-api.exe /F 2>&1 | Out-Null
 & taskkill /IM product.exe /F 2>&1 | Out-Null
+& taskkill /IM product-rpc.exe /F 2>&1 | Out-Null
 & taskkill /IM order.exe /F 2>&1 | Out-Null
 & taskkill /IM order-rpc.exe /F 2>&1 | Out-Null
+& taskkill /IM order-api.exe /F 2>&1 | Out-Null
 $ErrorActionPreference = "Stop"
 Start-Sleep -Seconds 2
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
