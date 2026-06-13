@@ -132,6 +132,20 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, status.Error(codes.FailedPrecondition, "payment order is not payable")
 	}
 
+	lifecycleReq := &order.LifecycleOrderReq{
+		OrderId:      in.OrderId,
+		OperatorId:   0,
+		OperatorRole: "payment_callback",
+		Reason:       "payment callback success",
+		RequestId:    callback.EventID,
+	}
+	if err := insertOrderStatusLog(l.ctx, tx, in.OrderId, orderStatePendingPayment, orderStatePaid, 0, "payment callback success"); err != nil {
+		return nil, err
+	}
+	if err := insertLifecycleOutbox(l.ctx, tx, "order.paid", in.OrderId, lifecycleReq, orderStatePaid, ""); err != nil {
+		return nil, err
+	}
+
 	if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "SUCCESS", ""); err != nil {
 		return nil, err
 	}

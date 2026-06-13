@@ -199,6 +199,7 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders/detail", Handler: AdminOrderDetailHandler(serverCtx)},
 			rest.Route{Method: http.MethodPost, Path: "/api/admin/orders/ship", Handler: AdminShipOrderHandler(serverCtx)},
 			rest.Route{Method: http.MethodPost, Path: "/api/admin/orders/refund", Handler: AdminRefundOrderHandler(serverCtx)},
+			rest.Route{Method: http.MethodPost, Path: "/api/admin/payments/reconcile", Handler: AdminPaymentReconcileHandler(serverCtx)},
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/products", Handler: AdminProductListHandler(serverCtx)},
 			rest.Route{Method: http.MethodPost, Path: "/api/admin/products/update", Handler: AdminProductUpdateHandler(serverCtx)},
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/users", Handler: AdminUserListHandler(serverCtx)},

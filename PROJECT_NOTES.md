@@ -20,7 +20,8 @@ operational demo readiness.
   and reconciliation scripts.
 - Payment hardening: callback HMAC validation, strict
   `order_id + payment_order_id + out_trade_no` binding, paid amount validation,
-  and `payment_callback_event` audit persistence.
+  `payment_callback_event` audit persistence, payment reconciliation issues,
+  and refund failure/retry state.
 - Account security: auth-service split, session/version model, audit direction,
   and order-api as BFF.
 - Event architecture: RabbitMQ with Outbox Pattern, publisher/consumer

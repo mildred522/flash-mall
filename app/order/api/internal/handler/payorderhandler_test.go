@@ -20,8 +20,10 @@ import (
 )
 
 type stubOrderRPC struct {
-	lastReq *orderclient.MarkOrderPaidReq
-	resp    *orderclient.MarkOrderPaidResp
+	lastReq           *orderclient.MarkOrderPaidReq
+	resp              *orderclient.MarkOrderPaidResp
+	approveRefundReq  *orderclient.LifecycleOrderReq
+	approveRefundResp *orderclient.LifecycleOrderResp
 }
 
 func (s *stubOrderRPC) PreDeduct(context.Context, *orderclient.PreDeductReq, ...grpc.CallOption) (*orderclient.Empty, error) {

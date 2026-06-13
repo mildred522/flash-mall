@@ -2,10 +2,13 @@ package logic
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 
 	"flash-mall/app/order/api/internal/metrics"
 	"flash-mall/app/order/api/internal/svc"
 	"flash-mall/app/order/api/internal/types"
+	"flash-mall/app/order/rpc/orderclient"
 
 	"github.com/zeromicro/go-zero/core/logx"
 	"google.golang.org/grpc/codes"
@@ -39,12 +42,17 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 		return nil, status.Error(codes.Internal, "db connection failed")
 	}
 
-	// Verify order exists and belongs to user
 	var currentStatus int64
 	var orderUserID int64
+	var paymentOrderID string
+	var outTradeNo string
+	var payableAmountFen int64
 	err = db.QueryRowContext(l.ctx,
-		"SELECT status, user_id FROM orders WHERE id = ? LIMIT 1", req.OrderId,
-	).Scan(&currentStatus, &orderUserID)
+		`SELECT o.status, o.user_id, p.id, p.out_trade_no, p.payable_amount_fen
+FROM orders o
+JOIN payment_order p ON p.order_id = o.id
+WHERE o.id = ? LIMIT 1`, req.OrderId,
+	).Scan(&currentStatus, &orderUserID, &paymentOrderID, &outTradeNo, &payableAmountFen)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "order not found")
 	}
@@ -54,38 +62,26 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 	if currentStatus != 0 {
 		return nil, status.Error(codes.FailedPrecondition, "order is not pending payment")
 	}
+	if l.svcCtx.OrderRpc == nil {
+		return nil, status.Error(codes.Internal, "order rpc not configured")
+	}
 
-	// Update order and payment status in a transaction
-	tx, err := db.BeginTx(l.ctx, nil)
+	callbackBody, err := mockPaymentCallbackBody(paymentOrderID, outTradeNo, payableAmountFen)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "begin tx failed")
+		return nil, status.Error(codes.Internal, "build payment callback failed")
 	}
-	defer tx.Rollback()
-
-	result, err := tx.ExecContext(l.ctx,
-		"UPDATE orders SET status = 1 WHERE id = ? AND status = 0", req.OrderId,
-	)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "update order status failed")
-	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return nil, status.Error(codes.FailedPrecondition, "order status changed concurrently")
+	if _, err := l.svcCtx.OrderRpc.MarkOrderPaid(l.ctx, &orderclient.MarkOrderPaidReq{
+		OrderId:        req.OrderId,
+		PaymentOrderId: paymentOrderID,
+		OutTradeNo:     outTradeNo,
+		CallbackBody:   callbackBody,
+	}); err != nil {
+		return nil, err
 	}
 
-	_, err = tx.ExecContext(l.ctx,
-		"UPDATE payment_order SET status = 1 WHERE order_id = ?", req.OrderId,
-	)
-	if err != nil {
-		return nil, status.Error(codes.Internal, "update payment status failed")
+	if l.svcCtx.Redis != nil {
+		_, _ = l.svcCtx.Redis.ZremCtx(l.ctx, OrderDelayQueueKey, req.OrderId)
 	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, "commit failed")
-	}
-
-	// Remove from delay queue so CloseOrderJob won't close it
-	_, _ = l.svcCtx.Redis.ZremCtx(l.ctx, OrderDelayQueueKey, req.OrderId)
 
 	l.Infof("order paid: order_id=%s user_id=%d", req.OrderId, userID)
 	metricResult = "ok"
@@ -95,4 +91,18 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 		OrderId: req.OrderId,
 		Status:  "paid",
 	}, nil
+}
+
+func mockPaymentCallbackBody(paymentOrderID, outTradeNo string, paidAmountFen int64) (string, error) {
+	body, err := json.Marshal(map[string]any{
+		"trade_status":    "SUCCESS",
+		"source":          "mock",
+		"provider":        "mock",
+		"event_id":        fmt.Sprintf("mock:%s:%s", paymentOrderID, outTradeNo),
+		"paid_amount_fen": paidAmountFen,
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }

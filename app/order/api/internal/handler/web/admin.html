@@ -221,6 +221,7 @@ h1, h2, h3, h4 {
 .badge.completed { background: #f0fdf4; color: #16a34a; }
 .badge.refund { background: #fef2f2; color: #dc2626; }
 .badge.refunded { background: #fef2f2; color: #991b1b; }
+.badge.refund-failed { background: #fff7ed; color: #c2410c; }
 
 /* ─── Filters ─── */
 .panel-header {
@@ -374,6 +375,7 @@ h1, h2, h3, h4 {
             <option value="4">已收货</option>
             <option value="5">退款中</option>
             <option value="6">已退款</option>
+            <option value="7">退款异常</option>
           </select>
           <button id="order-filter-apply" class="button primary">筛选</button>
           <span id="orders-total" class="total-label"></span>
@@ -512,7 +514,8 @@ const STATUS_MAP = {
   3: { text: "已发货", cls: "shipped" },
   4: { text: "已收货", cls: "completed" },
   5: { text: "退款中", cls: "refund" },
-  6: { text: "已退款", cls: "refunded" }
+  6: { text: "已退款", cls: "refunded" },
+  7: { text: "退款异常", cls: "refund-failed" }
 };
 let orderFilters = { status: "", page: 1, page_size: 20 };
 async function loadOrders() {
@@ -536,10 +539,19 @@ async function loadOrders() {
         <td>${o.product_name || "—"}</td>
         <td>${o.amount}</td>
         <td>¥${formatPriceFen(o.payable_amount_fen)}</td>
-        <td><span class="badge ${st.cls}">${st.text}</span></td>
+        <td><span class="badge ${st.cls}">${st.text}</span>${o.status === 5 || o.status === 7 ? ` <button class="button soft" data-approve-refund="${o.order_id}">${o.status === 7 ? "重试退款" : "审批退款"}</button>` : ""}</td>
         <td>${o.create_time || ""}</td>
       </tr>`;
   }).join("");
+  $("orders-tbody").querySelectorAll("[data-approve-refund]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const orderId = btn.getAttribute("data-approve-refund");
+      btn.disabled = true;
+      const resp = await authed("/api/admin/orders/refund", { method: "POST", jsonBody: { order_id: orderId, reason: "admin approved" } });
+      log(resp.ok ? `退款审批完成 order=${orderId}` : `退款审批失败 order=${orderId}`);
+      await loadOrders();
+    });
+  });
   $("orders-total").textContent = `共 ${total} 条`;
   log(`订单列表已刷新 items=${items.length} total=${total}`);
 }

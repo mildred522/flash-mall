@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS orders (
   user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
   product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
   amount int NOT NULL DEFAULT 0 COMMENT '数量',
-  status tinyint NOT NULL DEFAULT 0 COMMENT '订单状态 0-待支付 1-已支付 2-已关闭 3-已发货 4-已收货 5-申请退款 6-已退款',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '订单状态 0-待支付 1-已支付 2-已关闭 3-已发货 4-已收货 5-申请退款 6-已退款 7-退款异常',
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
@@ -134,6 +134,24 @@ CREATE TABLE IF NOT EXISTS payment_callback_event (
   UNIQUE KEY uniq_provider_event (provider, event_id),
   KEY ix_payment_order_id (payment_order_id),
   KEY ix_order_id (order_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS payment_reconciliation_issue (
+  id bigint NOT NULL AUTO_INCREMENT,
+  issue_key varchar(160) NOT NULL COMMENT '对账问题唯一键',
+  issue_type varchar(64) NOT NULL COMMENT '问题类型',
+  order_id varchar(64) NOT NULL DEFAULT '' COMMENT '订单id',
+  payment_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '支付单id',
+  severity varchar(16) NOT NULL DEFAULT 'warning' COMMENT '严重级别',
+  status varchar(16) NOT NULL DEFAULT 'open' COMMENT 'open/resolved',
+  detail varchar(255) NOT NULL DEFAULT '' COMMENT '问题详情',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  resolved_at timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_issue_key (issue_key),
+  KEY ix_order_id (order_id),
+  KEY ix_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS order_outbox (

@@ -25,6 +25,8 @@ const (
 	Order_CreateOrderRollback_FullMethodName = "/order.Order/CreateOrderRollback"
 	Order_MarkOrderPaid_FullMethodName       = "/order.Order/MarkOrderPaid"
 	Order_GetOrderDetail_FullMethodName      = "/order.Order/GetOrderDetail"
+	Order_RequestRefund_FullMethodName       = "/order.Order/RequestRefund"
+	Order_ApproveRefund_FullMethodName       = "/order.Order/ApproveRefund"
 )
 
 // OrderClient is the client API for Order service.
@@ -41,6 +43,8 @@ type OrderClient interface {
 	CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
 	MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
 	GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
+	RequestRefund(ctx context.Context, in *LifecycleOrderReq, opts ...grpc.CallOption) (*LifecycleOrderResp, error)
+	ApproveRefund(ctx context.Context, in *LifecycleOrderReq, opts ...grpc.CallOption) (*LifecycleOrderResp, error)
 }
 
 type orderClient struct {
@@ -111,6 +115,26 @@ func (c *orderClient) GetOrderDetail(ctx context.Context, in *GetOrderDetailReq,
 	return out, nil
 }
 
+func (c *orderClient) RequestRefund(ctx context.Context, in *LifecycleOrderReq, opts ...grpc.CallOption) (*LifecycleOrderResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LifecycleOrderResp)
+	err := c.cc.Invoke(ctx, Order_RequestRefund_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) ApproveRefund(ctx context.Context, in *LifecycleOrderReq, opts ...grpc.CallOption) (*LifecycleOrderResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LifecycleOrderResp)
+	err := c.cc.Invoke(ctx, Order_ApproveRefund_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OrderServer is the server API for Order service.
 // All implementations must embed UnimplementedOrderServer
 // for forward compatibility.
@@ -125,6 +149,8 @@ type OrderServer interface {
 	CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error)
 	MarkOrderPaid(context.Context, *MarkOrderPaidReq) (*MarkOrderPaidResp, error)
 	GetOrderDetail(context.Context, *GetOrderDetailReq) (*GetOrderDetailResp, error)
+	RequestRefund(context.Context, *LifecycleOrderReq) (*LifecycleOrderResp, error)
+	ApproveRefund(context.Context, *LifecycleOrderReq) (*LifecycleOrderResp, error)
 	mustEmbedUnimplementedOrderServer()
 }
 
@@ -152,6 +178,12 @@ func (UnimplementedOrderServer) MarkOrderPaid(context.Context, *MarkOrderPaidReq
 }
 func (UnimplementedOrderServer) GetOrderDetail(context.Context, *GetOrderDetailReq) (*GetOrderDetailResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetOrderDetail not implemented")
+}
+func (UnimplementedOrderServer) RequestRefund(context.Context, *LifecycleOrderReq) (*LifecycleOrderResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RequestRefund not implemented")
+}
+func (UnimplementedOrderServer) ApproveRefund(context.Context, *LifecycleOrderReq) (*LifecycleOrderResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ApproveRefund not implemented")
 }
 func (UnimplementedOrderServer) mustEmbedUnimplementedOrderServer() {}
 func (UnimplementedOrderServer) testEmbeddedByValue()               {}
@@ -282,6 +314,42 @@ func _Order_GetOrderDetail_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Order_RequestRefund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LifecycleOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).RequestRefund(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_RequestRefund_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).RequestRefund(ctx, req.(*LifecycleOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_ApproveRefund_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LifecycleOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).ApproveRefund(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_ApproveRefund_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).ApproveRefund(ctx, req.(*LifecycleOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Order_ServiceDesc is the grpc.ServiceDesc for Order service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -312,6 +380,14 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetOrderDetail",
 			Handler:    _Order_GetOrderDetail_Handler,
+		},
+		{
+			MethodName: "RequestRefund",
+			Handler:    _Order_RequestRefund_Handler,
+		},
+		{
+			MethodName: "ApproveRefund",
+			Handler:    _Order_ApproveRefund_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -52,6 +52,20 @@ message GetOrderDetailResp {
   int64 discount_amount_fen = 7;
 }
 
+message LifecycleOrderReq {
+  string order_id = 1;
+  int64 operator_id = 2;
+  string operator_role = 3;
+  string reason = 4;
+  string request_id = 5;
+}
+
+message LifecycleOrderResp {
+  string order_id = 1;
+  int64 status = 2;
+  string status_text = 3;
+}
+
 message Empty {}
 
 service Order {
@@ -65,4 +79,6 @@ service Order {
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
   rpc MarkOrderPaid(MarkOrderPaidReq) returns (MarkOrderPaidResp);
   rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailResp);
+  rpc RequestRefund(LifecycleOrderReq) returns (LifecycleOrderResp);
+  rpc ApproveRefund(LifecycleOrderReq) returns (LifecycleOrderResp);
 }

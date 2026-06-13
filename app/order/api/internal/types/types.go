@@ -204,3 +204,16 @@ type AdminDashboardStats struct {
 	ShippedOrders   int64 `json:"shipped_orders"`
 	CompletedOrders int64 `json:"completed_orders"`
 }
+
+type PaymentReconcileIssue struct {
+	IssueType      string `json:"issue_type"`
+	OrderId        string `json:"order_id"`
+	PaymentOrderId string `json:"payment_order_id"`
+	Severity       string `json:"severity"`
+	Detail         string `json:"detail"`
+}
+
+type PaymentReconcileResp struct {
+	Scanned int64                   `json:"scanned"`
+	Issues  []PaymentReconcileIssue `json:"issues"`
+}

@@ -797,6 +797,11 @@ h1, h2, h3, h4 {
   color: #c62828;
 }
 
+.order-status-badge.refund-failed {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
 /* ─── Payment state banner ─── */
 .payment-banner {
   display: flex;
@@ -1534,7 +1539,7 @@ async function pollOrderStatus(requestId, orderId) {
       if (orderId) showPaymentBanner(orderId, status);
       if (status !== 0) {
         clearPolling();
-        const statusText = { 1: "已支付", 2: "已关闭", 3: "已发货", 4: "已收货", 5: "退款中", 6: "已退款" };
+        const statusText = { 1: "已支付", 2: "已关闭", 3: "已发货", 4: "已收货", 5: "退款中", 6: "已退款", 7: "退款异常" };
         log(`订单状态变更 order=${orderId || data.order_id} status=${statusText[status] || status}`);
         await showOrders();
         if (status === 1) {
@@ -1595,7 +1600,8 @@ const STATUS_MAP = {
   3: { text: "已发货", cls: "shipped" },
   4: { text: "已收货", cls: "completed" },
   5: { text: "退款中", cls: "refund" },
-  6: { text: "已退款", cls: "refunded" }
+  6: { text: "已退款", cls: "refunded" },
+  7: { text: "退款异常", cls: "refund-failed" }
 };
 async function loadOrders() {
   const response = await authed("/api/orders");
@@ -1681,7 +1687,7 @@ function renderOrders(items) {
           ${item.status === 0 ? `<button class="btn-pay" data-pay-order="${item.order_id}">去付款</button>` : ""}
           ${item.status === 1 ? `<button class="btn-ship" data-ship-order="${item.order_id}">发货</button>` : ""}
           ${item.status === 3 ? `<button class="btn-confirm" data-confirm-order="${item.order_id}">确认收货</button>` : ""}
-          ${item.status === 0 || item.status === 1 ? `<button class="btn-refund" data-refund-order="${item.order_id}">申请退款</button>` : ""}
+          ${item.status === 1 ? `<button class="btn-refund" data-refund-order="${item.order_id}">申请退款</button>` : ""}
         </div>
       </div>`;
   }).join("");

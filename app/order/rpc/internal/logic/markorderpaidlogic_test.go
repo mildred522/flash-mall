@@ -36,6 +36,8 @@ func TestMarkOrderPaidLogic_MarkPaid_IsIdempotent(t *testing.T) {
 	if err != nil || !first.Updated {
 		t.Fatalf("first callback should update, resp=%#v err=%v", first, err)
 	}
+	assertMarkPaidLogCount(t, svcCtx, orderID, 0, 1, 1)
+	assertMarkPaidOutboxCount(t, svcCtx, orderID, "order.paid", 1)
 
 	second, err := l.MarkPaid(&orderpb.MarkOrderPaidReq{
 		OrderId:        orderID,
@@ -164,6 +166,35 @@ func ensureMarkPaidSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			KEY ix_payment_order_id (payment_order_id),
 			KEY ix_order_id (order_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS order_status_log (
+			id bigint NOT NULL AUTO_INCREMENT,
+			order_id varchar(64) NOT NULL,
+			from_status tinyint NOT NULL,
+			to_status tinyint NOT NULL,
+			operator_id bigint NOT NULL DEFAULT 0,
+			remark varchar(255) NOT NULL DEFAULT '',
+			create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY ix_order_id (order_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS order_outbox (
+			id bigint NOT NULL AUTO_INCREMENT,
+			event_id varchar(128) NOT NULL,
+			event_type varchar(64) NOT NULL,
+			aggregate_id varchar(64) NOT NULL,
+			payload json NOT NULL,
+			status tinyint NOT NULL DEFAULT 0,
+			attempt_count int NOT NULL DEFAULT 0,
+			next_retry_at timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			published_at timestamp NULL DEFAULT NULL,
+			last_error varchar(255) NOT NULL DEFAULT '',
+			create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			UNIQUE KEY uniq_event_id (event_id),
+			KEY ix_status_retry (status, next_retry_at),
+			KEY ix_aggregate_id (aggregate_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, statement := range statements {
@@ -180,6 +211,8 @@ func cleanupMarkPaidRows(t *testing.T, svcCtx *svc.ServiceContext, orderID, paym
 	t.Helper()
 
 	statements := []string{
+		fmt.Sprintf("DELETE FROM order_outbox WHERE aggregate_id = '%s'", orderID),
+		fmt.Sprintf("DELETE FROM order_status_log WHERE order_id = '%s'", orderID),
 		fmt.Sprintf("DELETE FROM payment_callback_event WHERE order_id = '%s' OR payment_order_id = '%s'", orderID, paymentOrderID),
 		fmt.Sprintf("DELETE FROM payment_order WHERE id = '%s'", paymentOrderID),
 		fmt.Sprintf("DELETE FROM orders WHERE id = '%s'", orderID),
@@ -189,6 +222,34 @@ func cleanupMarkPaidRows(t *testing.T, svcCtx *svc.ServiceContext, orderID, paym
 		if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), statement); err != nil {
 			t.Fatalf("cleanup failed for %q: %v", statement, err)
 		}
+	}
+}
+
+func assertMarkPaidLogCount(t *testing.T, svcCtx *svc.ServiceContext, orderID string, fromStatus, toStatus, want int64) {
+	t.Helper()
+
+	var got int64
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got,
+		"SELECT COUNT(*) FROM order_status_log WHERE order_id = ? AND from_status = ? AND to_status = ?",
+		orderID, fromStatus, toStatus); err != nil {
+		t.Fatalf("query status log failed: %v", err)
+	}
+	if got != want {
+		t.Fatalf("status log count = %d, want %d", got, want)
+	}
+}
+
+func assertMarkPaidOutboxCount(t *testing.T, svcCtx *svc.ServiceContext, orderID, eventType string, want int64) {
+	t.Helper()
+
+	var got int64
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got,
+		"SELECT COUNT(*) FROM order_outbox WHERE aggregate_id = ? AND event_type = ?",
+		orderID, eventType); err != nil {
+		t.Fatalf("query outbox failed: %v", err)
+	}
+	if got != want {
+		t.Fatalf("outbox count = %d, want %d", got, want)
 	}
 }
 

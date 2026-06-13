@@ -86,6 +86,16 @@ func orderDetailStatusText(statusCode int64) string {
 		return "PAID"
 	case 2:
 		return "CLOSED"
+	case 3:
+		return "SHIPPED"
+	case 4:
+		return "COMPLETED"
+	case 5:
+		return "REFUND_REQUESTED"
+	case 6:
+		return "REFUNDED"
+	case 7:
+		return "REFUND_FAILED"
 	default:
 		return "UNKNOWN"
 	}

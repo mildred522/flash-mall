@@ -6,9 +6,12 @@ import (
 
 	"flash-mall/app/order/api/internal/svc"
 	"flash-mall/app/order/api/internal/types"
+	"flash-mall/app/order/rpc/orderclient"
 
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/rest/httpx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func AdminOrderListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -157,39 +160,26 @@ func AdminRefundOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 
-		db, err := svcCtx.SqlConn.RawDB()
+		if req.OrderId == "" {
+			httpx.ErrorCtx(r.Context(), w, status.Error(codes.InvalidArgument, "order_id is required"))
+			return
+		}
+		if svcCtx.OrderRpc == nil {
+			httpx.ErrorCtx(r.Context(), w, status.Error(codes.Internal, "order rpc not configured"))
+			return
+		}
+		resp, err := svcCtx.OrderRpc.ApproveRefund(r.Context(), &orderclient.LifecycleOrderReq{
+			OrderId:      req.OrderId,
+			OperatorId:   0,
+			OperatorRole: "admin",
+			Reason:       req.Reason,
+			RequestId:    req.OrderId + ":refund-approve",
+		})
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 
-		var currentStatus int64
-		err = db.QueryRowContext(r.Context(), "SELECT status FROM orders WHERE id = ?", req.OrderId).Scan(&currentStatus)
-		if err != nil {
-			httpx.OkJsonCtx(r.Context(), w, map[string]any{"error": "order not found"})
-			return
-		}
-		if currentStatus != 0 && currentStatus != 1 {
-			httpx.OkJsonCtx(r.Context(), w, map[string]any{"error": "order cannot be refunded"})
-			return
-		}
-
-		result, err := db.ExecContext(r.Context(),
-			"UPDATE orders SET status = 6, refund_requested_at = NOW(), refunded_at = NOW() WHERE id = ? AND status = ?",
-			req.OrderId, currentStatus)
-		if err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		rows, _ := result.RowsAffected()
-		if rows == 0 {
-			httpx.OkJsonCtx(r.Context(), w, map[string]any{"error": "status changed concurrently"})
-			return
-		}
-		_, _ = db.ExecContext(r.Context(),
-			"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, 6, 0, ?)",
-			req.OrderId, currentStatus, "admin refund: "+req.Reason)
-
-		httpx.OkJsonCtx(r.Context(), w, types.RefundOrderResp{OrderId: req.OrderId, Status: "refunded"})
+		httpx.OkJsonCtx(r.Context(), w, types.RefundOrderResp{OrderId: resp.OrderId, Status: resp.StatusText})
 	}
 }

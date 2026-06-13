@@ -16,6 +16,8 @@ func orderStatusText(statusCode int64) string {
 		return "refund_requested"
 	case 6:
 		return "refunded"
+	case 7:
+		return "refund_failed"
 	default:
 		return "unknown"
 	}
