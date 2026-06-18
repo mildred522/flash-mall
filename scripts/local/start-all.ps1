@@ -7,12 +7,15 @@ param(
   [switch]$SkipLocalExeSigning,
   [switch]$Fast,
   [switch]$RebuildLocalExes,
+  [switch]$StartDockerDesktop,
+  [switch]$RestartDockerDesktop,
   [switch]$TrustLocalCodeSigningCert,
   [switch]$TrustLocalCodeSigningRoot,
   [switch]$UpdateLocalFirewall,
   [switch]$PrepareOnly,
   [switch]$NoBrowser,
-  [int]$PortWaitSeconds = 90
+  [int]$PortWaitSeconds = 90,
+  [int]$DockerWaitSeconds = 120
 )
 
 $ErrorActionPreference = "Stop"
@@ -113,17 +116,107 @@ function Get-ComposeCommand {
   throw "docker compose not available (need docker compose plugin or docker-compose)"
 }
 
-function Ensure-DockerDaemon {
-  $oldPref = $ErrorActionPreference
+function Test-DockerDaemon {
+  param([int]$TimeoutSeconds = 5)
+
+  $docker = Get-Command docker -ErrorAction SilentlyContinue
+  if (-not $docker) {
+    return $false
+  }
+
+  $process = $null
   try {
-    $ErrorActionPreference = "Continue"
-    & docker info *> $null
-  } finally {
-    $ErrorActionPreference = $oldPref
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $docker.Source
+    $startInfo.Arguments = "info"
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+      $process.Kill()
+      return $false
+    }
+    return ($process.ExitCode -eq 0)
+  } catch {
+    if ($process -and -not $process.HasExited) {
+      $process.Kill()
+    }
+    return $false
   }
-  if ($LASTEXITCODE -ne 0) {
-    throw "docker daemon is not running. Please start Docker Desktop first."
+}
+
+function Start-DockerDesktopAndWait {
+  param([int]$TimeoutSeconds = 120)
+
+  $dockerDesktopPath = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+  if (-not (Test-Path $dockerDesktopPath)) {
+    throw "Docker Desktop not found at $dockerDesktopPath"
   }
+
+  Write-Host "[STEP] starting Docker Desktop"
+  Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden | Out-Null
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-DockerDaemon) {
+      Write-Host "[OK] docker daemon is ready"
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  throw "docker daemon is not ready within ${TimeoutSeconds}s after starting Docker Desktop"
+}
+
+function Stop-DockerDesktopAndWait {
+  param([int]$TimeoutSeconds = 45)
+
+  $dockerCliPath = Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"
+  if (-not (Test-Path $dockerCliPath)) {
+    throw "DockerCli.exe not found at $dockerCliPath"
+  }
+
+  Write-Host "[STEP] shutting down Docker Desktop"
+  $shutdown = Start-Process -FilePath $dockerCliPath -ArgumentList "-Shutdown" -WindowStyle Hidden -PassThru
+  if (-not $shutdown.WaitForExit($TimeoutSeconds * 1000)) {
+    $shutdown.Kill()
+    throw "Docker Desktop shutdown command did not finish within ${TimeoutSeconds}s"
+  }
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    $running = Get-Process "Docker Desktop", "com.docker.backend" -ErrorAction SilentlyContinue
+    if (-not $running) {
+      Write-Host "[OK] Docker Desktop stopped"
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  Write-Warning "Docker Desktop processes are still visible after shutdown request; continuing with startup."
+}
+
+function Ensure-DockerDaemon {
+  if (Test-DockerDaemon) {
+    return
+  }
+
+  if ($StartDockerDesktop) {
+    if ($RestartDockerDesktop) {
+      Stop-DockerDesktopAndWait
+    } else {
+      $running = Get-Process "Docker Desktop", "com.docker.backend" -ErrorAction SilentlyContinue
+      if ($running) {
+        Write-Warning "Docker Desktop is running but docker daemon is not responding. If startup still fails, rerun with -RestartDockerDesktop."
+      }
+    }
+    Start-DockerDesktopAndWait -TimeoutSeconds $DockerWaitSeconds
+    return
+  }
+
+  throw "docker daemon is not running. Start Docker Desktop first, or rerun with -StartDockerDesktop."
 }
 
 function Wait-MySQLReady {

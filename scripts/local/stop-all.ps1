@@ -23,6 +23,37 @@ function Get-ComposeCommand {
   throw "docker compose not available (need docker compose plugin or docker-compose)"
 }
 
+function Test-DockerDaemon {
+  param([int]$TimeoutSeconds = 5)
+
+  $docker = Get-Command docker -ErrorAction SilentlyContinue
+  if (-not $docker) {
+    return $false
+  }
+
+  $process = $null
+  try {
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $docker.Source
+    $startInfo.Arguments = "info"
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+      $process.Kill()
+      return $false
+    }
+    return ($process.ExitCode -eq 0)
+  } catch {
+    if ($process -and -not $process.HasExited) {
+      $process.Kill()
+    }
+    return $false
+  }
+}
+
 function Invoke-Compose {
   param(
     [string[]]$Command,
@@ -55,6 +86,12 @@ if (Test-Path $pidFile) {
 }
 
 if ($WithDeps) {
+  if (-not (Test-DockerDaemon)) {
+    Write-Warning "Docker daemon is not running; skip docker compose down."
+    Write-Host "Done."
+    return
+  }
+
   $composeCmd = Get-ComposeCommand
   Write-Host "[STOP] docker compose dependencies"
   Invoke-Compose -Command $composeCmd -ComposeArgs @("-f", $composeFile, "down")

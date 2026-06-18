@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("", "Fast", "Full", "PrepareOnly", "StopWithDeps")]
+  [ValidateSet("", "Fast", "FastRestartDocker", "Full", "PrepareOnly", "StopWithDeps")]
   [string]$DryRunPreset = ""
 )
 
@@ -27,13 +27,16 @@ function New-PresetCommand {
 
   switch ($Preset) {
     "Fast" {
-      return New-CommandSpec -Script $startScript -Arguments @("-Fast", "-NoBrowser")
+      return New-CommandSpec -Script $startScript -Arguments @("-Fast", "-StartDockerDesktop", "-NoBrowser")
+    }
+    "FastRestartDocker" {
+      return New-CommandSpec -Script $startScript -Arguments @("-Fast", "-StartDockerDesktop", "-RestartDockerDesktop", "-NoBrowser")
     }
     "Full" {
-      return New-CommandSpec -Script $startScript -Arguments @()
+      return New-CommandSpec -Script $startScript -Arguments @("-StartDockerDesktop")
     }
     "PrepareOnly" {
-      return New-CommandSpec -Script $startScript -Arguments @("-PrepareOnly", "-RebuildLocalExes")
+      return New-CommandSpec -Script $startScript -Arguments @("-PrepareOnly")
     }
     "StopWithDeps" {
       return New-CommandSpec -Script $stopScript -Arguments @("-WithDeps")
@@ -168,10 +171,12 @@ $noBrowser = New-CheckBox -Text "启动后不打开浏览器" -X 404 -Y 60
 $trustCert = New-CheckBox -Text "信任签名发布者" -X 16 -Y 92
 $trustRoot = New-CheckBox -Text "信任签名根证书" -X 210 -Y 92
 $firewall = New-CheckBox -Text "更新防火墙规则" -X 404 -Y 92
+$startDocker = New-CheckBox -Text "自动启动 Docker" -X 16 -Y 118 -Checked $true
+$restartDocker = New-CheckBox -Text "启动前重启 Docker" -X 210 -Y 118
 $optionsGroup.Controls.AddRange(@(
     $skipCompose, $skipDbInit, $skipSeed,
     $skipFrontend, $rebuildExe, $noBrowser,
-    $trustCert, $trustRoot, $firewall
+    $trustCert, $trustRoot, $firewall, $startDocker, $restartDocker
   ))
 
 $commandLabel = New-Object System.Windows.Forms.Label
@@ -205,6 +210,8 @@ function Get-AdvancedArguments {
   if ($trustCert.Checked) { $args += "-TrustLocalCodeSigningCert" }
   if ($trustRoot.Checked) { $args += "-TrustLocalCodeSigningRoot" }
   if ($firewall.Checked) { $args += "-UpdateLocalFirewall" }
+  if ($startDocker.Checked) { $args += "-StartDockerDesktop" }
+  if ($restartDocker.Checked) { $args += "-RestartDockerDesktop" }
   return $args
 }
 
@@ -232,7 +239,7 @@ $fullButton.Add_Click({
   })
 
 $prepareButton.Add_Click({
-    $args = @("-PrepareOnly", "-RebuildLocalExes") + (Get-AdvancedArguments)
+    $args = @("-PrepareOnly") + (Get-AdvancedArguments)
     Start-Selected -CommandSpec (New-CommandSpec -Script $startScript -Arguments $args)
   })
 

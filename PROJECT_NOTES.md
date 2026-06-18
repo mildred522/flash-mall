@@ -35,8 +35,10 @@ operational demo readiness.
   sign without starting the full stack.
 - Windows users can launch `scripts/local/launcher.ps1` for a visual startup
   selector. Daily development should prefer
-  `scripts/local/start-all.ps1 -Fast`; use the full startup only when database
-  initialization, Redis stock seeding, or frontend rebuilds are needed.
+  `scripts/local/start-all.ps1 -Fast -StartDockerDesktop`; use the full startup
+  only when database initialization, Redis stock seeding, or frontend rebuilds
+  are needed. If Docker Desktop is running but `docker info` hangs, use the
+  launcher's "启动前重启 Docker" option or add `-RestartDockerDesktop`.
 
 ## Best Interview Talking Points
 
