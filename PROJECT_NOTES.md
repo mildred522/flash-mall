@@ -33,6 +33,10 @@ operational demo readiness.
   and signs them before launch; firewall rules stay stable because the paths do
   not change. Use `scripts/local/start-all.ps1 -PrepareOnly` to rebuild and
   sign without starting the full stack.
+- Windows users can launch `scripts/local/launcher.ps1` for a visual startup
+  selector. Daily development should prefer
+  `scripts/local/start-all.ps1 -Fast`; use the full startup only when database
+  initialization, Redis stock seeding, or frontend rebuilds are needed.
 
 ## Best Interview Talking Points
 

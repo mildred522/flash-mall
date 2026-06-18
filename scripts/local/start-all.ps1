@@ -5,6 +5,8 @@ param(
   [switch]$SkipFrontend,
   [switch]$SkipLocalExeBuild,
   [switch]$SkipLocalExeSigning,
+  [switch]$Fast,
+  [switch]$RebuildLocalExes,
   [switch]$TrustLocalCodeSigningCert,
   [switch]$TrustLocalCodeSigningRoot,
   [switch]$UpdateLocalFirewall,
@@ -40,6 +42,7 @@ $pidFile = Join-Path $runtimeDir "local-services.json"
 $logDir = Join-Path $repoRoot "logs\local"
 $binDir = Join-Path $runtimeDir "bin"
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$localExecutableNames = @("auth-api.exe", "product-rpc.exe", "order-rpc.exe", "order-api.exe")
 
 function Test-TcpPort {
   param(
@@ -182,10 +185,37 @@ function Stop-StaleServices {
   }
 }
 
+function Test-LocalExecutablesReady {
+  foreach ($exeName in $localExecutableNames) {
+    $exePath = Join-Path $binDir $exeName
+    if (-not (Test-Path $exePath)) {
+      return $false
+    }
+
+    if (-not $SkipLocalExeSigning) {
+      $signature = Get-AuthenticodeSignature -FilePath $exePath
+      if ($signature.Status -notin @("Valid", "UnknownError")) {
+        return $false
+      }
+    }
+  }
+
+  return $true
+}
+
 function Ensure-LocalExecutables {
   if ($SkipLocalExeBuild) {
     Write-Host "[SKIP] local executable build"
     return
+  }
+
+  if ((-not $RebuildLocalExes) -and (Test-LocalExecutablesReady)) {
+    Write-Host "[SKIP] stable local executables already prepared"
+    return
+  }
+
+  if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+    throw "go not found in PATH"
   }
 
   $prepareScript = Join-Path $repoRoot "scripts\local\prepare-local-exes.ps1"
@@ -247,13 +277,17 @@ function Start-GoService {
   }
 }
 
-if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-  throw "go not found in PATH"
-}
-
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Set-Location $repoRoot
+
+if ($Fast) {
+  $SkipDbInit = $true
+  $SkipSeedStock = $true
+  $SkipFrontend = $true
+  $NoBrowser = $true
+  Write-Host "[MODE] fast startup: skip db init, redis seed, frontend build, and browser open"
+}
 
 # Kill any leftover service processes from previous runs
 $ErrorActionPreference = "Continue"
