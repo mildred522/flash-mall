@@ -17,6 +17,18 @@ concurrency:
 jobs:
   go-checks:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: 6494kj06
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p6494kj06"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +56,12 @@ jobs:
 
       - name: Download dependencies
         run: go mod download
+
+      - name: Prepare test databases
+        run: |
+          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_order DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_product DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
       - name: Vet
         run: go vet ./...
