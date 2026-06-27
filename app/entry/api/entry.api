@@ -1,0 +1,400 @@
+syntax = "v1"
+
+type (
+	CreateOrderReq {
+		RequestId string `json:"request_id"`
+		UserId    int64  `json:"user_id"`
+		ProductId int64  `json:"product_id"`
+		Amount    int64  `json:"amount"`
+	}
+	CreateOrderResp {
+		OrderId          string `json:"order_id"`
+		Status           string `json:"status"`
+		PayableAmountFen int64  `json:"payable_amount_fen"`
+		PaymentOrderId   string `json:"payment_order_id"`
+	}
+	OrderActionReq {
+		OrderId string `json:"order_id"`
+		Reason  string `json:"reason,optional"`
+	}
+	ActionResp {
+		OrderId string `json:"order_id"`
+		Status  string `json:"status"`
+	}
+	OrderDetailResp {
+		OrderId             string `json:"order_id"`
+		UserId              int64  `json:"user_id"`
+		ProductId           int64  `json:"product_id"`
+		ProductName         string `json:"product_name"`
+		Amount              int64  `json:"amount"`
+		Status              int64  `json:"status"`
+		StatusText          string `json:"status_text"`
+		OriginUnitPriceFen  int64  `json:"origin_unit_price_fen"`
+		SaleUnitPriceFen    int64  `json:"sale_unit_price_fen"`
+		PayableAmountFen    int64  `json:"payable_amount_fen"`
+		DiscountAmountFen   int64  `json:"discount_amount_fen"`
+		PromotionType       string `json:"promotion_type"`
+		PromotionTag        string `json:"promotion_tag"`
+		PaymentOrderId      string `json:"payment_order_id"`
+		PaymentStatus       int64  `json:"payment_status"`
+		PaymentStatusText   string `json:"payment_status_text"`
+		CreateTime          string `json:"create_time"`
+	}
+	OrderDetailReq {
+		OrderId string `form:"order_id"`
+	}
+	DependencyStatus {
+		Name   string `json:"name"`
+		Ok     bool   `json:"ok"`
+		Detail string `json:"detail"`
+	}
+	SystemHealthResp {
+		Overall      bool               `json:"overall"`
+		ServerTime   int64              `json:"server_time"`
+		Dependencies []DependencyStatus `json:"dependencies"`
+	}
+
+	AdminOrderListReq {
+		Page     int64  `form:"page,optional,default=1"`
+		PageSize int64  `form:"page_size,optional,default=20"`
+		ProductId int64 `form:"product_id,optional"`
+		SupplierId int64 `form:"supplier_id,optional"`
+		Status   int64  `form:"status,optional,default=-1"`
+		UserId   int64  `form:"user_id,optional"`
+		ProductName string `form:"product_name,optional"`
+		CreatedFrom string `form:"created_from,optional"`
+		CreatedTo string `form:"created_to,optional"`
+		OrderId  string `form:"order_id,optional"`
+	}
+	AdminOrderListItem {
+		OrderId          string `json:"order_id"`
+		UserId           int64  `json:"user_id"`
+		ProductId        int64  `json:"product_id"`
+		ProductName      string `json:"product_name"`
+		Amount           int64  `json:"amount"`
+		Status           int64  `json:"status"`
+		StatusText       string `json:"status_text"`
+		PayableAmountFen int64  `json:"payable_amount_fen"`
+		CreateTime       string `json:"create_time"`
+	}
+	AdminOrderListResp {
+		Items []AdminOrderListItem `json:"items"`
+		Total int64                `json:"total"`
+	}
+	AdminOrderStatusLogReq {
+		OrderId string `form:"order_id"`
+	}
+	AdminOrderStatusLogItem {
+		Id             int64  `json:"id"`
+		OrderId        string `json:"order_id"`
+		FromStatus     int64  `json:"from_status"`
+		FromStatusText string `json:"from_status_text"`
+		ToStatus       int64  `json:"to_status"`
+		ToStatusText   string `json:"to_status_text"`
+		OperatorId     int64  `json:"operator_id"`
+		Remark         string `json:"remark"`
+		CreateTime     string `json:"create_time"`
+	}
+	AdminOrderStatusLogResp {
+		Items []AdminOrderStatusLogItem `json:"items"`
+	}
+	AdminProductListReq {
+		Page     int64  `form:"page,optional,default=1"`
+		PageSize int64  `form:"page_size,optional,default=20"`
+		ProductId int64 `form:"product_id,optional"`
+		SupplierId int64 `form:"supplier_id,optional"`
+		Status   int64  `form:"status,optional,default=-1"`
+		PromotionStatus int64  `form:"promotion_status,optional,default=-1"`
+		StockStatus string  `form:"stock_status,optional"`
+		Keyword  string `form:"keyword,optional"`
+	}
+	AdminProductItem {
+		ProductId      int64  `json:"product_id"`
+		Name           string `json:"name"`
+		OriginPriceFen int64  `json:"origin_price_fen"`
+		SalePriceFen   int64  `json:"sale_price_fen"`
+		SupplierId      int64  `json:"supplier_id"`
+		SupplierName    string `json:"supplier_name"`
+		StockAvailable int64  `json:"stock_available"`
+		PromotionPriceFen int64  `json:"promotion_price_fen"`
+		PromotionType     string `json:"promotion_type"`
+		PromotionTag      string `json:"promotion_tag"`
+		Status         int64  `json:"status"`
+		StatusText      string `json:"status_text"`
+	}
+	AdminProductListResp {
+		Items []AdminProductItem `json:"items"`
+		Total int64              `json:"total"`
+	}
+	AdminProductDetailReq {
+		ProductId int64 `form:"product_id"`
+	}
+	AdminProductCreateReq {
+		Name           string `json:"name"`
+		OriginPriceFen int64  `json:"origin_price_fen"`
+		SalePriceFen   int64  `json:"sale_price_fen"`
+		StockAvailable int64  `json:"stock_available,optional"`
+		SupplierId      int64  `json:"supplier_id,optional"`
+		Status         int64  `json:"status,optional"`
+	}
+	AdminProductCreateResp {
+		ProductId int64 `json:"product_id"`
+	}
+	AdminProductUpdateReq {
+		ProductId      int64  `json:"product_id"`
+		Name           string `json:"name,optional"`
+		OriginPriceFen int64  `json:"origin_price_fen,optional"`
+		SalePriceFen   int64  `json:"sale_price_fen,optional"`
+		SupplierId      int64  `json:"supplier_id,optional"`
+		Status         int64  `json:"status,optional"`
+	}
+	AdminProductStockAdjustReq {
+		ProductId int64 `json:"product_id"`
+		Delta     int64 `json:"delta"`
+		BucketIdx int64 `json:"bucket_idx,optional"`
+	}
+	AdminProductStockAdjustResp {
+		ProductId      int64 `json:"product_id"`
+		StockAvailable int64 `json:"stock_available"`
+	}
+	AdminSupplierListReq {
+		Page     int64  `form:"page,optional,default=1"`
+		PageSize int64  `form:"page_size,optional,default=20"`
+		Status   int64  `form:"status,optional,default=-1"`
+		Keyword  string `form:"keyword,optional"`
+	}
+	AdminSupplierItem {
+		SupplierId     int64  `json:"supplier_id"`
+		Name           string `json:"name"`
+		Status         int64  `json:"status"`
+		StatusText     string `json:"status_text"`
+		ProductCount   int64  `json:"product_count"`
+		ActiveProducts int64  `json:"active_products"`
+	}
+	AdminSupplierListResp {
+		Items []AdminSupplierItem `json:"items"`
+		Total int64               `json:"total"`
+	}
+	AdminSupplierDetailReq {
+		SupplierId int64 `form:"supplier_id"`
+	}
+	AdminSupplierCreateReq {
+		Name   string `json:"name"`
+		Status int64  `json:"status,optional"`
+	}
+	AdminSupplierCreateResp {
+		SupplierId int64 `json:"supplier_id"`
+	}
+	AdminSupplierUpdateReq {
+		SupplierId int64  `json:"supplier_id"`
+		Name       string `json:"name,optional"`
+		Status     int64  `json:"status,optional"`
+	}
+	AdminPromotionListReq {
+		Page      int64  `form:"page,optional,default=1"`
+		PageSize  int64  `form:"page_size,optional,default=20"`
+		ProductId int64  `form:"product_id,optional"`
+		Status    int64  `form:"status,optional,default=-1"`
+		EffectStatus string `form:"effect_status,optional"`
+		Keyword   string `form:"keyword,optional"`
+	}
+	AdminPromotionItem {
+		PromotionId     int64  `json:"promotion_id"`
+		ProductId       int64  `json:"product_id"`
+		ProductName     string `json:"product_name"`
+		OriginPriceFen  int64  `json:"origin_price_fen"`
+		SalePriceFen    int64  `json:"sale_price_fen"`
+		Type            string `json:"type"`
+		DiscountValue   int64  `json:"discount_value"`
+		ThresholdAmount int64  `json:"threshold_amount"`
+		StartsAt        string `json:"starts_at"`
+		EndsAt          string `json:"ends_at"`
+		EffectStatus    string `json:"effect_status"`
+		EffectStatusText string `json:"effect_status_text"`
+		Status          int64  `json:"status"`
+		StatusText      string `json:"status_text"`
+	}
+	AdminPromotionListResp {
+		Items []AdminPromotionItem `json:"items"`
+		Total int64                `json:"total"`
+	}
+	AdminPromotionDetailReq {
+		PromotionId int64 `form:"promotion_id"`
+	}
+	AdminPromotionCreateReq {
+		ProductId       int64  `json:"product_id"`
+		Type            string `json:"type,optional"`
+		DiscountValue   int64  `json:"discount_value"`
+		ThresholdAmount int64  `json:"threshold_amount,optional"`
+		StartsAt        string `json:"starts_at,optional"`
+		EndsAt          string `json:"ends_at,optional"`
+		Status          int64  `json:"status,optional"`
+	}
+	AdminPromotionCreateResp {
+		PromotionId int64 `json:"promotion_id"`
+	}
+	AdminPromotionUpdateReq {
+		PromotionId     int64  `json:"promotion_id"`
+		ProductId       int64  `json:"product_id,optional"`
+		DiscountValue   int64  `json:"discount_value,optional"`
+		ThresholdAmount int64  `json:"threshold_amount,optional"`
+		StartsAt        string `json:"starts_at,optional"`
+		EndsAt          string `json:"ends_at,optional"`
+		Status          int64  `json:"status,optional"`
+	}
+	AdminUserListReq {
+		Page     int64  `form:"page,optional,default=1"`
+		PageSize int64  `form:"page_size,optional,default=20"`
+		Status   int64  `form:"status,optional"`
+		Role     string `form:"role,optional"`
+		Keyword  string `form:"keyword,optional"`
+	}
+	AdminUserStatusReq {
+		UserId int64 `json:"user_id"`
+		Status int64 `json:"status"`
+	}
+	AdminUserDetailReq {
+		UserId int64 `form:"user_id"`
+	}
+	AdminUserItem {
+		UserId      int64  `json:"user_id"`
+		DisplayName string `json:"display_name"`
+		Phone       string `json:"phone"`
+		Role        string `json:"role"`
+		Status      int64  `json:"status"`
+		StatusText  string `json:"status_text"`
+		CreateTime  string `json:"create_time"`
+	}
+	AdminUserListResp {
+		Items []AdminUserItem `json:"items"`
+		Total int64           `json:"total"`
+	}
+	AdminUserStatusResp {
+		UserId     int64  `json:"user_id"`
+		Status     int64  `json:"status"`
+		StatusText string `json:"status_text"`
+	}
+	AdminDashboardStats {
+		TotalOrders     int64 `json:"total_orders"`
+		TotalRevenueFen int64 `json:"total_revenue_fen"`
+		TotalUsers      int64 `json:"total_users"`
+		TotalProducts   int64 `json:"total_products"`
+		TotalSuppliers  int64 `json:"total_suppliers"`
+		TotalPromotions int64 `json:"total_promotions"`
+		ActivePromotions int64 `json:"active_promotions"`
+		LowStockProducts int64 `json:"low_stock_products"`
+		OutOfStockProducts int64 `json:"out_of_stock_products"`
+		PendingOrders   int64 `json:"pending_orders"`
+		PaidOrders      int64 `json:"paid_orders"`
+		ShippedOrders   int64 `json:"shipped_orders"`
+		CompletedOrders int64 `json:"completed_orders"`
+	}
+	SecurityEventItem {
+		EventType string `json:"event_type"`
+		Result    string `json:"result"`
+		UserId    int64  `json:"user_id"`
+		Subject   string `json:"subject"`
+		IP        string `json:"ip"`
+		UserAgent string `json:"user_agent"`
+		CreatedAt int64  `json:"created_at"`
+	}
+	SecurityEventsRecentReq {
+		Limit     int64  `form:"limit,optional,default=20"`
+		UserId    int64  `form:"user_id,optional"`
+		EventType string `form:"event_type,optional"`
+		Result    string `form:"result,optional"`
+		Keyword   string `form:"keyword,optional"`
+	}
+	SecurityEventsRecentResp {
+		Items []SecurityEventItem `json:"items"`
+	}
+)
+
+service entry-api {
+	@handler CreateOrder
+	post /api/order/create (CreateOrderReq) returns (CreateOrderResp)
+
+	@handler OrderDetail
+	get /api/order/detail (OrderDetailReq) returns (OrderDetailResp)
+
+	@handler ShipOrder
+	post /api/order/ship (OrderActionReq) returns (ActionResp)
+
+	@handler ConfirmReceipt
+	post /api/order/confirm-receipt (OrderActionReq) returns (ActionResp)
+
+	@handler RefundOrder
+	post /api/order/refund (OrderActionReq) returns (ActionResp)
+
+	@handler SystemHealth
+	get /api/system/health returns (SystemHealthResp)
+
+	@handler AdminOrderList
+	get /api/admin/orders (AdminOrderListReq) returns (AdminOrderListResp)
+
+	@handler AdminOrderDetail
+	get /api/admin/orders/detail (OrderDetailReq) returns (OrderDetailResp)
+
+	@handler AdminOrderStatusLog
+	get /api/admin/orders/status-logs (AdminOrderStatusLogReq) returns (AdminOrderStatusLogResp)
+
+	@handler AdminShipOrder
+	post /api/admin/orders/ship (OrderActionReq) returns (ActionResp)
+
+	@handler AdminRefundOrder
+	post /api/admin/orders/refund (OrderActionReq) returns (ActionResp)
+
+	@handler AdminProductList
+	get /api/admin/products (AdminProductListReq) returns (AdminProductListResp)
+
+	@handler AdminProductDetail
+	get /api/admin/products/detail (AdminProductDetailReq) returns (AdminProductItem)
+
+	@handler AdminProductCreate
+	post /api/admin/products/create (AdminProductCreateReq) returns (AdminProductCreateResp)
+
+	@handler AdminProductUpdate
+	post /api/admin/products/update (AdminProductUpdateReq)
+
+	@handler AdminProductStockAdjust
+	post /api/admin/products/stock-adjust (AdminProductStockAdjustReq) returns (AdminProductStockAdjustResp)
+
+	@handler AdminSupplierList
+	get /api/admin/suppliers (AdminSupplierListReq) returns (AdminSupplierListResp)
+
+	@handler AdminSupplierDetail
+	get /api/admin/suppliers/detail (AdminSupplierDetailReq) returns (AdminSupplierItem)
+
+	@handler AdminSupplierCreate
+	post /api/admin/suppliers/create (AdminSupplierCreateReq) returns (AdminSupplierCreateResp)
+
+	@handler AdminSupplierUpdate
+	post /api/admin/suppliers/update (AdminSupplierUpdateReq)
+
+	@handler AdminPromotionList
+	get /api/admin/promotions (AdminPromotionListReq) returns (AdminPromotionListResp)
+
+	@handler AdminPromotionDetail
+	get /api/admin/promotions/detail (AdminPromotionDetailReq) returns (AdminPromotionItem)
+
+	@handler AdminPromotionCreate
+	post /api/admin/promotions/create (AdminPromotionCreateReq) returns (AdminPromotionCreateResp)
+
+	@handler AdminPromotionUpdate
+	post /api/admin/promotions/update (AdminPromotionUpdateReq)
+
+	@handler AdminUserList
+	get /api/admin/users (AdminUserListReq) returns (AdminUserListResp)
+
+	@handler AdminUserDetail
+	get /api/admin/users/detail (AdminUserDetailReq) returns (AdminUserItem)
+
+	@handler AdminUserStatus
+	post /api/admin/users/status (AdminUserStatusReq) returns (AdminUserStatusResp)
+
+	@handler AdminDashboardStats
+	get /api/admin/dashboard/stats returns (AdminDashboardStats)
+
+	@handler AdminSecurityEventsRecent
+	get /api/admin/security/events/recent (SecurityEventsRecentReq) returns (SecurityEventsRecentResp)
+}

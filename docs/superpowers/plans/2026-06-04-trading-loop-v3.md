@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move order lifecycle changes from scattered order-api SQL into an order-rpc state machine with lifecycle Outbox events, cancellation/refund reliability, and frontend role cleanup.
+**Goal:** Move order lifecycle changes from scattered entry-api SQL into an order-rpc state machine with lifecycle Outbox events, cancellation/refund reliability, and frontend role cleanup.
 
-**Architecture:** order-api remains the HTTP boundary and calls order-rpc for all lifecycle mutations. order-rpc owns state transitions, status logs, Outbox writes, and refund/cancel orchestration using existing idempotent stock rollback APIs and the existing CloseOrderJob retry path.
+**Architecture:** entry-api remains the HTTP boundary and calls order-rpc for all lifecycle mutations. order-rpc owns state transitions, status logs, Outbox writes, and refund/cancel orchestration using existing idempotent stock rollback APIs and the existing CloseOrderJob retry path.
 
 **Tech Stack:** Go 1.24, go-zero REST/RPC, gRPC/protobuf, MySQL via `database/sql`, Redis, RabbitMQ Outbox, React/Vite frontend.
 
@@ -19,9 +19,9 @@
 - Create `app/order/rpc/internal/logic/lifecyclelogic.go`: shared transactional transition helpers.
 - Create lifecycle RPC logic files under `app/order/rpc/internal/logic`: `payorderlogic.go`, `shiporderlogic.go`, `confirmreceiptlogic.go`, `cancelorderlogic.go`, `requestrefundlogic.go`, `approverefundlogic.go`.
 - Add/extend tests in `app/order/rpc/internal/logic`: state machine, lifecycle transitions, Outbox rows, refund failure/retry.
-- Modify order-api lifecycle logic files to delegate to order-rpc.
-- Modify `app/order/api/internal/types/types.go`, `app/order/api/internal/handler/routes.go`, `app/order/api/internal/handler/adminorderhandler.go`, and `app/order/api/order.api`.
-- Sync `app/order/api/desc/order.sql` to current order tables.
+- Modify entry-api lifecycle logic files to delegate to order-rpc.
+- Modify `app/entry/api/internal/types/types.go`, `app/entry/api/internal/handler/routes.go`, `app/entry/api/internal/handler/adminorderhandler.go`, and `app/entry/api/entry.api`.
+- Sync `app/entry/api/desc/order.sql` to current order tables.
 - Modify `frontend/packages/shop/src/pages/OrdersPage.tsx` and `frontend/packages/shop/src/components/OrderCard.tsx`.
 - Modify `frontend/packages/admin/src/pages/OrdersPage.tsx` and shared status constants if needed.
 
@@ -190,14 +190,14 @@ Expected: PASS.
 
 ---
 
-### Task 5: Switch order-api Lifecycle Logic to RPC
+### Task 5: Switch entry-api Lifecycle Logic to RPC
 
 **Files:**
-- Modify: `app/order/api/internal/logic/payorderlogic.go`
-- Modify: `app/order/api/internal/logic/shiporderlogic.go`
-- Modify: `app/order/api/internal/logic/confirmreceiptlogic.go`
-- Modify: `app/order/api/internal/logic/refundorderlogic.go`
-- Create: `app/order/api/internal/logic/cancelorderlogic.go`
+- Modify: `app/entry/api/internal/logic/payorderlogic.go`
+- Modify: `app/entry/api/internal/logic/shiporderlogic.go`
+- Modify: `app/entry/api/internal/logic/confirmreceiptlogic.go`
+- Modify: `app/entry/api/internal/logic/refundorderlogic.go`
+- Create: `app/entry/api/internal/logic/cancelorderlogic.go`
 
 - [ ] **Step 1: Write failing API logic/handler tests**
 
@@ -205,7 +205,7 @@ Update handler tests or add logic tests that assert no local SQL path is needed 
 
 - [ ] **Step 2: Run red tests**
 
-Run: `go test ./app/order/api/internal/handler -run "PayOrder|ShipOrder|ConfirmReceipt|Refund|Cancel" -count=1`
+Run: `go test ./app/entry/api/internal/handler -run "PayOrder|ShipOrder|ConfirmReceipt|Refund|Cancel" -count=1`
 
 Expected: FAIL for missing cancel route or old semantics.
 
@@ -215,7 +215,7 @@ Each logic reads identity, builds `orderclient.LifecycleReq`, calls order-rpc, a
 
 - [ ] **Step 4: Run green tests**
 
-Run: `go test ./app/order/api/internal/handler -run "PayOrder|ShipOrder|ConfirmReceipt|Refund|Cancel" -count=1`
+Run: `go test ./app/entry/api/internal/handler -run "PayOrder|ShipOrder|ConfirmReceipt|Refund|Cancel" -count=1`
 
 Expected: PASS.
 
@@ -224,11 +224,11 @@ Expected: PASS.
 ### Task 6: Update Routes, Types, API Spec, and SQL Baseline
 
 **Files:**
-- Modify: `app/order/api/internal/types/types.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/adminorderhandler.go`
-- Modify: `app/order/api/order.api`
-- Modify: `app/order/api/desc/order.sql`
+- Modify: `app/entry/api/internal/types/types.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/adminorderhandler.go`
+- Modify: `app/entry/api/entry.api`
+- Modify: `app/entry/api/desc/order.sql`
 
 - [ ] **Step 1: Add cancel and approve-refund types**
 
@@ -238,13 +238,13 @@ Add request/response structs using existing JSON naming: `CancelOrderReq`, `Canc
 
 Add user route `/api/order/cancel` and admin route `/api/admin/orders/refund/approve`.
 
-- [ ] **Step 3: Sync `order.api` and SQL**
+- [ ] **Step 3: Sync `entry.api` and SQL**
 
 Document the actual routes and current order-related tables. Keep SQL idempotency in `scripts/k8s/init-db.sql`; `desc/order.sql` is the schema baseline.
 
 - [ ] **Step 4: Compile**
 
-Run: `go test ./app/order/api/... -run TestDoesNotExist -count=0`
+Run: `go test ./app/entry/api/... -run TestDoesNotExist -count=0`
 
 Expected: PASS compile.
 
@@ -289,8 +289,8 @@ Run:
 
 ```powershell
 go test ./app/order/rpc/internal/logic -count=1
-go test ./app/order/api/internal/handler -count=1
-go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... -count=1
+go test ./app/entry/api/internal/handler -count=1
+go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... -count=1
 ```
 
 Expected: all exit 0.

@@ -96,7 +96,7 @@ func TestLogoutLogic_LogoutAll_InvalidatesAllUserSessions(t *testing.T) {
 		t.Fatalf("second login failed: %v", err)
 	}
 
-	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx)
+	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx) //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	if err := logoutAll.LogoutAll(); err != nil {
 		t.Fatalf("logout-all failed: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestLogoutLogic_LogoutAll_InvalidatesRotatedSession(t *testing.T) {
 		t.Fatalf("refresh failed: %v", err)
 	}
 
-	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx)
+	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx) //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	if err := logoutAll.LogoutAll(); err != nil {
 		t.Fatalf("logout-all failed: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestLogoutLogic_LogoutAll_BumpsSessionVersionForNextLogin(t *testing.T) {
 		t.Fatalf("initial login failed: %v", err)
 	}
 
-	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx)
+	logoutAll := NewLogoutAllLogic(context.WithValue(context.Background(), "user_id", int64(1001)), svcCtx) //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	if err := logoutAll.LogoutAll(); err != nil {
 		t.Fatalf("logout-all failed: %v", err)
 	}

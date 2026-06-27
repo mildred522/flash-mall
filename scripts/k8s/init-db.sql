@@ -136,6 +136,47 @@ CREATE TABLE IF NOT EXISTS payment_callback_event (
   KEY ix_order_id (order_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS refund_order (
+  id varchar(64) NOT NULL COMMENT '退款单id',
+  order_id varchar(64) NOT NULL COMMENT '订单id',
+  payment_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '支付单id',
+  user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
+  product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
+  refund_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '退款金额分',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-requested 1-approved 2-success 3-rejected 4-failed',
+  reason varchar(255) NOT NULL DEFAULT '' COMMENT '申请原因',
+  audit_remark varchar(255) NOT NULL DEFAULT '' COMMENT '审核备注',
+  operator_id bigint NOT NULL DEFAULT 0 COMMENT '审核人',
+  request_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  audit_time timestamp NULL DEFAULT NULL,
+  finish_time timestamp NULL DEFAULT NULL,
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_order_id (order_id),
+  KEY ix_user_id (user_id),
+  KEY ix_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS reconciliation_issue (
+  id bigint NOT NULL AUTO_INCREMENT,
+  issue_type varchar(64) NOT NULL COMMENT '问题类型',
+  order_id varchar(64) NOT NULL DEFAULT '' COMMENT '订单id',
+  payment_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '支付单id',
+  refund_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '退款单id',
+  expected_amount_fen bigint NOT NULL DEFAULT 0,
+  actual_amount_fen bigint NOT NULL DEFAULT 0,
+  severity tinyint NOT NULL DEFAULT 1 COMMENT '1-low 2-medium 3-high',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-open 1-resolved 2-ignored',
+  detail varchar(512) NOT NULL DEFAULT '',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_status (status),
+  KEY ix_order_id (order_id),
+  KEY ix_issue_type (issue_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS order_outbox (
   id bigint NOT NULL AUTO_INCREMENT,
   event_id varchar(128) NOT NULL,
@@ -152,6 +193,23 @@ CREATE TABLE IF NOT EXISTS order_outbox (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_event_id (event_id),
   KEY ix_status_retry (status, next_retry_at),
+  KEY ix_aggregate_id (aggregate_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS event_process_log (
+  id bigint NOT NULL AUTO_INCREMENT,
+  event_id varchar(128) NOT NULL,
+  event_type varchar(64) NOT NULL,
+  aggregate_id varchar(64) NOT NULL DEFAULT '',
+  consumer varchar(64) NOT NULL DEFAULT '',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-processing 1-success 2-failed 3-dead',
+  attempt_count int NOT NULL DEFAULT 0,
+  last_error varchar(255) NOT NULL DEFAULT '',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_consumer_event (consumer, event_id),
+  KEY ix_status (status),
   KEY ix_aggregate_id (aggregate_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -190,6 +248,21 @@ SET @sql = IF(
   ),
   'SELECT 1',
   'ALTER TABLE product ADD COLUMN name varchar(128) NOT NULL DEFAULT '''' AFTER id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'image_url'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN image_url varchar(512) NOT NULL DEFAULT ""'
 );
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
@@ -262,6 +335,32 @@ CREATE TABLE IF NOT EXISTS product_stock_bucket (
   stock int NOT NULL DEFAULT 0,
   version bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (product_id, bucket_idx)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS seckill_campaign (
+  id bigint NOT NULL AUTO_INCREMENT,
+  product_id bigint NOT NULL,
+  name varchar(128) NOT NULL DEFAULT '',
+  campaign_stock int NOT NULL DEFAULT 0,
+  per_user_limit int NOT NULL DEFAULT 1,
+  starts_at timestamp NULL DEFAULT NULL,
+  ends_at timestamp NULL DEFAULT NULL,
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-draft 1-active 2-paused 3-ended',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_product_status (product_id, status),
+  KEY ix_time_window (starts_at, ends_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS seckill_user_limit (
+  id bigint NOT NULL AUTO_INCREMENT,
+  campaign_id bigint NOT NULL,
+  user_id bigint NOT NULL,
+  ordered_amount int NOT NULL DEFAULT 0,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_campaign_user (campaign_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS promotion_rule (
@@ -462,6 +561,50 @@ CREATE TABLE IF NOT EXISTS auth_audit_logs (
   KEY ix_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS user_member_profile (
+  user_id bigint NOT NULL,
+  member_level varchar(32) NOT NULL DEFAULT 'standard',
+  risk_level tinyint NOT NULL DEFAULT 0 COMMENT '0-normal 1-watch 2-restricted 3-blocked',
+  total_paid_orders int NOT NULL DEFAULT 0,
+  total_paid_amount_fen bigint NOT NULL DEFAULT 0,
+  last_order_at timestamp NULL DEFAULT NULL,
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id),
+  KEY ix_risk_level (risk_level),
+  KEY ix_member_level (member_level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_address (
+  id bigint NOT NULL AUTO_INCREMENT,
+  user_id bigint NOT NULL,
+  receiver_name varchar(64) NOT NULL DEFAULT '',
+  receiver_phone varchar(32) NOT NULL DEFAULT '',
+  province varchar(64) NOT NULL DEFAULT '',
+  city varchar(64) NOT NULL DEFAULT '',
+  district varchar(64) NOT NULL DEFAULT '',
+  detail varchar(255) NOT NULL DEFAULT '',
+  is_default tinyint NOT NULL DEFAULT 0,
+  status tinyint NOT NULL DEFAULT 1 COMMENT '1-active 2-deleted',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_risk_snapshot (
+  id bigint NOT NULL AUTO_INCREMENT,
+  user_id bigint NOT NULL,
+  risk_score int NOT NULL DEFAULT 0,
+  risk_level tinyint NOT NULL DEFAULT 0,
+  reason varchar(255) NOT NULL DEFAULT '',
+  source varchar(64) NOT NULL DEFAULT 'system',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_user_time (user_id, create_time),
+  KEY ix_risk_level (risk_level)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ========== auth migration: add missing columns if tables already exist ==========
 
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role');
@@ -507,5 +650,34 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_sessions' AND COLUMN_NAME = 'revoked_at');
 SET @sql = IF(@has_col = 0, 'ALTER TABLE user_sessions ADD COLUMN revoked_at timestamp NULL DEFAULT NULL AFTER last_seen_at', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- 默认本地演示账号，保证 K8s 重建后商城和后台可直接登录。
+INSERT INTO users (id, display_name, role, status, session_version)
+VALUES
+  (1001, 'Flash Mall User 1001', 'user', 1, 1),
+  (1002, 'Flash Mall Admin', 'admin', 1, 1)
+ON DUPLICATE KEY UPDATE
+  display_name = VALUES(display_name),
+  role = VALUES(role),
+  status = VALUES(status),
+  session_version = VALUES(session_version);
+
+INSERT INTO user_identities (user_id, identity_type, identity_value, is_verified, verified_at)
+VALUES
+  (1001, 'phone', '13800000001', 1, NOW()),
+  (1002, 'phone', '13800000002', 1, NOW())
+ON DUPLICATE KEY UPDATE
+  user_id = VALUES(user_id),
+  is_verified = VALUES(is_verified),
+  verified_at = VALUES(verified_at);
+
+INSERT INTO user_credentials (user_id, credential_type, password_hash, hash_algo, password_updated_at)
+VALUES
+  (1001, 'password', '$2a$10$5.X2YBFgYtMcea4wccOGHOmPmDvtCTtyOIQ7IMkS5FGJNArFIj.Z.', 'bcrypt', NOW()),
+  (1002, 'password', '$2a$10$FyWPrNrijW62LHfjVr7ROujdtlUFcdBz/im/Om7.6E66lb1/EemvC', 'bcrypt', NOW())
+ON DUPLICATE KEY UPDATE
+  password_hash = VALUES(password_hash),
+  hash_algo = VALUES(hash_algo),
+  password_updated_at = VALUES(password_updated_at);
 
 -- ========== end auth migration ==========

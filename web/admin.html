@@ -11,11 +11,21 @@
   <header class="topbar">
     <div class="container topbar-inner">
       <div class="brand"><span class="brand-mark">F</span><span>Flash Mall 后台</span></div>
-      <nav class="admin-nav">
-        <button class="admin-tab active" data-tab="dashboard">仪表盘</button>
-        <button class="admin-tab" data-tab="orders">订单管理</button>
-        <button class="admin-tab" data-tab="products">商品管理</button>
-        <button class="admin-tab" data-tab="users">用户管理</button>
+      <div class="admin-workspace-switch" role="group" aria-label="后台工作区">
+        <button class="workspace-tab active" data-workspace="platform" type="button">平台后台</button>
+        <button class="workspace-tab" data-workspace="merchant" type="button">商家后台</button>
+      </div>
+      <nav class="admin-nav" aria-label="后台导航">
+        <button class="admin-tab active" data-tab="dashboard" data-workspace-scope="platform">仪表盘</button>
+        <button class="admin-tab" data-tab="users" data-workspace-scope="platform">用户管理</button>
+        <button class="admin-tab" data-tab="reconciliation" data-workspace-scope="platform">对账风险</button>
+        <button class="admin-tab" data-tab="events" data-workspace-scope="platform">事件处理</button>
+        <button class="admin-tab" data-tab="security" data-workspace-scope="platform">安全日志</button>
+        <button class="admin-tab" data-tab="orders" data-workspace-scope="merchant">订单管理</button>
+        <button class="admin-tab" data-tab="refunds" data-workspace-scope="merchant">售后退款</button>
+        <button class="admin-tab" data-tab="products" data-workspace-scope="merchant">商品管理</button>
+        <button class="admin-tab" data-tab="suppliers" data-workspace-scope="merchant">供应商管理</button>
+        <button class="admin-tab" data-tab="promotions" data-workspace-scope="merchant">促销管理</button>
       </nav>
       <div class="row">
         <a href="/shop" class="pill outline" style="text-decoration:none">返回商城</a>
@@ -35,6 +45,12 @@
       <div class="panel-header">
         <h2>订单管理</h2>
         <div class="filters">
+          <input id="order-id-filter" placeholder="订单号" />
+          <input id="order-user-filter" type="number" min="1" placeholder="用户ID" />
+          <input id="order-product-filter" type="number" min="1" placeholder="商品ID" />
+          <input id="order-product-name-filter" placeholder="商品名称" />
+          <input id="order-from-filter" type="date" />
+          <input id="order-to-filter" type="date" />
           <select id="order-status-filter">
             <option value="">全部状态</option>
             <option value="0">待支付</option>
@@ -50,26 +66,253 @@
         </div>
       </div>
       <table class="admin-table">
-        <thead><tr><th>订单号</th><th>用户ID</th><th>商品</th><th>数量</th><th>金额</th><th>状态</th><th>创建时间</th></tr></thead>
+        <thead><tr><th>订单号</th><th>用户ID</th><th>商品</th><th>数量</th><th>金额</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
         <tbody id="orders-tbody"></tbody>
       </table>
+      <div class="pager">
+        <button id="orders-prev" class="button small ghost">上一页</button>
+        <span id="orders-page" class="total-label">第 1 页</span>
+        <select id="orders-page-size"><option value="20">20/页</option><option value="50">50/页</option><option value="100">100/页</option></select>
+        <button id="orders-next" class="button small ghost">下一页</button>
+      </div>
+      <div id="order-detail-panel" class="detail-panel" style="display:none"></div>
     </div>
 
     <!-- Products -->
     <div id="panel-products" class="admin-panel">
-      <h2>商品管理</h2>
+      <div class="panel-header">
+        <h2>商品管理</h2>
+        <div class="filters">
+          <input id="product-keyword-filter" placeholder="商品名称" />
+          <input id="product-id-filter" type="number" min="1" placeholder="商品ID" />
+          <input id="product-supplier-filter" type="number" min="1" placeholder="供应商ID" />
+          <select id="product-status-filter">
+            <option value="">全部状态</option>
+            <option value="1">上架</option>
+            <option value="2">下架</option>
+          </select>
+          <select id="product-promotion-filter">
+            <option value="">全部活动</option>
+            <option value="1">有活动</option>
+            <option value="2">无活动</option>
+          </select>
+          <select id="product-stock-filter">
+            <option value="">全部库存</option>
+            <option value="1">库存充足</option>
+            <option value="2">低库存</option>
+            <option value="3">缺货</option>
+          </select>
+          <button id="product-filter-apply" class="button primary">筛选</button>
+          <span id="products-total" class="total-label"></span>
+        </div>
+      </div>
+      <div class="row product-create-row">
+        <input id="product-name" placeholder="名称" />
+        <input id="product-image-url" placeholder="图片地址或先上传文件" />
+        <input id="product-image-file" type="file" accept="image/*" />
+        <input id="product-origin-price" type="number" min="0" placeholder="原价(分)" />
+        <input id="product-sale-price" type="number" min="0" placeholder="售价(分)" />
+        <input id="product-stock" type="number" min="0" placeholder="初始库存" />
+        <select id="product-supplier">
+          <option value="">请选择供应商</option>
+        </select>
+        <button id="product-create" class="button primary">新增</button>
+      </div>
       <table class="admin-table">
-        <thead><tr><th>ID</th><th>名称</th><th>原价</th><th>售价</th><th>库存</th><th>状态</th></tr></thead>
+        <thead><tr><th>ID</th><th>图片</th><th>名称</th><th>供应商</th><th>原价</th><th>售价</th><th>当前价</th><th>活动</th><th>库存</th><th>状态</th><th>操作</th></tr></thead>
         <tbody id="products-tbody"></tbody>
       </table>
+      <div class="pager">
+        <button id="products-prev" class="button small ghost">上一页</button>
+        <span id="products-page" class="total-label">第 1 页</span>
+        <select id="products-page-size"><option value="20">20/页</option><option value="50">50/页</option><option value="100">100/页</option></select>
+        <button id="products-next" class="button small ghost">下一页</button>
+      </div>
+      <div id="product-detail-panel" class="detail-panel" style="display:none"></div>
+    </div>
+
+    <!-- Suppliers -->
+    <div id="panel-suppliers" class="admin-panel">
+      <div class="panel-header">
+        <h2>供应商管理</h2>
+        <div class="filters">
+          <input id="supplier-keyword-filter" placeholder="供应商名称" />
+          <select id="supplier-status-filter">
+            <option value="">全部状态</option>
+            <option value="1">启用</option>
+            <option value="2">停用</option>
+          </select>
+          <button id="supplier-filter-apply" class="button primary">筛选</button>
+          <span id="suppliers-total" class="total-label"></span>
+        </div>
+      </div>
+      <div class="row product-create-row">
+        <input id="supplier-name" placeholder="供应商名称" />
+        <button id="supplier-create" class="button primary">新增</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>名称</th><th>商品数</th><th>启用商品</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="suppliers-tbody"></tbody>
+      </table>
+      <div class="pager">
+        <button id="suppliers-prev" class="button small ghost">上一页</button>
+        <span id="suppliers-page" class="total-label">第 1 页</span>
+        <select id="suppliers-page-size"><option value="20">20/页</option><option value="50">50/页</option><option value="100">100/页</option></select>
+        <button id="suppliers-next" class="button small ghost">下一页</button>
+      </div>
+      <div id="supplier-detail-panel" class="detail-panel" style="display:none"></div>
+    </div>
+
+    <!-- Promotions -->
+    <div id="panel-promotions" class="admin-panel">
+      <div class="panel-header">
+        <h2>促销管理</h2>
+        <div class="filters">
+          <input id="promotion-keyword-filter" placeholder="商品名称" />
+          <input id="promotion-product-filter" type="number" min="1" placeholder="商品ID" />
+          <select id="promotion-effect-filter">
+            <option value="">全部时间态</option>
+            <option value="active">生效中</option>
+            <option value="scheduled">未开始</option>
+            <option value="expired">已结束</option>
+            <option value="inactive">停用</option>
+          </select>
+          <select id="promotion-status-filter">
+            <option value="">全部状态</option>
+            <option value="1">启用</option>
+            <option value="2">停用</option>
+          </select>
+          <button id="promotion-filter-apply" class="button primary">筛选</button>
+          <span id="promotions-total" class="total-label"></span>
+        </div>
+      </div>
+      <div class="row product-create-row">
+        <select id="promotion-product">
+          <option value="">请选择商品</option>
+        </select>
+        <input id="promotion-price" type="number" min="1" placeholder="限时价(分)" />
+        <input id="promotion-starts" placeholder="开始时间 YYYY-MM-DD HH:mm:ss" />
+        <input id="promotion-ends" placeholder="结束时间 YYYY-MM-DD HH:mm:ss" />
+        <button id="promotion-create" class="button primary">新增</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>商品</th><th>类型</th><th>价格</th><th>开始</th><th>结束</th><th>时间态</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="promotions-tbody"></tbody>
+      </table>
+      <div class="pager">
+        <button id="promotions-prev" class="button small ghost">上一页</button>
+        <span id="promotions-page" class="total-label">第 1 页</span>
+        <select id="promotions-page-size"><option value="20">20/页</option><option value="50">50/页</option><option value="100">100/页</option></select>
+        <button id="promotions-next" class="button small ghost">下一页</button>
+      </div>
+      <div id="promotion-detail-panel" class="detail-panel" style="display:none"></div>
     </div>
 
     <!-- Users -->
     <div id="panel-users" class="admin-panel">
-      <h2>用户管理</h2>
+      <div class="panel-header">
+        <h2>用户管理</h2>
+        <div class="filters">
+          <input id="user-keyword-filter" placeholder="用户ID/昵称/手机号" />
+          <select id="user-role-filter">
+            <option value="">全部角色</option>
+            <option value="admin">管理员</option>
+            <option value="user">用户</option>
+          </select>
+          <select id="user-status-filter">
+            <option value="">全部状态</option>
+            <option value="1">启用</option>
+            <option value="2">禁用</option>
+          </select>
+          <button id="user-filter-apply" class="button primary">筛选</button>
+          <span id="users-total" class="total-label"></span>
+        </div>
+      </div>
       <table class="admin-table">
-        <thead><tr><th>用户ID</th><th>昵称</th><th>手机号</th><th>注册时间</th></tr></thead>
+        <thead><tr><th>用户ID</th><th>昵称</th><th>手机号</th><th>角色</th><th>状态</th><th>注册时间</th><th>操作</th></tr></thead>
         <tbody id="users-tbody"></tbody>
+      </table>
+      <div class="pager">
+        <button id="users-prev" class="button small ghost">上一页</button>
+        <span id="users-page" class="total-label">第 1 页</span>
+        <select id="users-page-size"><option value="20">20/页</option><option value="50">50/页</option><option value="100">100/页</option></select>
+        <button id="users-next" class="button small ghost">下一页</button>
+      </div>
+      <div id="user-detail-panel" class="detail-panel" style="display:none"></div>
+    </div>
+
+    <div id="panel-refunds" class="admin-panel">
+      <div class="panel-header">
+        <h2>售后退款</h2>
+        <div class="filters">
+          <select id="refund-status-filter">
+            <option value="0">待审核</option>
+            <option value="">全部状态</option>
+            <option value="2">已退款</option>
+            <option value="3">已驳回</option>
+            <option value="4">退款失败</option>
+          </select>
+          <input id="refund-order-filter" placeholder="订单号" />
+          <input id="refund-user-filter" type="number" min="1" placeholder="用户ID" />
+          <button id="refund-filter-apply" class="button primary">筛选</button>
+          <button id="refund-refresh" class="button primary">刷新</button>
+          <span id="refunds-total" class="total-label"></span>
+        </div>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>退款单</th><th>订单</th><th>用户</th><th>金额</th><th>状态</th><th>原因</th><th>申请时间</th><th>操作</th></tr></thead>
+        <tbody id="refunds-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Security -->
+    <div id="panel-reconciliation" class="admin-panel">
+      <div class="panel-header">
+        <h2>对账风险</h2>
+        <button id="reconciliation-refresh" class="button primary">刷新</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>类型</th><th>订单</th><th>支付单</th><th>预期</th><th>实际</th><th>等级</th><th>状态</th></tr></thead>
+        <tbody id="reconciliation-tbody"></tbody>
+      </table>
+    </div>
+
+    <div id="panel-events" class="admin-panel">
+      <div class="panel-header">
+        <h2>事件处理</h2>
+        <button id="events-refresh" class="button primary">刷新</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>ID</th><th>类型</th><th>聚合ID</th><th>状态</th><th>重试</th><th>错误</th><th>创建时间</th></tr></thead>
+        <tbody id="events-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Security -->
+    <div id="panel-security" class="admin-panel">
+      <div class="panel-header">
+        <h2>安全日志</h2>
+        <div class="filters">
+          <input id="security-user-filter" type="number" min="1" placeholder="用户ID" />
+          <input id="security-keyword-filter" placeholder="用户ID/主体/IP/事件" />
+          <select id="security-event-filter">
+            <option value="">全部事件</option>
+          </select>
+          <select id="security-result-filter">
+            <option value="">全部结果</option>
+            <option value="success">成功</option>
+            <option value="blocked">拦截</option>
+            <option value="fail">失败</option>
+            <option value="failed">失败(failed)</option>
+          </select>
+          <button id="security-filter-apply" class="button primary">筛选</button>
+          <button id="security-refresh" class="button primary">刷新</button>
+          <span id="security-total" class="total-label"></span>
+        </div>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>时间</th><th>事件</th><th>结果</th><th>用户ID</th><th>主体</th><th>IP</th><th>原因</th><th>User-Agent</th></tr></thead>
+        <tbody id="security-tbody"></tbody>
       </table>
     </div>
   </main>
@@ -79,6 +322,25 @@
       <h2>请先登录</h2>
       <p>后台管理需要管理员权限，请先在商城登录后再访问。</p>
       <a href="/shop" class="button primary">前往商城登录</a>
+    </div>
+  </div>
+
+  <div id="admin-toast" class="admin-toast hidden" role="status" aria-live="polite"></div>
+
+  <div id="admin-modal" class="modal-backdrop hidden" aria-hidden="true">
+    <div class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+      <div class="admin-modal-header">
+        <h3 id="admin-modal-title">编辑</h3>
+        <button id="admin-modal-close" class="icon-button" type="button" aria-label="关闭">×</button>
+      </div>
+      <form id="admin-modal-form" class="admin-modal-form">
+        <div id="admin-modal-fields" class="admin-modal-fields"></div>
+        <div id="admin-modal-error" class="admin-modal-error hidden"></div>
+        <div class="admin-modal-actions">
+          <button id="admin-modal-cancel" class="button ghost" type="button">取消</button>
+          <button id="admin-modal-submit" class="button primary modal-submit" type="submit">确定</button>
+        </div>
+      </form>
     </div>
   </div>
 

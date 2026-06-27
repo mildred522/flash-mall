@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$Namespace = "flash-mall",
   [int]$Concurrency = 20,
   [int]$DurationSeconds = 180,
@@ -110,14 +110,14 @@ $OutputDir = (Resolve-Path $OutputDir).Path
 $runStartedAt = Get-Date
 $runStartedIso = $runStartedAt.ToString("o")
 
-kubectl -n $Namespace wait --for=condition=Ready pod -l app=order-api --timeout=120s | Out-Null
+kubectl -n $Namespace wait --for=condition=Ready pod -l app=entry-api --timeout=120s | Out-Null
 kubectl -n $Namespace wait --for=condition=Ready pod -l app=order-rpc --timeout=120s | Out-Null
 kubectl -n $Namespace wait --for=condition=Ready pod -l app=product-rpc --timeout=120s | Out-Null
 
-$apiPod = kubectl -n $Namespace get pods -l app=order-api -o jsonpath='{.items[0].metadata.name}'
+$apiPod = kubectl -n $Namespace get pods -l app=entry-api -o jsonpath='{.items[0].metadata.name}'
 $rpcPod = kubectl -n $Namespace get pods -l app=order-rpc -o jsonpath='{.items[0].metadata.name}'
 $productPod = kubectl -n $Namespace get pods -l app=product-rpc -o jsonpath='{.items[0].metadata.name}'
-if (-not $apiPod) { throw "order-api pod not found" }
+if (-not $apiPod) { throw "entry-api pod not found" }
 if (-not $rpcPod) { throw "order-rpc pod not found" }
 if (-not $productPod) { throw "product-rpc pod not found" }
 
@@ -132,17 +132,17 @@ $pfJobs = @(
   (Start-PortForwardJob -Namespace $Namespace -Target "pod/$productPod" -LocalPort $productPprofPort -RemotePort 6062)
 )
 if ($LoadMode -eq "port-forward") {
-  $pfJobs += (Start-PortForwardJob -Namespace $Namespace -Target "svc/order-api" -LocalPort $apiPort -RemotePort 8888)
+  $pfJobs += (Start-PortForwardJob -Namespace $Namespace -Target "svc/entry-api" -LocalPort $apiPort -RemotePort 8888)
 }
 
 Start-Sleep -Seconds 2
 
 try {
   if ($LoadMode -eq "port-forward" -and -not (Wait-PortOpen -Port $apiPort -TimeoutSeconds 30)) {
-    throw "order-api port-forward not ready"
+    throw "entry-api port-forward not ready"
   }
   if (-not (Wait-HttpReady -Url "http://localhost:$apiPprofPort/debug/pprof/" -TimeoutSeconds 30)) {
-    throw "order-api pprof endpoint not ready"
+    throw "entry-api pprof endpoint not ready"
   }
   if (-not (Wait-HttpReady -Url "http://localhost:$rpcPprofPort/debug/pprof/" -TimeoutSeconds 30)) {
     throw "order-rpc pprof endpoint not ready"
@@ -157,7 +157,7 @@ try {
   kubectl -n $Namespace get deploy -o wide | Out-File (Join-Path $OutputDir "deployments.txt") -Encoding utf8
   kubectl -n $Namespace get pods -o wide | Out-File (Join-Path $OutputDir "pods.before.txt") -Encoding utf8
   kubectl get nodes -o wide | Out-File (Join-Path $OutputDir "nodes.txt") -Encoding utf8
-  kubectl -n $Namespace get configmap order-api-config -o yaml | Out-File (Join-Path $OutputDir "order-api-configmap.yaml") -Encoding utf8
+  kubectl -n $Namespace get configmap entry-api-config -o yaml | Out-File (Join-Path $OutputDir "entry-api-configmap.yaml") -Encoding utf8
 
   $meta = [ordered]@{
     namespace = $Namespace
@@ -173,7 +173,7 @@ try {
     total_stock = $TotalStock
     shards = $Shards
     pods = [ordered]@{
-      order_api = $apiPod
+      entry_api = $apiPod
       order_rpc = $rpcPod
       product_rpc = $productPod
     }
@@ -189,7 +189,7 @@ try {
   }
 
   # Start CPU profile capture before load starts so profile overlaps measured traffic.
-  $apiCpu = Join-Path $OutputDir "order-api.cpu.pprof"
+  $apiCpu = Join-Path $OutputDir "entry-api.cpu.pprof"
   $rpcCpu = Join-Path $OutputDir "order-rpc.cpu.pprof"
   $productCpu = Join-Path $OutputDir "product-rpc.cpu.pprof"
 
@@ -269,8 +269,8 @@ try {
 
   Write-Host "collecting heap profiles..."
   try {
-    & curl.exe -sS -f "http://localhost:$apiPprofPort/debug/pprof/heap" -o (Join-Path $OutputDir "order-api.heap.pprof")
-    if ($LASTEXITCODE -ne 0) { throw "order-api heap profile fetch failed" }
+    & curl.exe -sS -f "http://localhost:$apiPprofPort/debug/pprof/heap" -o (Join-Path $OutputDir "entry-api.heap.pprof")
+    if ($LASTEXITCODE -ne 0) { throw "entry-api heap profile fetch failed" }
     & curl.exe -sS -f "http://localhost:$rpcPprofPort/debug/pprof/heap" -o (Join-Path $OutputDir "order-rpc.heap.pprof")
     if ($LASTEXITCODE -ne 0) { throw "order-rpc heap profile fetch failed" }
     if ($productPprofReady) {
@@ -282,7 +282,7 @@ try {
   }
 
   Write-Host "collecting logs and cluster snapshots..."
-  kubectl -n $Namespace logs -l app=order-api --all-containers=true --prefix --since-time=$runStartedIso | Out-File (Join-Path $OutputDir "order-api.log") -Encoding utf8
+  kubectl -n $Namespace logs -l app=entry-api --all-containers=true --prefix --since-time=$runStartedIso | Out-File (Join-Path $OutputDir "entry-api.log") -Encoding utf8
   kubectl -n $Namespace logs -l app=order-rpc --all-containers=true --prefix --since-time=$runStartedIso | Out-File (Join-Path $OutputDir "order-rpc.log") -Encoding utf8
   kubectl -n $Namespace logs -l app=product-rpc --all-containers=true --prefix --since-time=$runStartedIso | Out-File (Join-Path $OutputDir "product-rpc.log") -Encoding utf8
   kubectl -n $Namespace logs deploy/dtm --since-time=$runStartedIso | Out-File (Join-Path $OutputDir "dtm.log") -Encoding utf8

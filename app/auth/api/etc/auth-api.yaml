@@ -1,12 +1,12 @@
 Name: auth-api
 Host: 0.0.0.0
 Port: 8890
-Timeout: 2000
+Timeout: 8000
 
-JwtAuthSecret: flashmall-order-api-jwt-secret
+JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
 JwtExpireSeconds: 7200
-DemoPassword: flashmall123
-DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_auth?charset=utf8mb4&parseTime=true&loc=Local
+DemoPassword: ${FLASH_MALL_DEMO_PASSWORD}
+DataSource: ${FLASH_MALL_AUTH_DATASOURCE}
 RedisConf:
   Host: 127.0.0.1:6379
   Type: node
@@ -23,3 +23,4 @@ CodeSendIPWindowSeconds: 600
 CodeSendIPMaxAttempts: 10
 VerificationCodeMaxAttempts: 5
 SecurityAuditRecentLimit: 10
+SecurityAuditRetentionLimit: 200

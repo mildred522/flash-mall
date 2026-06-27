@@ -57,7 +57,7 @@ func main() {
 					// 可能是库存不足(虽然后端有Redis拦截，但HTTP层可能返回其他码)
 					atomic.AddInt64(&failCount, 1)
 				}
-				resp.Body.Close()
+				_ = resp.Body.Close()
 			}
 		}()
 	}

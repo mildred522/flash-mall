@@ -37,9 +37,15 @@ spec:
             - containerPort: 15672
           env:
             - name: RABBITMQ_DEFAULT_USER
-              value: flashmall
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: rabbitmq-user
             - name: RABBITMQ_DEFAULT_PASS
-              value: flashmall123
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: rabbitmq-password
           resources:
             requests:
               cpu: "100m"

@@ -32,8 +32,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: order-api
-            dockerfile: build/docker/order-api.Dockerfile
+          - image: entry-api
+            dockerfile: build/docker/entry-api.Dockerfile
+          - image: auth-api
+            dockerfile: build/docker/auth-api.Dockerfile
           - image: order-rpc
             dockerfile: build/docker/order-rpc.Dockerfile
           - image: product-rpc

@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 
+	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/common/paymentstatus"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
 
@@ -86,7 +88,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, status.Error(codes.FailedPrecondition, "paid amount does not match payable amount")
 	}
 
-	if orderStatus == 1 || paymentStatus == 1 {
+	if orderStatus == orderstatus.Paid || paymentStatus == paymentstatus.Success {
 		if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "IDEMPOTENT", ""); err != nil {
 			return nil, err
 		}
@@ -95,7 +97,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		}
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "PAID"}, nil
 	}
-	if orderStatus == 2 {
+	if orderStatus == orderstatus.Closed {
 		if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "CLOSED", ""); err != nil {
 			return nil, err
 		}
@@ -105,7 +107,9 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "CLOSED"}, nil
 	}
 
-	orderResult, err := tx.ExecContext(l.ctx, "UPDATE orders SET status = 1, update_time = NOW() WHERE id = ? AND status = 0", in.OrderId)
+	orderResult, err := tx.ExecContext(l.ctx,
+		"UPDATE orders SET status = ?, update_time = NOW() WHERE id = ? AND status = ?",
+		orderstatus.Paid, in.OrderId, orderstatus.PendingPayment)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +124,9 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "UNKNOWN"}, nil
 	}
 
-	paymentResult, err := tx.ExecContext(l.ctx, "UPDATE payment_order SET status = 1, paid_at = NOW(), callback_payload = CAST(? AS JSON), update_time = NOW() WHERE id = ? AND out_trade_no = ? AND order_id = ? AND status = 0", in.CallbackBody, in.PaymentOrderId, in.OutTradeNo, in.OrderId)
+	paymentResult, err := tx.ExecContext(l.ctx,
+		"UPDATE payment_order SET status = ?, paid_at = NOW(), callback_payload = CAST(? AS JSON), update_time = NOW() WHERE id = ? AND out_trade_no = ? AND order_id = ? AND status = ?",
+		paymentstatus.Success, in.CallbackBody, in.PaymentOrderId, in.OutTradeNo, in.OrderId, paymentstatus.Init)
 	if err != nil {
 		return nil, err
 	}

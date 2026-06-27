@@ -11,6 +11,21 @@ spec:
       port: 6379
       targetPort: 6379
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,8 +44,20 @@ spec:
       containers:
         - name: redis
           image: redis:7
+          command:
+            - redis-server
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - everysec
+            - --save
+            - "60"
+            - "1"
           ports:
             - containerPort: 6379
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
           resources:
             requests:
               cpu: "50m"
@@ -38,3 +65,7 @@ spec:
             limits:
               cpu: "200m"
               memory: "256Mi"
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-data

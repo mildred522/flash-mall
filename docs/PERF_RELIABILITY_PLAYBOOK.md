@@ -1,4 +1,4 @@
-﻿# Flash-Mall 可靠性能测试流程（面试可答辩版）
+# Flash-Mall 可靠性能测试流程（面试可答辩版）
 
 ## 目标
 
@@ -49,7 +49,7 @@ kubectl -n flash-mall get pods -o wide
 
 ### 这个脚本会自动做什么
 
-- 端口转发到 `order-api` 与 3 个 RPC pprof 端口。
+- 端口转发到 `entry-api` 与 3 个 RPC pprof 端口。
 - **先启动 CPU pprof，再开始压测**（采样覆盖真实负载窗口）。
 - 跑压测（带 warmup/timeout/错误分类）。
 - 采集 heap profile、应用日志、events、pods/nodes/deployments/configmap 快照。
@@ -154,7 +154,7 @@ kubectl -n flash-mall get pods -o wide
   - 自动重复运行并输出中位数/IQR/CV 级别的统计报告。
 - `scripts/k8s/run-benchmark-incluster.ps1`
   - 使用 K8s Job + k6 在集群内发压，规避 host 侧 port-forward 单点瓶颈。
-- `app/order/api/scripts/benchmark/benchmark_tool.go`
+- `app/entry/api/scripts/benchmark/benchmark_tool.go`
   - 支持 warmup 窗口、可选 open-loop RPS、状态码/错误类型拆分与结构化报告。
 
 ---

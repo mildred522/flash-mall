@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"google.golang.org/grpc/codes"
@@ -29,5 +30,11 @@ func (l *LogoutAllLogic) LogoutAll() error {
 		return status.Error(codes.Unauthenticated, "missing user_id in jwt")
 	}
 	l.svcCtx.Store.LogoutAll(userID)
+	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+		EventType:     auditEventLogoutAllSuccess,
+		Result:        auditResultSuccess,
+		UserID:        userID,
+		IdentityValue: auditIdentity("", userID),
+	})
 	return nil
 }

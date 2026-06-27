@@ -1,9 +1,16 @@
 .git
 .idea
 .vscode
+.codex_tmp
+.runtime
 logs
 deploy/data
 deploy/data/**
+**/node_modules
+**/.vite
+**/dist
+**/coverage
 **/*.sock
 **/*.pid
 **/*.log
+*.test

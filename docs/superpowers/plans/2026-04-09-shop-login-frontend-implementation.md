@@ -12,18 +12,18 @@
 
 ## File Map
 
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
   - Replace the current form-heavy storefront with the redesigned ecommerce homepage, login modal, and floating developer console.
-- Modify: `app/order/api/internal/handler/web/home.html`
+- Modify: `app/entry/api/internal/handler/web/home.html`
   - Refresh the landing page visual language so it aligns with the new storefront.
-- Create: `app/order/api/internal/handler/webuihandler_test.go`
+- Create: `app/entry/api/internal/handler/webuihandler_test.go`
   - Add regression tests that assert embedded pages expose the new UI anchors.
 
 ### Task 1: Add Failing UI Regression Tests
 
 **Files:**
-- Create: `app/order/api/internal/handler/webuihandler_test.go`
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Create: `app/entry/api/internal/handler/webuihandler_test.go`
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -77,7 +77,7 @@ func TestHomeUIIncludesNewEntryAnchors(t *testing.T) {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./app/order/api/internal/handler -run "TestShopUIIncludesStorefrontAnchors|TestHomeUIIncludesNewEntryAnchors" -count=1`
+Run: `go test ./app/entry/api/internal/handler -run "TestShopUIIncludesStorefrontAnchors|TestHomeUIIncludesNewEntryAnchors" -count=1`
 Expected: FAIL because the current HTML does not yet contain the new structural anchors.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -86,21 +86,21 @@ Add the new anchor ids and text while rebuilding `shop.html` and `home.html` in 
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./app/order/api/internal/handler -run "TestShopUIIncludesStorefrontAnchors|TestHomeUIIncludesNewEntryAnchors" -count=1`
+Run: `go test ./app/entry/api/internal/handler -run "TestShopUIIncludesStorefrontAnchors|TestHomeUIIncludesNewEntryAnchors" -count=1`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/webuihandler_test.go app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/web/home.html
+git add app/entry/api/internal/handler/webuihandler_test.go app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/web/home.html
 git commit -m "test: cover storefront ui anchors"
 ```
 
 ### Task 2: Rebuild `/shop` As The Main Storefront
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -121,7 +121,7 @@ for _, needle := range []string{
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: FAIL with missing hero and campaign anchors.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -136,21 +136,21 @@ Rebuild `shop.html` with:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/webuihandler_test.go
+git add app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/webuihandler_test.go
 git commit -m "feat: redesign shop storefront shell"
 ```
 
 ### Task 3: Add The Figma-Inspired Login Modal
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -171,7 +171,7 @@ for _, needle := range []string{
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: FAIL because the modal ids are not present yet.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -187,21 +187,21 @@ Add an in-page modal to `shop.html` that:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/webuihandler_test.go
+git add app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/webuihandler_test.go
 git commit -m "feat: add storefront login modal"
 ```
 
 ### Task 4: Add The Floating Developer Console
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -223,7 +223,7 @@ for _, needle := range []string{
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: FAIL because the floating console structure is missing.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -239,21 +239,21 @@ Add a floating developer console to `shop.html` that:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./app/order/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestShopUIIncludesStorefrontAnchors -count=1`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/webuihandler_test.go
+git add app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/webuihandler_test.go
 git commit -m "feat: add floating developer console"
 ```
 
 ### Task 5: Refresh `/` To Match The New Direction
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/home.html`
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/home.html`
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -273,7 +273,7 @@ for _, needle := range []string{
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `go test ./app/order/api/internal/handler -run TestHomeUIIncludesNewEntryAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestHomeUIIncludesNewEntryAnchors -count=1`
 Expected: FAIL because the refreshed landing structure is not present yet.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -287,29 +287,29 @@ Refresh `home.html` so it:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `go test ./app/order/api/internal/handler -run TestHomeUIIncludesNewEntryAnchors -count=1`
+Run: `go test ./app/entry/api/internal/handler -run TestHomeUIIncludesNewEntryAnchors -count=1`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/web/home.html app/order/api/internal/handler/webuihandler_test.go
+git add app/entry/api/internal/handler/web/home.html app/entry/api/internal/handler/webuihandler_test.go
 git commit -m "feat: refresh frontend entry page"
 ```
 
 ### Task 6: Verify End-To-End In Browser
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html` if browser validation reveals issues
-- Modify: `app/order/api/internal/handler/web/home.html` if browser validation reveals issues
-- Test: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html` if browser validation reveals issues
+- Modify: `app/entry/api/internal/handler/web/home.html` if browser validation reveals issues
+- Test: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] **Step 1: Run handler tests**
 
-Run: `go test ./app/order/api/internal/handler -count=1`
+Run: `go test ./app/entry/api/internal/handler -count=1`
 Expected: PASS
 
-- [ ] **Step 2: Start the service stack or the local order-api flow**
+- [ ] **Step 2: Start the service stack or the local entry-api flow**
 
 Run the project’s existing local startup flow so `/` and `/shop` are reachable.
 
@@ -326,12 +326,12 @@ Verify:
 
 - [ ] **Step 4: Fix any browser-found issues and re-run tests**
 
-Run: `go test ./app/order/api/internal/handler -count=1`
+Run: `go test ./app/entry/api/internal/handler -count=1`
 Expected: PASS after any final fixes
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add app/order/api/internal/handler/web/home.html app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/webuihandler_test.go
+git add app/entry/api/internal/handler/web/home.html app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/webuihandler_test.go
 git commit -m "feat: finalize storefront frontend redesign"
 ```

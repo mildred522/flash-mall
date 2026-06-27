@@ -35,6 +35,28 @@ func TestRevertStock_EmptyOrderIDFallsBackPerProduct(t *testing.T) {
 	}
 }
 
+func TestRevertStock_ReturnsNonDuplicateStockLogError(t *testing.T) {
+	svcCtx := newRevertStockTestServiceContext(t)
+	ensureRevertStockSchema(t, svcCtx)
+	orderID := "revert-non-duplicate-error"
+	productID := int64(9303)
+	cleanupRevertStockRows(t, svcCtx, productID)
+	if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), "DELETE FROM stock_log WHERE order_id = ?", orderID); err != nil {
+		t.Fatalf("stock log cleanup failed: %v", err)
+	}
+	if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), "RENAME TABLE stock_log TO stock_log_revert_test_backup"); err != nil {
+		t.Fatalf("rename stock_log failed: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = svcCtx.SqlConn.ExecCtx(context.Background(), "RENAME TABLE stock_log_revert_test_backup TO stock_log")
+	})
+
+	logic := NewRevertStockLogic(context.Background(), svcCtx)
+	if _, err := logic.RevertStock(&product.RevertStockReq{Id: productID, Num: 3, OrderId: orderID}); err == nil {
+		t.Fatal("expected missing stock_log table error")
+	}
+}
+
 func newRevertStockTestServiceContext(t *testing.T) *svc.ServiceContext {
 	t.Helper()
 

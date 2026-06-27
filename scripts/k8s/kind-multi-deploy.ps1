@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$ClusterName = "flash-mall",
   [string]$ConfigPath = "k8s/kind/cluster-multi.yaml",
   [switch]$RebuildImages,
@@ -49,7 +49,8 @@ if ($RebuildImages) {
 }
 
 $images = @(
-  "flash-mall/order-api:dev",
+  "flash-mall/auth-api:dev",
+  "flash-mall/entry-api:dev",
   "flash-mall/order-rpc:dev",
   "flash-mall/product-rpc:dev",
   "mysql:8.0",

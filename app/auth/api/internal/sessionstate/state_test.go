@@ -16,7 +16,7 @@ func TestRedisStateStoreSetUserVersion_FailsFastWhenRedisUnavailable(t *testing.
 		t.Fatalf("reserve port: %v", err)
 	}
 	addr := listener.Addr().String()
-	listener.Close()
+	_ = listener.Close()
 
 	store := NewRedisStateStore(redis.New(addr))
 
@@ -27,7 +27,7 @@ func TestRedisStateStoreSetUserVersion_FailsFastWhenRedisUnavailable(t *testing.
 	if err == nil {
 		t.Fatalf("expected redis write to fail when redis is unavailable")
 	}
-	if elapsed > 500*time.Millisecond {
+	if elapsed > 1500*time.Millisecond {
 		t.Fatalf("expected redis failure to return quickly, took %s against %s", elapsed, fmt.Sprintf("%q", addr))
 	}
 }

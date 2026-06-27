@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/svc"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -29,13 +31,21 @@ func (l *LogoutLogic) Logout(refreshToken string) error {
 		return status.Error(codes.Unauthenticated, "missing refresh token")
 	}
 	if err := l.svcCtx.Store.Logout(refreshToken); err != nil {
-		if err == authstore.ErrRefreshTokenInvalid {
+		if errors.Is(err, authstore.ErrRefreshTokenInvalid) {
 			return status.Error(codes.Unauthenticated, "invalid refresh token")
 		}
-		if err == authstore.ErrRefreshTokenReplayed {
+		if errors.Is(err, authstore.ErrRefreshTokenReplayed) {
 			return status.Error(codes.Unauthenticated, "refresh token replayed")
 		}
 		return status.Error(codes.Internal, "logout failed")
+	}
+	if userID, ok := parseUserIDClaim(l.ctx.Value("user_id")); ok {
+		recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+			EventType:     auditEventLogoutSuccess,
+			Result:        auditResultSuccess,
+			UserID:        userID,
+			IdentityValue: auditIdentity("", userID),
+		})
 	}
 	return nil
 }

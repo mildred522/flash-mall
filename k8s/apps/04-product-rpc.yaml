@@ -24,6 +24,12 @@ spec:
           image: flash-mall/product-rpc:dev
           imagePullPolicy: IfNotPresent
           args: ["-f", "/etc/flash-mall/product.yaml"]
+          env:
+            - name: FLASH_MALL_PRODUCT_DATASOURCE
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: product-datasource
           ports:
             - name: grpc
               containerPort: 8080

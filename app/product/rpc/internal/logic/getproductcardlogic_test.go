@@ -139,6 +139,13 @@ func ensureProductCardSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			status TINYINT NOT NULL DEFAULT 1,
 			PRIMARY KEY (id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS product_stock_bucket (
+			product_id BIGINT NOT NULL,
+			bucket_idx INT NOT NULL,
+			stock INT NOT NULL DEFAULT 0,
+			version BIGINT NOT NULL DEFAULT 0,
+			PRIMARY KEY (product_id, bucket_idx)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, statement := range statements {

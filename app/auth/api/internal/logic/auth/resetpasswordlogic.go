@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/svc"
 	"flash-mall/app/auth/api/internal/types"
@@ -30,13 +32,29 @@ func (l *ResetPasswordLogic) Reset(req *types.ResetPasswordReq) error {
 		return status.Error(codes.InvalidArgument, "phone, code and new_password are required")
 	}
 	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "reset-password", req.Code, l.svcCtx.Config.VerificationCodeMaxAttempts); err != nil {
-		if err == authstore.ErrInvalidCode {
+		if errors.Is(err, authstore.ErrInvalidCode) {
+			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+				EventType:     auditEventResetPasswordFail,
+				Result:        auditResultFail,
+				UserID:        auditUserIDByPhone(l.svcCtx, req.Phone),
+				IdentityValue: req.Phone,
+				IP:            req.ClientIP,
+				UserAgent:     req.UserAgent,
+			})
 			return status.Error(codes.InvalidArgument, "invalid verification code")
 		}
 		return status.Error(codes.Internal, "verify code failed")
 	}
-	if _, err := l.svcCtx.Store.UpdatePassword(req.Phone, req.NewPassword); err != nil {
-		if err == authstore.ErrUserNotFound {
+	user, err := l.svcCtx.Store.UpdatePassword(req.Phone, req.NewPassword)
+	if err != nil {
+		if errors.Is(err, authstore.ErrUserNotFound) {
+			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+				EventType:     auditEventResetPasswordFail,
+				Result:        auditResultFail,
+				IdentityValue: req.Phone,
+				IP:            req.ClientIP,
+				UserAgent:     req.UserAgent,
+			})
 			return status.Error(codes.NotFound, "user not found")
 		}
 		return status.Error(codes.Internal, "update password failed")
@@ -44,5 +62,13 @@ func (l *ResetPasswordLogic) Reset(req *types.ResetPasswordReq) error {
 	if err := l.svcCtx.Store.ResetCode(req.Phone, "reset-password"); err != nil {
 		return status.Error(codes.Internal, "reset verification code failed")
 	}
+	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+		EventType:     auditEventResetPasswordSuccess,
+		Result:        auditResultSuccess,
+		UserID:        user.ID,
+		IdentityValue: user.Phone,
+		IP:            req.ClientIP,
+		UserAgent:     req.UserAgent,
+	})
 	return nil
 }

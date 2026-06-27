@@ -24,12 +24,12 @@
   - `go mod download`
   - `go vet ./...`
   - `go test ./...`
-  - `go build ./app/order/api ./app/order/rpc ./app/product/rpc`
+  - `go build ./app/entry/api ./app/order/rpc ./app/product/rpc`
   - 校验 3 个 Dockerfile 可成功构建
   - 运行 `scripts/ci/smoke-e2e.sh` 做端到端冒烟：
     - 拉起 `etcd/mysql/redis/dtm/rabbitmq`
     - 初始化数据库与 Redis 库存
-    - 启动 `product-rpc/order-rpc/order-api`
+    - 启动 `product-rpc/order-rpc/entry-api`
     - 校验健康检查、JWT 登录、下单成功与订单落库
 
 ### 2. 镜像发布
@@ -40,7 +40,7 @@
   - 推送 `main` / `develop`
   - 推送 tag：`v*`
   - 手动触发 `workflow_dispatch`
-- 发布目标：`ghcr.io/<owner>/flash-mall-order-api`
+- 发布目标：`ghcr.io/<owner>/flash-mall-entry-api`
   - `ghcr.io/<owner>/flash-mall-order-rpc`
   - `ghcr.io/<owner>/flash-mall-product-rpc`
 - 自动标签策略：

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strconv"
+	"strings"
 
 	"flash-mall/app/product/rpc/internal/svc"
 	"flash-mall/app/product/rpc/product"
@@ -52,17 +53,21 @@ func (l *DeductRollbackLogic) DeductRollback(in *product.DeductReq) (*product.Em
 
 	// 3) 执行回滚事务
 	err = barrier.CallWithDB(db, func(tx *sql.Tx) error {
+		actualBucketIdx := bucketIdx
+		if loggedBucketIdx, ok := deductBucketFromStockLog(tx, orderId); ok {
+			actualBucketIdx = loggedBucketIdx
+		}
 		l.Infow("deduct rollback start",
 			logx.Field("product_id", in.Id),
 			logx.Field("amount", in.Num),
-			logx.Field("bucket_idx", bucketIdx),
+			logx.Field("bucket_idx", actualBucketIdx),
 		)
 
 		// CHG 2026-02-24: 变更=回滚落到分桶表; 之前=单行 product 表回滚; 原因=保持与扣减一致的分桶路由。
 		_, err := tx.Exec(
 			"INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES (?, ?, ?, 0) "+
 				"ON DUPLICATE KEY UPDATE stock = stock + VALUES(stock), version = version + 1",
-			in.Id, bucketIdx, in.Num,
+			in.Id, actualBucketIdx, in.Num,
 		)
 		return err
 	})
@@ -71,4 +76,18 @@ func (l *DeductRollbackLogic) DeductRollback(in *product.DeductReq) (*product.Em
 	}
 
 	return &product.Empty{}, nil
+}
+
+func deductBucketFromStockLog(tx *sql.Tx, orderId string) (int, bool) {
+	var logType string
+	err := tx.QueryRow("SELECT type FROM stock_log WHERE order_id = ? AND type LIKE 'DEDUCT_BUCKET_%' ORDER BY id DESC LIMIT 1", orderId).Scan(&logType)
+	if err != nil {
+		return 0, false
+	}
+	raw := strings.TrimPrefix(logType, "DEDUCT_BUCKET_")
+	bucketIdx, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, false
+	}
+	return bucketIdx, true
 }

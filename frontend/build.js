@@ -4,7 +4,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const webDir = resolve(__dirname, '../app/order/api/internal/handler/web');
+const webDir = resolve(__dirname, '../app/entry/api/internal/handler/web');
 
 console.log('[build] Building shop...');
 execSync('npm run build -w packages/shop', { cwd: __dirname, stdio: 'inherit' });

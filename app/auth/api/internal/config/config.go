@@ -26,4 +26,5 @@ type Config struct {
 	CodeSendIPMaxAttempts       int64
 	VerificationCodeMaxAttempts int64
 	SecurityAuditRecentLimit    int64
+	SecurityAuditRetentionLimit int64
 }

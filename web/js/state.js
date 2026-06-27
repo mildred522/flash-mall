@@ -4,6 +4,10 @@ export const state = {
   consoleCollapsed: window.matchMedia("(max-width:960px)").matches,
   timerSeconds: 8108,
   products: [],
+  cart: [],
+  checkoutItems: [],
+  addresses: [],
+  selectedAddressId: 0,
 };
 
 export const $ = (id) => document.getElementById(id);

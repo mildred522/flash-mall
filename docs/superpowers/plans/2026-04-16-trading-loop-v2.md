@@ -4,7 +4,7 @@
 
 **Goal:** Build a business-grade transaction loop for `flash-mall` covering product pricing display, order-time price snapshot, stock reservation, payment success callback, timeout close, and stock release.
 
-**Architecture:** Keep `order-api` as the browser-facing BFF and storefront surface. Put transaction truth in `order-rpc`, extend `product-rpc` with product card and stock summary reads, and reuse the existing DTM SAGA plus outbox path for consistency-critical state changes. Keep supply-side work narrow: only enough schema and query support to explain replenishment and supplier relation later.
+**Architecture:** Keep `entry-api` as the browser-facing BFF and storefront surface. Put transaction truth in `order-rpc`, extend `product-rpc` with product card and stock summary reads, and reuse the existing DTM SAGA plus outbox path for consistency-critical state changes. Keep supply-side work narrow: only enough schema and query support to explain replenishment and supplier relation later.
 
 **Tech Stack:** Go, go-zero, MySQL, Redis, DTM SAGA, RabbitMQ outbox, server-rendered HTML, generated gRPC stubs
 
@@ -20,12 +20,12 @@
 - Create: `app/product/rpc/internal/logic/getproductcardlogic.go`
 - Create: `app/product/rpc/internal/logic/getproductcardlogic_test.go`
 - Modify: `app/product/rpc/internal/server/productserver.go`
-- Modify: `app/order/api/internal/types/types.go`
-- Modify: `app/order/api/internal/svc/servicecontext.go`
-- Create: `app/order/api/internal/handler/cataloghandler.go`
-- Create: `app/order/api/internal/handler/cataloghandler_test.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/types/types.go`
+- Modify: `app/entry/api/internal/svc/servicecontext.go`
+- Create: `app/entry/api/internal/handler/cataloghandler.go`
+- Create: `app/entry/api/internal/handler/cataloghandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
 - Modify: `scripts/k8s/init-db.sql`
 
 ### Pricing Engine And Order Persistence
@@ -35,9 +35,9 @@
 - Modify: `app/order/rpc/order.proto`
 - Regenerate: `app/order/rpc/order/*.pb.go`
 - Regenerate: `app/order/rpc/orderclient/order.go`
-- Modify: `app/order/api/internal/types/types.go`
-- Modify: `app/order/api/internal/logic/createorderlogic.go`
-- Modify: `app/order/api/internal/logic/createorderlogic_test.go`
+- Modify: `app/entry/api/internal/types/types.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic_test.go`
 - Modify: `app/order/rpc/internal/logic/createOrderLogic.go`
 - Create: `app/order/rpc/internal/logic/createOrderLogic_test.go`
 - Modify: `app/order/rpc/internal/server/orderServer.go`
@@ -53,17 +53,17 @@
 - Create: `app/order/rpc/internal/logic/getorderdetaillogic.go`
 - Create: `app/order/rpc/internal/logic/getorderdetaillogic_test.go`
 - Modify: `app/order/rpc/internal/server/orderServer.go`
-- Create: `app/order/api/internal/handler/payorderhandler.go`
-- Create: `app/order/api/internal/handler/payorderhandler_test.go`
-- Create: `app/order/api/internal/handler/orderdetailhandler.go`
-- Create: `app/order/api/internal/handler/orderdetailhandler_test.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Create: `app/entry/api/internal/handler/payorderhandler.go`
+- Create: `app/entry/api/internal/handler/payorderhandler_test.go`
+- Create: `app/entry/api/internal/handler/orderdetailhandler.go`
+- Create: `app/entry/api/internal/handler/orderdetailhandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
 
 ### Timeout Close And Compensation Hardening
 
-- Modify: `app/order/api/job/closeorder.go`
-- Create: `app/order/api/job/closeorder_test.go`
+- Modify: `app/entry/api/job/closeorder.go`
+- Create: `app/entry/api/job/closeorder_test.go`
 - Modify: `app/product/rpc/internal/logic/revertstocklogic.go`
 - Create: `app/product/rpc/internal/logic/revertstocklogic_test.go`
 - Modify: `app/order/rpc/internal/job/outbox_publisher.go`
@@ -82,11 +82,11 @@
 - Create: `app/product/rpc/internal/logic/getproductcardlogic.go`
 - Create: `app/product/rpc/internal/logic/getproductcardlogic_test.go`
 - Modify: `app/product/rpc/internal/server/productserver.go`
-- Modify: `app/order/api/internal/types/types.go`
-- Create: `app/order/api/internal/handler/cataloghandler.go`
-- Create: `app/order/api/internal/handler/cataloghandler_test.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/types/types.go`
+- Create: `app/entry/api/internal/handler/cataloghandler.go`
+- Create: `app/entry/api/internal/handler/cataloghandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
 - Modify: `scripts/k8s/init-db.sql`
 
 - [ ] **Step 1: Write the failing product-card read test**
@@ -229,7 +229,7 @@ GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`
 }
 ```
 
-- [ ] **Step 6: Expose catalog data through order-api and storefront**
+- [ ] **Step 6: Expose catalog data through entry-api and storefront**
 
 ```go
 type ProductCard struct {
@@ -266,14 +266,14 @@ func CatalogHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 
 - [ ] **Step 7: Run the narrow verification**
 
-Run: `go test ./app/product/rpc/internal/logic ./app/order/api/internal/handler -run "GetProductCard|CatalogHandler" -count=1`
+Run: `go test ./app/product/rpc/internal/logic ./app/entry/api/internal/handler -run "GetProductCard|CatalogHandler" -count=1`
 
 Expected: PASS
 
 - [ ] **Step 8: Commit the read-path slice**
 
 ```powershell
-git add app/product/rpc/product.proto app/product/rpc/internal/logic/getproductcardlogic.go app/product/rpc/internal/logic/getproductcardlogic_test.go app/product/rpc/internal/server/productserver.go app/order/api/internal/handler/cataloghandler.go app/order/api/internal/handler/cataloghandler_test.go app/order/api/internal/handler/routes.go app/order/api/internal/handler/web/shop.html scripts/k8s/init-db.sql
+git add app/product/rpc/product.proto app/product/rpc/internal/logic/getproductcardlogic.go app/product/rpc/internal/logic/getproductcardlogic_test.go app/product/rpc/internal/server/productserver.go app/entry/api/internal/handler/cataloghandler.go app/entry/api/internal/handler/cataloghandler_test.go app/entry/api/internal/handler/routes.go app/entry/api/internal/handler/web/shop.html scripts/k8s/init-db.sql
 git commit -m "feat: add product card pricing read path"
 ```
 
@@ -285,9 +285,9 @@ git commit -m "feat: add product card pricing read path"
 - Modify: `app/order/rpc/order.proto`
 - Regenerate: `app/order/rpc/order/*.pb.go`
 - Regenerate: `app/order/rpc/orderclient/order.go`
-- Modify: `app/order/api/internal/types/types.go`
-- Modify: `app/order/api/internal/logic/createorderlogic.go`
-- Modify: `app/order/api/internal/logic/createorderlogic_test.go`
+- Modify: `app/entry/api/internal/types/types.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic_test.go`
 - Modify: `app/order/rpc/internal/logic/createOrderLogic.go`
 - Create: `app/order/rpc/internal/logic/createOrderLogic_test.go`
 - Modify: `app/order/rpc/internal/server/orderServer.go`
@@ -418,14 +418,14 @@ VALUES (?, ?, ?, ?, 0, 'mock', ?)`,
 
 - [ ] **Step 6: Verify create-order returns snapshot-backed payment info**
 
-Run: `go test ./app/order/rpc/internal/pricing ./app/order/rpc/internal/logic ./app/order/api/internal/logic -run "Quote|CreateOrder" -count=1`
+Run: `go test ./app/order/rpc/internal/pricing ./app/order/rpc/internal/logic ./app/entry/api/internal/logic -run "Quote|CreateOrder" -count=1`
 
 Expected: PASS
 
 - [ ] **Step 7: Commit the persistence slice**
 
 ```powershell
-git add app/order/rpc/internal/pricing app/order/rpc/order.proto app/order/api/internal/types/types.go app/order/api/internal/logic/createorderlogic.go app/order/api/internal/logic/createorderlogic_test.go app/order/rpc/internal/logic/createOrderLogic.go app/order/rpc/internal/logic/createOrderLogic_test.go app/order/rpc/internal/server/orderServer.go scripts/k8s/init-db.sql
+git add app/order/rpc/internal/pricing app/order/rpc/order.proto app/entry/api/internal/types/types.go app/entry/api/internal/logic/createorderlogic.go app/entry/api/internal/logic/createorderlogic_test.go app/order/rpc/internal/logic/createOrderLogic.go app/order/rpc/internal/logic/createOrderLogic_test.go app/order/rpc/internal/server/orderServer.go scripts/k8s/init-db.sql
 git commit -m "feat: persist pricing snapshot and payment order"
 ```
 
@@ -440,12 +440,12 @@ git commit -m "feat: persist pricing snapshot and payment order"
 - Create: `app/order/rpc/internal/logic/getorderdetaillogic.go`
 - Create: `app/order/rpc/internal/logic/getorderdetaillogic_test.go`
 - Modify: `app/order/rpc/internal/server/orderServer.go`
-- Create: `app/order/api/internal/handler/payorderhandler.go`
-- Create: `app/order/api/internal/handler/payorderhandler_test.go`
-- Create: `app/order/api/internal/handler/orderdetailhandler.go`
-- Create: `app/order/api/internal/handler/orderdetailhandler_test.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Create: `app/entry/api/internal/handler/payorderhandler.go`
+- Create: `app/entry/api/internal/handler/payorderhandler_test.go`
+- Create: `app/entry/api/internal/handler/orderdetailhandler.go`
+- Create: `app/entry/api/internal/handler/orderdetailhandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
 
 - [ ] **Step 1: Write the failing payment callback idempotency test**
 
@@ -532,7 +532,7 @@ if err := tx.QueryRow("SELECT status FROM orders WHERE id = ?", in.OrderId).Scan
 return &order.MarkOrderPaidResp{Updated: false, OrderStatus: strconv.FormatInt(currentStatus, 10)}, nil
 ```
 
-- [ ] **Step 4: Expose payment and order detail through order-api**
+- [ ] **Step 4: Expose payment and order detail through entry-api**
 
 ```go
 func PayOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
@@ -574,22 +574,22 @@ async function payLatestOrder(orderId, paymentOrderId, outTradeNo){
 
 - [ ] **Step 6: Run the narrow verification**
 
-Run: `go test ./app/order/rpc/internal/logic ./app/order/api/internal/handler -run "MarkOrderPaid|GetOrderDetail|PayOrderHandler|OrderDetailHandler" -count=1`
+Run: `go test ./app/order/rpc/internal/logic ./app/entry/api/internal/handler -run "MarkOrderPaid|GetOrderDetail|PayOrderHandler|OrderDetailHandler" -count=1`
 
 Expected: PASS
 
 - [ ] **Step 7: Commit the payment slice**
 
 ```powershell
-git add app/order/rpc/order.proto app/order/rpc/internal/logic/markorderpaidlogic.go app/order/rpc/internal/logic/markorderpaidlogic_test.go app/order/rpc/internal/logic/getorderdetaillogic.go app/order/rpc/internal/logic/getorderdetaillogic_test.go app/order/rpc/internal/server/orderServer.go app/order/api/internal/handler/payorderhandler.go app/order/api/internal/handler/payorderhandler_test.go app/order/api/internal/handler/orderdetailhandler.go app/order/api/internal/handler/orderdetailhandler_test.go app/order/api/internal/handler/routes.go app/order/api/internal/handler/web/shop.html
+git add app/order/rpc/order.proto app/order/rpc/internal/logic/markorderpaidlogic.go app/order/rpc/internal/logic/markorderpaidlogic_test.go app/order/rpc/internal/logic/getorderdetaillogic.go app/order/rpc/internal/logic/getorderdetaillogic_test.go app/order/rpc/internal/server/orderServer.go app/entry/api/internal/handler/payorderhandler.go app/entry/api/internal/handler/payorderhandler_test.go app/entry/api/internal/handler/orderdetailhandler.go app/entry/api/internal/handler/orderdetailhandler_test.go app/entry/api/internal/handler/routes.go app/entry/api/internal/handler/web/shop.html
 git commit -m "feat: add payment callback and order detail flow"
 ```
 
 ### Task 4: Harden Timeout Close, Stock Release, And Pay-Close Race
 
 **Files:**
-- Modify: `app/order/api/job/closeorder.go`
-- Create: `app/order/api/job/closeorder_test.go`
+- Modify: `app/entry/api/job/closeorder.go`
+- Create: `app/entry/api/job/closeorder_test.go`
 - Modify: `app/product/rpc/internal/logic/revertstocklogic.go`
 - Create: `app/product/rpc/internal/logic/revertstocklogic_test.go`
 - Modify: `app/order/rpc/internal/job/outbox_publisher.go`
@@ -663,21 +663,21 @@ WHERE order_id = ? AND status = 0`, orderId)
 
 - [ ] **Step 5: Emit close event through outbox and verify compensation tests**
 
-Run: `go test ./app/order/api/job ./app/product/rpc/internal/logic -run "CloseOrder|RevertStock" -count=1`
+Run: `go test ./app/entry/api/job ./app/product/rpc/internal/logic -run "CloseOrder|RevertStock" -count=1`
 
 Expected: PASS
 
 - [ ] **Step 6: Commit the compensation slice**
 
 ```powershell
-git add app/order/api/job/closeorder.go app/order/api/job/closeorder_test.go app/product/rpc/internal/logic/revertstocklogic.go app/product/rpc/internal/logic/revertstocklogic_test.go app/order/rpc/internal/job/outbox_publisher.go scripts/k8s/init-db.sql
+git add app/entry/api/job/closeorder.go app/entry/api/job/closeorder_test.go app/product/rpc/internal/logic/revertstocklogic.go app/product/rpc/internal/logic/revertstocklogic_test.go app/order/rpc/internal/job/outbox_publisher.go scripts/k8s/init-db.sql
 git commit -m "feat: harden timeout close and stock release"
 ```
 
 ### Task 5: Demo Surface, Local Verification, And Documentation
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
 - Create: `docs/TRADING_LOOP_V2_20260416.md`
 
 - [ ] **Step 1: Add storefront anchors for transaction demo**
@@ -703,7 +703,7 @@ git commit -m "feat: harden timeout close and stock release"
 
 - [ ] **Step 3: Run package verification**
 
-Run: `go test ./app/product/rpc/... ./app/order/rpc/... ./app/order/api/... -count=1`
+Run: `go test ./app/product/rpc/... ./app/order/rpc/... ./app/entry/api/... -count=1`
 
 Expected: PASS
 
@@ -714,7 +714,7 @@ Run: `powershell -ExecutionPolicy Bypass -File scripts/local/start-all.ps1`
 Expected:
 - `product-rpc` listens on `8080`
 - `order-rpc` listens on `8090`
-- `order-api` listens on `8888`
+- `entry-api` listens on `8888`
 
 Run:
 
@@ -736,7 +736,7 @@ Expected: no leftover listeners on `8888`, `8890`, `8080`, `8090`
 Run:
 
 ```powershell
-git add app/order/api/internal/handler/web/shop.html docs/TRADING_LOOP_V2_20260416.md
+git add app/entry/api/internal/handler/web/shop.html docs/TRADING_LOOP_V2_20260416.md
 git commit -m "docs: add trading loop v2 demo guide"
 ```
 
@@ -751,4 +751,4 @@ git commit -m "docs: add trading loop v2 demo guide"
 - timeout close only closes unpaid orders
 - stock reservation is released on timeout close
 - pay-close race ends with one stable final state
-- `go test ./app/product/rpc/... ./app/order/rpc/... ./app/order/api/... -count=1` passes
+- `go test ./app/product/rpc/... ./app/order/rpc/... ./app/entry/api/... -count=1` passes

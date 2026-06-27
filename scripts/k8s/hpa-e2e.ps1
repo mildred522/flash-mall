@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$Namespace = "flash-mall",
   [string]$Url = "http://localhost:8888/api/order/create",
   [int]$Concurrency = 20,
@@ -13,7 +13,7 @@
 $ErrorActionPreference = "Stop"
 
 # CHG 2026-02-26: 变更=新增 HPA 端到端演练脚本; 之前=手动端口转发与监控; 原因=一键验证扩缩容。
-$pf = Start-Job -ArgumentList $Namespace, "svc/order-api", 8888, 8888 -ScriptBlock {
+$pf = Start-Job -ArgumentList $Namespace, "svc/entry-api", 8888, 8888 -ScriptBlock {
   param($ns, $target, $local, $remote)
   kubectl -n $ns port-forward $target "$local`:$remote"
 }
@@ -26,7 +26,7 @@ $watch = Start-Job -ArgumentList $Namespace, $DurationSeconds, $ObserveIntervalS
   while ((Get-Date) -lt $end) {
     Write-Output "`n--- HPA snapshot $(Get-Date -Format HH:mm:ss) ---"
     kubectl -n $ns get hpa | Out-String | Write-Output
-    kubectl -n $ns get deploy order-api | Out-String | Write-Output
+    kubectl -n $ns get deploy entry-api | Out-String | Write-Output
     Start-Sleep -Seconds $interval
   }
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
 
@@ -46,8 +47,8 @@ func (l *CreateOrderRollbackLogic) CreateOrderRollback(in *order.CreateOrderReq)
 	// CHG 2026-01-31: 变更=回滚仅更新待支付订单为关闭; 之前=无回滚分支; 原因=确保失败时状态可追溯且幂等。
 	err = barrier.CallWithDB(db, func(tx *sql.Tx) error {
 		_, execErr := tx.Exec(
-			"UPDATE orders SET status = 2 WHERE id = ? AND status = 0",
-			in.OrderId,
+			"UPDATE orders SET status = ? WHERE id = ? AND status = ?",
+			orderstatus.Closed, in.OrderId, orderstatus.PendingPayment,
 		)
 		return execErr
 	})

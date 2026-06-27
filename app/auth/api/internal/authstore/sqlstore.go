@@ -19,6 +19,8 @@ const (
 	statusActive  = 1
 	statusUsed    = 2
 	statusRevoked = 3
+
+	userStatusDisabled = 2
 )
 
 type SQLStore struct {
@@ -71,7 +73,7 @@ func (s *SQLStore) ensureDemoUser() error {
 			s.demoErr = err
 			return
 		}
-		defer tx.Rollback()
+		defer func() { _ = tx.Rollback() }()
 
 		if _, err = tx.ExecContext(ctx,
 			"INSERT IGNORE INTO users (id, display_name, status, session_version) VALUES (?, ?, ?, ?)",
@@ -94,11 +96,38 @@ func (s *SQLStore) ensureDemoUser() error {
 			s.demoErr = err
 			return
 		}
+		adminHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+		if err != nil {
+			s.demoErr = err
+			return
+		}
+		if _, err = tx.ExecContext(ctx,
+			"INSERT IGNORE INTO users (id, display_name, role, status, session_version) VALUES (?, ?, ?, ?, ?)",
+			int64(1002), "Flash Mall Admin", "admin", statusActive, int64(1),
+		); err != nil {
+			s.demoErr = err
+			return
+		}
+		if _, err = tx.ExecContext(ctx,
+			"INSERT IGNORE INTO user_identities (user_id, identity_type, identity_value, is_verified, verified_at) VALUES (?, 'phone', ?, 1, NOW())",
+			int64(1002), "13800000002",
+		); err != nil {
+			s.demoErr = err
+			return
+		}
+		if _, err = tx.ExecContext(ctx,
+			"INSERT IGNORE INTO user_credentials (user_id, credential_type, password_hash, hash_algo, password_updated_at) VALUES (?, 'password', ?, 'bcrypt', NOW())",
+			int64(1002), string(adminHash),
+		); err != nil {
+			s.demoErr = err
+			return
+		}
 		if err = tx.Commit(); err != nil {
 			s.demoErr = err
 			return
 		}
 		s.syncUserVersion(context.Background(), 1001, 1)
+		s.syncUserVersion(context.Background(), 1002, 1)
 	})
 
 	return s.demoErr

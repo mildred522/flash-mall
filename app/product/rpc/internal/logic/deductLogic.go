@@ -3,6 +3,8 @@ package logic
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"strconv"
 
 	"flash-mall/app/product/rpc/internal/svc"
@@ -69,35 +71,55 @@ func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
 		)
 
 		// CHG 2026-02-24: 变更=扣减落到分桶表; 之前=单行 product 表扣减; 原因=降低热点行冲突。
-		res, err := tx.Exec(
+		actualBucketIdx, err := lockDeductibleStockBucket(tx, in.Id, in.Num, bucketIdx)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.Exec(
 			"UPDATE product_stock_bucket SET stock = stock - ?, version = version + 1 WHERE product_id = ? AND bucket_idx = ? AND stock >= ?",
-			in.Num, in.Id, bucketIdx, in.Num,
-		)
-		if err != nil {
+			in.Num, in.Id, actualBucketIdx, in.Num,
+		); err != nil {
 			return err
 		}
-		affected, err := res.RowsAffected()
-		if err != nil {
-			return err
-		}
-		if affected > 0 {
-			return nil
-		}
-
-		// 0 行受影响：可能是分桶不存在或库存不足
-		var exists int
-		err = tx.QueryRow("SELECT 1 FROM product_stock_bucket WHERE product_id = ? AND bucket_idx = ?", in.Id, bucketIdx).Scan(&exists)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return status.Error(codes.NotFound, "库存分桶不存在")
-			}
-			return err
-		}
-		return status.Error(codes.Aborted, "库存不足")
+		_, err = tx.Exec("INSERT IGNORE INTO stock_log (order_id, type) VALUES (?, ?)", orderId, stockDeductBucketLogType(actualBucketIdx))
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &product.Empty{}, nil
+}
+
+func lockDeductibleStockBucket(tx *sql.Tx, productID int64, amount int64, preferredBucketIdx int) (int, error) {
+	var bucketIdx int
+	err := tx.QueryRow(
+		`SELECT bucket_idx
+		 FROM product_stock_bucket
+		 WHERE product_id = ? AND stock >= ?
+		 ORDER BY CASE WHEN bucket_idx = ? THEN 0 ELSE 1 END, bucket_idx
+		 LIMIT 1
+		 FOR UPDATE`,
+		productID, amount, preferredBucketIdx,
+	).Scan(&bucketIdx)
+	if err == nil {
+		return bucketIdx, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+
+	var exists int
+	err = tx.QueryRow("SELECT 1 FROM product_stock_bucket WHERE product_id = ? LIMIT 1", productID).Scan(&exists)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, status.Error(codes.NotFound, "库存分桶不存在")
+		}
+		return 0, err
+	}
+	return 0, status.Error(codes.Aborted, "库存不足")
+}
+
+func stockDeductBucketLogType(bucketIdx int) string {
+	return fmt.Sprintf("DEDUCT_BUCKET_%d", bucketIdx)
 }

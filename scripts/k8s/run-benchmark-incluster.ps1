@@ -1,4 +1,4 @@
-﻿param(
+param(
   [string]$Namespace = "flash-mall",
   [string]$Scenario = "seckill",
   [int]$Concurrency = 20,
@@ -6,7 +6,7 @@
   [int]$WarmupSeconds = 30,
   [int]$TargetRps = 0,
   [int]$TimeoutMs = 5000,
-  [string]$ServiceUrl = "http://order-api.flash-mall.svc.cluster.local:8888/api/order/create",
+  [string]$ServiceUrl = "http://entry-api.flash-mall.svc.cluster.local:8888/api/order/create",
   [string]$ReportPath = "bench_report.json",
   [int64]$ProductId = 100,
   [int64]$Amount = 1,

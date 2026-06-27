@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { build } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const outDir = resolve(__dirname, "../app/order/api/internal/handler/web");
+const outDir = resolve(__dirname, "../app/entry/api/internal/handler/web");
 
 const pages = [
   { html: "index.html", css: ["styles/variables.css", "styles/index.css"], js: "js/index.js", out: "home.html" },

@@ -42,7 +42,7 @@ Supply-chain concepts only enter as minimal support for replenishment and produc
 
 ## Service Responsibility
 
-- `order-api`: BFF and storefront entry only
+- `entry-api`: BFF and storefront entry only
 - `order-rpc`: transaction orchestration, order state machine, payment order, price snapshot, timeout close
 - `product-rpc`: product base info, promotion-facing product fields, stock reservation and release
 - `auth-service`: identity, session, and account security only

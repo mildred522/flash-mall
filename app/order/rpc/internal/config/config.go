@@ -11,8 +11,8 @@ type Config struct {
 	zrpc.RpcServerConf
 	DataSource     string
 	RedisConf      redis.RedisConf
-	ProductRpcConf zrpc.RpcClientConf `json:",optional"`
-	Observability  commonobs.Config   `json:",optional"`
+	ProductRpcConf zrpc.RpcClientConf `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	Observability  commonobs.Config   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 
 	PprofAddr   string
 	MetricsAddr string

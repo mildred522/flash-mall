@@ -1,16 +1,16 @@
-﻿apiVersion: v1
+apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: order-api-config
+  name: entry-api-config
   namespace: flash-mall
   labels:
-    app.kubernetes.io/name: order-api
+    app.kubernetes.io/name: entry-api
     app.kubernetes.io/part-of: flash-mall
-# CHG 2026-02-24: 变更=新增 order-api 的 K8s ConfigMap; 之前=配置散落在本地; 原因=容器化统一管理。
+# CHG 2026-02-24: 变更=新增 entry-api 的 K8s ConfigMap; 之前=配置散落在本地; 原因=容器化统一管理。
 
 data:
-  order-api.yaml: |
-    Name: order-api
+  entry-api.yaml: |
+    Name: entry-api
     Host: 0.0.0.0
     Port: 8888
 
@@ -32,11 +32,11 @@ data:
     OrderIdNode: -1
 
     # CHG 2026-02-28: 变更=新增 RabbitMQ 消费配置; 之前=仅 Redis 延迟队列; 原因=展示事件驱动增量架构。
-    RabbitMQURL: amqp://flashmall:flashmall123@rabbitmq:5672/
+    RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
     RabbitMQExchange: order.events
     RabbitMQQueue: order.events.created.q
     RabbitMQRouteKey: order.created
-    RabbitMQConsumerTag: order-api-consumer
+    RabbitMQConsumerTag: entry-api-consumer
     RabbitMQPrefetch: 20
     OrderEventConsumerEnabled: true
     EventDedupTTLSeconds: 86400
@@ -58,21 +58,66 @@ data:
       Host: redis:6379
       Type: node
 
-    DataSource: root:flashmall@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+    DataSource: ${FLASH_MALL_ORDER_DATASOURCE}
     CacheConf:
       - Host: redis:6379
         Type: node
 
     PprofAddr: 0.0.0.0:6060
     MetricsAddr: 0.0.0.0:9090
+    JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
+    JwtExpireSeconds: 7200
+    AuthServiceBaseURL: http://auth-api:8890
+    PaymentCallbackSecret: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET}
+    PaymentCallbackMaxSkewSeconds: 300
+    UploadDir: /data/flash-mall/uploads
 
     Observability:
       Tracing:
         Enabled: false
-        ServiceName: order-api
+        ServiceName: entry-api
         Exporter: stdout
         Endpoint: http://jaeger:4318/v1/traces
         SampleRatio: 1.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: auth-api-config
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: auth-api
+    app.kubernetes.io/part-of: flash-mall
+data:
+  auth-api.yaml: |
+    Name: auth-api
+    Host: 0.0.0.0
+    Port: 8890
+    Timeout: 2000
+
+    JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
+    JwtExpireSeconds: 7200
+    DemoPassword: ${FLASH_MALL_DEMO_PASSWORD}
+    DataSource: ${FLASH_MALL_AUTH_DATASOURCE}
+
+    RedisConf:
+      Host: redis:6379
+      Type: node
+
+    RefreshTokenTTLSeconds: 604800
+    CodeTTLSeconds: 300
+    RefreshCookieName: fm_refresh_token
+    LoginFailWindowSeconds: 900
+    LoginFailPhoneMaxAttempts: 5
+    LoginFailIPMaxAttempts: 20
+    CodeSendCooldownSeconds: 60
+    CodeSendPhoneWindowSeconds: 600
+    CodeSendPhoneMaxAttempts: 3
+    CodeSendIPWindowSeconds: 600
+    CodeSendIPMaxAttempts: 10
+    VerificationCodeMaxAttempts: 5
+    SecurityAuditRecentLimit: 10
+    SecurityAuditRetentionLimit: 200
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -89,7 +134,7 @@ data:
     Name: order.rpc
     ListenOn: 0.0.0.0:8090
 
-    DataSource: root:flashmall@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+    DataSource: ${FLASH_MALL_ORDER_DATASOURCE}
 
     RedisConf:
       Host: redis:6379
@@ -99,6 +144,13 @@ data:
       Hosts:
         - etcd:2379
       Key: order.rpc
+
+    ProductRpcConf:
+      Etcd:
+        Hosts:
+          - etcd:2379
+        Key: product.rpc
+      Timeout: 2000
 
     PprofAddr: 0.0.0.0:6061
     MetricsAddr: 0.0.0.0:9091
@@ -113,7 +165,7 @@ data:
 
     # Required configs (avoid startup failure)
     StockShardCount: 4
-    RabbitMQURL: amqp://flashmall:flashmall123@rabbitmq:5672/
+    RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
     RabbitMQExchange: order.events
     RabbitMQRouteKey: order.created
     OutboxBatchSize: 20
@@ -140,7 +192,7 @@ data:
     Name: product.rpc
     ListenOn: 0.0.0.0:8080
 
-    DataSource: root:flashmall@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Local
+    DataSource: ${FLASH_MALL_PRODUCT_DATASOURCE}
 
     # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
     StockBucketCount: 4

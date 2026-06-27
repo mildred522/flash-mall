@@ -1,0 +1,88 @@
+Name: entry-api
+Host: 0.0.0.0
+Port: 8888
+Timeout: 8000
+MaxConns: 8000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Log: true
+  Prometheus: true
+  Breaker: true
+  Shedding: true
+  Timeout: true
+  Metrics: true
+  Recover: true
+
+ProductRpcConf:
+  Endpoints:
+    - product-rpc:8080
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
+  Timeout: 8000
+
+OrderRpcConf:
+  Endpoints:
+    - order-rpc:8090
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: order.rpc
+  Timeout: 8000
+
+RedisConf:
+  Host: redis:6379
+  Type: node
+
+DataSource: ${FLASH_MALL_ORDER_DATASOURCE}
+CacheConf:
+  - Host: redis:6379
+    Type: node
+
+PprofAddr: 0.0.0.0:6060
+MetricsAddr: 0.0.0.0:9090
+
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: entry-api
+    Exporter: otlphttp
+    Endpoint: http://jaeger:4318/v1/traces
+    SampleRatio: 1
+
+DtmServer: dtm:36790
+ProductRpcTarget: product-rpc:8080
+OrderTimeoutSeconds: 60
+OrderRpcTarget: order-rpc:8090
+RequestIdTTLSeconds: 86400
+DtmTimeoutToFailSeconds: 120
+DtmRequestTimeoutSeconds: 6
+DtmWaitResult: false
+
+OrderRateLimitQps: 200
+OrderRateLimitBurst: 400
+OrderIdNode: -1
+
+RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
+RabbitMQExchange: order.events
+RabbitMQQueue: order.events.created.q
+RabbitMQRouteKey: order.created
+RabbitMQConsumerTag: entry-api-consumer
+RabbitMQPrefetch: 20
+OrderEventConsumerEnabled: true
+EventDedupTTLSeconds: 86400
+
+JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
+JwtExpireSeconds: 7200
+AuthServiceBaseURL: http://auth-api:8890
+PaymentCallbackSecret: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET}
+PaymentCallbackMaxSkewSeconds: 300
+
+CatalogProductIDs:
+  - 100
+  - 101
+  - 102
+  - 103
+  - 104

@@ -20,7 +20,7 @@ $services = @(
   @{ Name = "auth-api";    Package = "./app/auth/api";    Exe = "auth-api.exe";    Ports = @(8890) },
   @{ Name = "product-rpc"; Package = "./app/product/rpc"; Exe = "product-rpc.exe"; Ports = @(8080) },
   @{ Name = "order-rpc";   Package = "./app/order/rpc";   Exe = "order-rpc.exe";   Ports = @(8090) },
-  @{ Name = "order-api";   Package = "./app/order/api";   Exe = "order-api.exe";   Ports = @(8888, 6060, 9090) }
+  @{ Name = "entry-api";   Package = "./app/entry/api";   Exe = "entry-api.exe";   Ports = @(8888, 6060, 9090) }
 )
 
 function Test-IsAdministrator {

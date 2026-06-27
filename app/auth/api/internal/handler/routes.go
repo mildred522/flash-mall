@@ -80,6 +80,26 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 				Path:    "/api/admin/users",
 				Handler: AdminUserListHandler(serverCtx),
 			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/admin/users/detail",
+				Handler: AdminUserDetailHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/admin/users/status",
+				Handler: AdminUserStatusHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/api/admin/security/events/recent",
+				Handler: AdminSecurityEventsRecentHandler(serverCtx),
+			},
+			{
+				Method:  http.MethodPost,
+				Path:    "/api/admin/security/events/record",
+				Handler: AdminSecurityEventRecordHandler(serverCtx),
+			},
 		},
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)

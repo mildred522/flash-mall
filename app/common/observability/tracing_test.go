@@ -9,7 +9,7 @@ func TestTracingConfigEnabled(t *testing.T) {
 	}
 
 	cfg.Enabled = true
-	cfg.ServiceName = "order-api"
+	cfg.ServiceName = "entry-api"
 	if !cfg.IsEnabled() {
 		t.Fatal("enabled tracing config with service name should be enabled")
 	}

@@ -5,12 +5,17 @@ param(
   [switch]$SkipFrontend,
   [switch]$SkipLocalExeBuild,
   [switch]$SkipLocalExeSigning,
+  [switch]$Fast,
+  [switch]$RebuildLocalExes,
+  [switch]$StartDockerDesktop,
+  [switch]$RestartDockerDesktop,
   [switch]$TrustLocalCodeSigningCert,
   [switch]$TrustLocalCodeSigningRoot,
   [switch]$UpdateLocalFirewall,
   [switch]$PrepareOnly,
   [switch]$NoBrowser,
-  [int]$PortWaitSeconds = 90
+  [int]$PortWaitSeconds = 90,
+  [int]$DockerWaitSeconds = 120
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,6 +45,26 @@ $pidFile = Join-Path $runtimeDir "local-services.json"
 $logDir = Join-Path $repoRoot "logs\local"
 $binDir = Join-Path $runtimeDir "bin"
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
+$localExecutableNames = @("auth-api.exe", "product-rpc.exe", "order-rpc.exe", "entry-api.exe")
+
+function Set-DefaultEnv {
+  param(
+    [string]$Name,
+    [string]$Value
+  )
+
+  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($Name, "Process"))) {
+    [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+  }
+}
+
+Set-DefaultEnv -Name "FLASH_MALL_JWT_AUTH_SECRET" -Value "flash-mall-local-jwt-secret"
+Set-DefaultEnv -Name "FLASH_MALL_PAYMENT_CALLBACK_SECRET" -Value "flash-mall-local-payment-secret"
+Set-DefaultEnv -Name "FLASH_MALL_DEMO_PASSWORD" -Value "flashmall123"
+Set-DefaultEnv -Name "FLASH_MALL_RABBITMQ_URL" -Value "amqp://flashmall:flashmall-local@127.0.0.1:5672/"
+Set-DefaultEnv -Name "FLASH_MALL_AUTH_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+Set-DefaultEnv -Name "FLASH_MALL_ORDER_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+Set-DefaultEnv -Name "FLASH_MALL_PRODUCT_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
 
 function Test-TcpPort {
   param(
@@ -110,17 +135,107 @@ function Get-ComposeCommand {
   throw "docker compose not available (need docker compose plugin or docker-compose)"
 }
 
-function Ensure-DockerDaemon {
-  $oldPref = $ErrorActionPreference
+function Test-DockerDaemon {
+  param([int]$TimeoutSeconds = 5)
+
+  $docker = Get-Command docker -ErrorAction SilentlyContinue
+  if (-not $docker) {
+    return $false
+  }
+
+  $process = $null
   try {
-    $ErrorActionPreference = "Continue"
-    & docker info *> $null
-  } finally {
-    $ErrorActionPreference = $oldPref
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $docker.Source
+    $startInfo.Arguments = "info"
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $process = [System.Diagnostics.Process]::Start($startInfo)
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+      $process.Kill()
+      return $false
+    }
+    return ($process.ExitCode -eq 0)
+  } catch {
+    if ($process -and -not $process.HasExited) {
+      $process.Kill()
+    }
+    return $false
   }
-  if ($LASTEXITCODE -ne 0) {
-    throw "docker daemon is not running. Please start Docker Desktop first."
+}
+
+function Start-DockerDesktopAndWait {
+  param([int]$TimeoutSeconds = 120)
+
+  $dockerDesktopPath = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+  if (-not (Test-Path $dockerDesktopPath)) {
+    throw "Docker Desktop not found at $dockerDesktopPath"
   }
+
+  Write-Host "[STEP] starting Docker Desktop"
+  Start-Process -FilePath $dockerDesktopPath -WindowStyle Hidden | Out-Null
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-DockerDaemon) {
+      Write-Host "[OK] docker daemon is ready"
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  throw "docker daemon is not ready within ${TimeoutSeconds}s after starting Docker Desktop"
+}
+
+function Stop-DockerDesktopAndWait {
+  param([int]$TimeoutSeconds = 45)
+
+  $dockerCliPath = Join-Path $env:ProgramFiles "Docker\Docker\DockerCli.exe"
+  if (-not (Test-Path $dockerCliPath)) {
+    throw "DockerCli.exe not found at $dockerCliPath"
+  }
+
+  Write-Host "[STEP] shutting down Docker Desktop"
+  $shutdown = Start-Process -FilePath $dockerCliPath -ArgumentList "-Shutdown" -WindowStyle Hidden -PassThru
+  if (-not $shutdown.WaitForExit($TimeoutSeconds * 1000)) {
+    $shutdown.Kill()
+    throw "Docker Desktop shutdown command did not finish within ${TimeoutSeconds}s"
+  }
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    $running = Get-Process "Docker Desktop", "com.docker.backend" -ErrorAction SilentlyContinue
+    if (-not $running) {
+      Write-Host "[OK] Docker Desktop stopped"
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  Write-Warning "Docker Desktop processes are still visible after shutdown request; continuing with startup."
+}
+
+function Ensure-DockerDaemon {
+  if (Test-DockerDaemon) {
+    return
+  }
+
+  if ($StartDockerDesktop) {
+    if ($RestartDockerDesktop) {
+      Stop-DockerDesktopAndWait
+    } else {
+      $running = Get-Process "Docker Desktop", "com.docker.backend" -ErrorAction SilentlyContinue
+      if ($running) {
+        Write-Warning "Docker Desktop is running but docker daemon is not responding. If startup still fails, rerun with -RestartDockerDesktop."
+      }
+    }
+    Start-DockerDesktopAndWait -TimeoutSeconds $DockerWaitSeconds
+    return
+  }
+
+  throw "docker daemon is not running. Start Docker Desktop first, or rerun with -StartDockerDesktop."
 }
 
 function Wait-MySQLReady {
@@ -182,10 +297,37 @@ function Stop-StaleServices {
   }
 }
 
+function Test-LocalExecutablesReady {
+  foreach ($exeName in $localExecutableNames) {
+    $exePath = Join-Path $binDir $exeName
+    if (-not (Test-Path $exePath)) {
+      return $false
+    }
+
+    if (-not $SkipLocalExeSigning) {
+      $signature = Get-AuthenticodeSignature -FilePath $exePath
+      if ($signature.Status -notin @("Valid", "UnknownError")) {
+        return $false
+      }
+    }
+  }
+
+  return $true
+}
+
 function Ensure-LocalExecutables {
   if ($SkipLocalExeBuild) {
     Write-Host "[SKIP] local executable build"
     return
+  }
+
+  if ((-not $RebuildLocalExes) -and (Test-LocalExecutablesReady)) {
+    Write-Host "[SKIP] stable local executables already prepared"
+    return
+  }
+
+  if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
+    throw "go not found in PATH"
   }
 
   $prepareScript = Join-Path $repoRoot "scripts\local\prepare-local-exes.ps1"
@@ -247,13 +389,17 @@ function Start-GoService {
   }
 }
 
-if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
-  throw "go not found in PATH"
-}
-
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 Set-Location $repoRoot
+
+if ($Fast) {
+  $SkipDbInit = $true
+  $SkipSeedStock = $true
+  $SkipFrontend = $true
+  $NoBrowser = $true
+  Write-Host "[MODE] fast startup: skip db init, redis seed, frontend build, and browser open"
+}
 
 # Kill any leftover service processes from previous runs
 $ErrorActionPreference = "Continue"
@@ -263,7 +409,7 @@ $ErrorActionPreference = "Continue"
 & taskkill /IM product-rpc.exe /F 2>&1 | Out-Null
 & taskkill /IM order.exe /F 2>&1 | Out-Null
 & taskkill /IM order-rpc.exe /F 2>&1 | Out-Null
-& taskkill /IM order-api.exe /F 2>&1 | Out-Null
+& taskkill /IM entry-api.exe /F 2>&1 | Out-Null
 $ErrorActionPreference = "Stop"
 Start-Sleep -Seconds 2
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
@@ -307,7 +453,7 @@ if (-not $SkipDbInit) {
 
 if (-not $SkipSeedStock) {
   Write-Host "[STEP] seed redis stock shards"
-  Invoke-Native { go run ./app/order/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4 } "redis stock seed failed"
+  Invoke-Native { go run ./app/entry/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4 } "redis stock seed failed"
 }
 
 if (-not $SkipFrontend) {
@@ -346,9 +492,9 @@ try {
   $procs += $svc
   Wait-TcpPort -Name "order-rpc" -TargetHost "127.0.0.1" -Port 8090 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
 
-  $svc = Start-GoService -Name "order-api" -Entry "./app/order/api/order.go" -Config "./app/order/api/etc/order-api.yaml"
+  $svc = Start-GoService -Name "entry-api" -Entry "./app/entry/api/entry.go" -Config "./app/entry/api/etc/entry-api.yaml"
   $procs += $svc
-  Wait-TcpPort -Name "order-api" -TargetHost "127.0.0.1" -Port 8888 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
+  Wait-TcpPort -Name "entry-api" -TargetHost "127.0.0.1" -Port 8888 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
 
   $procs | ConvertTo-Json | Set-Content -Encoding UTF8 $pidFile
 } catch {

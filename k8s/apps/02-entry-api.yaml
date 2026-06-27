@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: entry-api
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: entry-api
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: entry-api
+  template:
+    metadata:
+      labels:
+        app: entry-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      containers:
+        - name: entry-api
+          image: flash-mall/entry-api:dev
+          imagePullPolicy: IfNotPresent
+          args: ["-f", "/etc/flash-mall/entry-api.yaml"]
+          env:
+            - name: FLASH_MALL_ORDER_DATASOURCE
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: order-datasource
+            - name: FLASH_MALL_RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: rabbitmq-url
+            - name: FLASH_MALL_JWT_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: jwt-auth-secret
+            - name: FLASH_MALL_PAYMENT_CALLBACK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: payment-callback-secret
+          ports:
+            - name: http
+              containerPort: 8888
+            - name: metrics
+              containerPort: 9090
+            - name: pprof
+              containerPort: 6060
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: entry-api-config
+              mountPath: /etc/flash-mall
+            - name: entry-api-uploads
+              mountPath: /data/flash-mall/uploads
+      volumes:
+        - name: entry-api-config
+          configMap:
+            name: entry-api-config
+        - name: entry-api-uploads
+          hostPath:
+            path: /var/lib/flash-mall/uploads
+            type: DirectoryOrCreate
+      # CHG 2026-02-26: 变更=增加跨节点反亲和; 之前=可能同节点聚集; 原因=提升故障隔离。
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: entry-api
+                topologyKey: kubernetes.io/hostname
+      # CHG 2026-02-26: 变更=增加拓扑分布约束; 之前=无节点均衡; 原因=尽量均匀分布副本。
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: entry-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: entry-api
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: entry-api
+spec:
+  selector:
+    app: entry-api
+  ports:
+    - name: http
+      port: 8888
+      targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: entry-api-hpa
+  namespace: flash-mall
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: entry-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

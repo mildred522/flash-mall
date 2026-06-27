@@ -71,10 +71,10 @@ func (c *refreshLockConn) Commit() error {
 	c.inTx = false
 	c.driver.committed = true
 	if !c.driver.querySeen {
-		c.driver.t.Fatalf("expected refresh to lock session row before updating")
+		return c.driver.failf("expected refresh to lock session row before updating")
 	}
 	if !c.driver.updateSeen {
-		c.driver.t.Fatalf("expected refresh to update the session row")
+		return c.driver.failf("expected refresh to update the session row")
 	}
 	return nil
 }
@@ -86,16 +86,19 @@ func (c *refreshLockConn) Rollback() error {
 
 func (c *refreshLockConn) QueryContext(_ context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	if !c.inTx {
-		c.driver.t.Fatalf("expected refresh query to run inside a transaction")
+		return nil, c.driver.failf("expected refresh query to run inside a transaction")
 	}
-	if !strings.Contains(query, "FROM user_sessions") || !strings.Contains(query, "WHERE id = ?") || !strings.Contains(query, "FOR UPDATE") {
-		c.driver.t.Fatalf("expected locked session-row query, got %q", query)
+	if !strings.Contains(query, "FROM user_sessions") || !strings.Contains(query, "WHERE s.id = ?") || !strings.Contains(query, "FOR UPDATE") {
+		return nil, c.driver.failf("expected locked session-row query, got %q", query)
 	}
-	if len(args) != 1 {
-		c.driver.t.Fatalf("expected one query arg, got %d", len(args))
+	if len(args) != 2 {
+		return nil, c.driver.failf("expected two query args, got %d", len(args))
 	}
 	if got := args[0].Value; got != c.driver.sessionID {
-		c.driver.t.Fatalf("expected session id %q, got %v", c.driver.sessionID, got)
+		return nil, c.driver.failf("expected session id %q, got %v", c.driver.sessionID, got)
+	}
+	if got := fmt.Sprint(args[1].Value); got != fmt.Sprint(statusActive) {
+		return nil, c.driver.failf("expected active user status predicate, got %v", args[1].Value)
 	}
 	c.driver.querySeen = true
 	return &refreshLockRows{
@@ -117,46 +120,50 @@ func (c *refreshLockConn) QueryContext(_ context.Context, query string, args []d
 
 func (c *refreshLockConn) ExecContext(_ context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	if !c.inTx {
-		c.driver.t.Fatalf("expected refresh update to run inside a transaction")
+		return nil, c.driver.failf("expected refresh update to run inside a transaction")
 	}
 	if !strings.Contains(query, "refresh_generation = ?") || !strings.Contains(query, "refresh_token_hash = ?") || !strings.Contains(query, "WHERE id = ? AND refresh_generation = ? AND refresh_token_hash = ? AND status = ?") {
-		c.driver.t.Fatalf("expected conditional refresh update, got %q", query)
+		return nil, c.driver.failf("expected conditional refresh update, got %q", query)
 	}
 	if len(args) != 8 {
-		c.driver.t.Fatalf("expected 8 exec args, got %d", len(args))
+		return nil, c.driver.failf("expected 8 exec args, got %d", len(args))
 	}
 	if got := args[0].Value; got != c.driver.currentGen+1 {
-		c.driver.t.Fatalf("expected next generation %d, got %v", c.driver.currentGen+1, got)
+		return nil, c.driver.failf("expected next generation %d, got %v", c.driver.currentGen+1, got)
 	}
 	newHash, ok := args[1].Value.(string)
 	if !ok || newHash == "" {
-		c.driver.t.Fatalf("expected new refresh hash, got %v", args[0].Value)
+		return nil, c.driver.failf("expected new refresh hash, got %v", args[0].Value)
 	}
 	if newHash == c.driver.currentHash {
-		c.driver.t.Fatalf("expected new refresh hash to differ from current hash")
+		return nil, c.driver.failf("expected new refresh hash to differ from current hash")
 	}
 	if got := args[2].Value; got != c.driver.currentHash {
-		c.driver.t.Fatalf("expected previous hash %q, got %v", c.driver.currentHash, got)
+		return nil, c.driver.failf("expected previous hash %q, got %v", c.driver.currentHash, got)
 	}
 	if got := args[3].Value; got == nil {
-		c.driver.t.Fatalf("expected expiration value")
+		return nil, c.driver.failf("expected expiration value")
 	}
 	if got := args[4].Value; got != c.driver.sessionID {
-		c.driver.t.Fatalf("expected session id %q, got %v", c.driver.sessionID, got)
+		return nil, c.driver.failf("expected session id %q, got %v", c.driver.sessionID, got)
 	}
 	if got := args[5].Value; got != c.driver.currentGen {
-		c.driver.t.Fatalf("expected refresh generation predicate %d, got %v", c.driver.currentGen, got)
+		return nil, c.driver.failf("expected refresh generation predicate %d, got %v", c.driver.currentGen, got)
 	}
 	if got := args[6].Value; got != c.driver.currentHash {
-		c.driver.t.Fatalf("expected refresh hash predicate %q, got %v", c.driver.currentHash, got)
+		return nil, c.driver.failf("expected refresh hash predicate %q, got %v", c.driver.currentHash, got)
 	}
 	if got := fmt.Sprint(args[7].Value); got != fmt.Sprint(statusActive) {
-		c.driver.t.Fatalf("expected active status predicate, got %v", args[7].Value)
+		return nil, c.driver.failf("expected active status predicate, got %v", args[7].Value)
 	}
 	c.driver.updateSeen = true
 	c.driver.currentHash = newHash
 	c.driver.currentGen++
 	return driver.RowsAffected(1), nil
+}
+
+func (d *refreshLockDriver) failf(format string, args ...any) error {
+	return fmt.Errorf(format, args...)
 }
 
 func (r *refreshLockRows) Columns() []string { return r.columns }
@@ -252,7 +259,7 @@ func TestStoreRefreshSession_ReplayedPreviousTokenRevokesSession(t *testing.T) {
 	if _, _, err := store.RefreshSession(firstRefresh, 3600); !errors.Is(err, ErrRefreshTokenReplayed) {
 		t.Fatalf("expected replayed token to revoke session, got %v", err)
 	}
-	if _, ok := store.GetActiveSession(sessionID); ok {
+	if _, err := store.GetActiveSession(sessionID); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("expected replayed session to be revoked")
 	}
 	if _, _, err := store.RefreshSession(secondRefresh, 3600); !errors.Is(err, ErrRefreshTokenInvalid) {
@@ -326,19 +333,20 @@ func TestStoreRefreshSession_OlderValidTokenAfterMultipleRotationsKillsSession(t
 
 func TestSQLStoreRefreshSession_LocksSessionRowBeforeRotating(t *testing.T) {
 	driverName := fmt.Sprintf("refresh-lock-%d", time.Now().UnixNano())
-	sql.Register(driverName, &refreshLockDriver{
+	driver := &refreshLockDriver{
 		t:            t,
 		sessionID:    "sess-123",
 		familySecret: "family-secret",
 		currentHash:  hashToken(buildRefreshToken("sess-123", 1, "family-secret")),
 		currentGen:   1,
-	})
+	}
+	sql.Register(driverName, driver)
 
 	db, err := sql.Open(driverName, "")
 	if err != nil {
 		t.Fatalf("open driver db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	store := NewSQLStore(sqlx.NewSqlConnFromDB(db), "pwd", nil)
 	store.demoOnce.Do(func() {})
@@ -352,6 +360,9 @@ func TestSQLStoreRefreshSession_LocksSessionRowBeforeRotating(t *testing.T) {
 	}
 	if tokenB == "sess-123.secret-a" {
 		t.Fatalf("expected token rotation")
+	}
+	if !driver.querySeen || !driver.updateSeen || !driver.committed {
+		t.Fatalf("expected locked query, update, and commit; query=%t update=%t commit=%t", driver.querySeen, driver.updateSeen, driver.committed)
 	}
 }
 

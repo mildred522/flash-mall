@@ -66,6 +66,9 @@ func NewServiceContextWithStore(c config.Config, store authstore.AuthStore) *Ser
 	if c.SecurityAuditRecentLimit <= 0 {
 		c.SecurityAuditRecentLimit = 10
 	}
+	if c.SecurityAuditRetentionLimit <= 0 {
+		c.SecurityAuditRetentionLimit = int64(auditRetentionLimit(c))
+	}
 	_, limiter, recorder := newFoundationDeps(c)
 
 	return newServiceContext(c, store, limiter, recorder)
@@ -81,9 +84,22 @@ func newServiceContext(c config.Config, store authstore.AuthStore, limiter risk.
 }
 
 func newFoundationDeps(c config.Config) (sessionstate.StateStore, risk.Limiter, audit.Recorder) {
+	retentionLimit := auditRetentionLimit(c)
 	if c.RedisConf.Host == "" {
-		return nil, risk.NewMemoryLimiter(), audit.NewMemoryRecorder(int(c.SecurityAuditRecentLimit))
+		return nil, risk.NewMemoryLimiter(), audit.NewMemoryRecorder(retentionLimit)
 	}
 	rds := redis.MustNewRedis(c.RedisConf)
-	return sessionstate.NewRedisStateStore(rds), risk.NewRedisLimiter(rds), audit.NewRedisRecorder(rds, int(c.SecurityAuditRecentLimit))
+	return sessionstate.NewRedisStateStore(rds), risk.NewRedisLimiter(rds), audit.NewRedisRecorder(rds, retentionLimit)
+}
+
+func auditRetentionLimit(c config.Config) int {
+	limit := int(c.SecurityAuditRetentionLimit)
+	if limit <= 0 {
+		limit = 200
+	}
+	recentLimit := int(c.SecurityAuditRecentLimit)
+	if recentLimit > limit {
+		limit = recentLimit
+	}
+	return limit
 }

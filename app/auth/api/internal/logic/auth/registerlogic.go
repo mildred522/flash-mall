@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/svc"
 	"flash-mall/app/auth/api/internal/types"
@@ -30,7 +32,14 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 		return nil, status.Error(codes.InvalidArgument, "phone, password and code are required")
 	}
 	if err := l.svcCtx.Store.ConsumeCode(req.Phone, "register", req.Code, l.svcCtx.Config.VerificationCodeMaxAttempts); err != nil {
-		if err == authstore.ErrInvalidCode {
+		if errors.Is(err, authstore.ErrInvalidCode) {
+			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+				EventType:     auditEventRegisterFail,
+				Result:        auditResultFail,
+				IdentityValue: req.Phone,
+				IP:            req.ClientIP,
+				UserAgent:     req.UserAgent,
+			})
 			return nil, status.Error(codes.InvalidArgument, "invalid verification code")
 		}
 		return nil, status.Error(codes.Internal, "verify code failed")
@@ -38,7 +47,15 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 
 	user, err := l.svcCtx.Store.CreateUser(req.Phone, req.DisplayName, req.Password)
 	if err != nil {
-		if err == authstore.ErrUserExists {
+		if errors.Is(err, authstore.ErrUserExists) {
+			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+				EventType:     auditEventRegisterFail,
+				Result:        auditResultFail,
+				UserID:        auditUserIDByPhone(l.svcCtx, req.Phone),
+				IdentityValue: req.Phone,
+				IP:            req.ClientIP,
+				UserAgent:     req.UserAgent,
+			})
 			return nil, status.Error(codes.AlreadyExists, "phone already registered")
 		}
 		return nil, status.Error(codes.Internal, "create user failed")
@@ -48,8 +65,8 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 	if err != nil {
 		return nil, status.Error(codes.Internal, "create session failed")
 	}
-	session, ok := l.svcCtx.Store.GetActiveSession(sessionID)
-	if !ok {
+	session, err := l.svcCtx.Store.GetActiveSession(sessionID)
+	if err != nil {
 		return nil, status.Error(codes.Internal, "load session failed")
 	}
 	resp, err := issueLoginResp(
@@ -66,5 +83,13 @@ func (l *RegisterLogic) Register(req *types.RegisterReq) (*types.LoginResp, erro
 	if err != nil {
 		return nil, status.Error(codes.Internal, "sign jwt failed")
 	}
+	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+		EventType:     auditEventRegisterSuccess,
+		Result:        auditResultSuccess,
+		UserID:        user.ID,
+		IdentityValue: user.Phone,
+		IP:            req.ClientIP,
+		UserAgent:     req.UserAgent,
+	})
 	return resp, nil
 }
