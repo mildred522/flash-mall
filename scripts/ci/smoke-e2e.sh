@@ -131,6 +131,17 @@ start_go_service() {
 
 cd "${REPO_ROOT}"
 
+if [[ "${CI:-}" == "true" ]]; then
+  for image in \
+    yedf/dtm \
+    bitnamilegacy/etcd:3.5 \
+    mysql:5.7 \
+    redis:latest \
+    rabbitmq:3.12-management; do
+    docker pull "${image}"
+  done
+fi
+
 docker compose -f deploy/docker-compose.yml up -d etcd mysql redis dtm rabbitmq
 
 wait_for_port "etcd" "127.0.0.1" "2379" 90
