@@ -11,6 +11,15 @@ PIDS=()
 cleanup() {
   local exit_code=$?
 
+  if [[ "${exit_code}" -ne 0 ]]; then
+    for log_file in "${LOG_DIR}"/*.log; do
+      if [[ -f "${log_file}" ]]; then
+        echo "========== ${log_file} =========="
+        tail -n 200 "${log_file}" || true
+      fi
+    done
+  fi
+
   for pid in "${PIDS[@]:-}"; do
     if kill -0 "${pid}" >/dev/null 2>&1; then
       kill "${pid}" >/dev/null 2>&1 || true
