@@ -35,7 +35,10 @@ type RedisRecorder struct {
 	limit int
 }
 
-const redisEventsKey = "auth:audit:events"
+const (
+	redisEventsKey        = "auth:audit:events"
+	redisOperationTimeout = time.Second
+)
 
 func NewMemoryRecorder(limit int) *MemoryRecorder {
 	if limit <= 0 {
@@ -93,10 +96,11 @@ func (r *RedisRecorder) Record(ctx context.Context, event Event) error {
 	}
 	ctx, cancel := withRedisTimeout(ctx)
 	defer cancel()
-	if _, err := r.rds.LpushCtx(ctx, redisEventsKey, string(payload)); err != nil {
-		return err
-	}
-	return r.rds.LtrimCtx(ctx, redisEventsKey, 0, int64(r.limit-1))
+	return r.rds.PipelinedCtx(ctx, func(pipe redis.Pipeliner) error {
+		pipe.LPush(ctx, redisEventsKey, string(payload))
+		pipe.LTrim(ctx, redisEventsKey, 0, int64(r.limit-1))
+		return nil
+	})
 }
 
 func (r *RedisRecorder) ListRecent(ctx context.Context, limit int) ([]Event, error) {
@@ -125,10 +129,10 @@ func (r *RedisRecorder) ListRecent(ctx context.Context, limit int) ([]Event, err
 
 func withRedisTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), 150*time.Millisecond)
+		return context.WithTimeout(context.Background(), redisOperationTimeout)
 	}
-	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= 150*time.Millisecond {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= redisOperationTimeout {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, 150*time.Millisecond)
+	return context.WithTimeout(ctx, redisOperationTimeout)
 }

@@ -1,0 +1,30 @@
+Name: product.rpc
+ListenOn: 0.0.0.0:8080
+Timeout: 8000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Recover: true
+  Stat: true
+  Prometheus: true
+  Breaker: true
+
+DataSource: ${FLASH_MALL_PRODUCT_DATASOURCE}
+
+PprofAddr: 0.0.0.0:6062
+MetricsAddr: 0.0.0.0:9092
+
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: product-rpc
+    Exporter: otlphttp
+    Endpoint: http://jaeger:4318/v1/traces
+    SampleRatio: 1
+
+StockBucketCount: 4
+
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: product.rpc

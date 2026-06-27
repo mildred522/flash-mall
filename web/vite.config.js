@@ -2,7 +2,7 @@ import { resolve } from "path";
 import { defineConfig } from "vite";
 import { viteSingleFile } from "vite-plugin-singlefile";
 
-const outDir = resolve(__dirname, "../app/order/api/internal/handler/web");
+const outDir = resolve(__dirname, "../app/entry/api/internal/handler/web");
 
 function pageConfig(entry, name) {
   return defineConfig({

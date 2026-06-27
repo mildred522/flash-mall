@@ -1,5 +1,6 @@
 import { state, $, authModal, log, err } from "./state.js";
 import { api } from "./api-client.js";
+import { switchCartOwner } from "./cart.js";
 
 export function setUser(payload) {
   state.user = {
@@ -8,6 +9,7 @@ export function setUser(payload) {
     phone: payload.phone || "",
   };
   localStorage.setItem("fm_user", JSON.stringify(state.user));
+  switchCartOwner();
 }
 
 export function saveAuth(payload) {
@@ -22,6 +24,7 @@ export function clearAuth() {
   state.user = null;
   localStorage.removeItem("fm_token");
   localStorage.removeItem("fm_user");
+  switchCartOwner();
   updateUI();
   renderSecurityEvents([]);
 }

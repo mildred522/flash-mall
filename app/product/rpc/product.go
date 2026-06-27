@@ -28,7 +28,7 @@ func main() {
 	dtmimp.BarrierTableName = "barrier"
 
 	var c config.Config
-	conf.MustLoad(*configFile, &c)
+	conf.MustLoad(*configFile, &c, conf.UseEnv())
 
 	shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
 	if err != nil {

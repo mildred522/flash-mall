@@ -1,3 +1,4 @@
+//nolint:staticcheck // Tests intentionally mimic go-zero JWT claim string keys.
 package auth
 
 import (
@@ -16,9 +17,9 @@ func TestMeLogic_Me_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	ctx := context.WithValue(context.Background(), "user_id", int64(1001))
-	ctx = context.WithValue(ctx, "sid", sessionID)
-	ctx = context.WithValue(ctx, "session_version", int64(1))
+	ctx := context.WithValue(context.Background(), "user_id", int64(1001)) //nolint:staticcheck // go-zero JWT stores claims under string keys.
+	ctx = context.WithValue(ctx, "sid", sessionID)                         //nolint:staticcheck // go-zero JWT stores claims under string keys.
+	ctx = context.WithValue(ctx, "session_version", int64(1))              //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	l := NewMeLogic(ctx, svcCtx)
 
 	resp, err := l.Me()
@@ -56,8 +57,8 @@ func TestMeLogic_Me_RejectsRevokedSession(t *testing.T) {
 		t.Fatalf("logout session: %v", err)
 	}
 
-	ctx := context.WithValue(context.Background(), "user_id", int64(1001))
-	ctx = context.WithValue(ctx, "sid", sessionID)
+	ctx := context.WithValue(context.Background(), "user_id", int64(1001)) //nolint:staticcheck // go-zero JWT stores claims under string keys.
+	ctx = context.WithValue(ctx, "sid", sessionID)                         //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	ctx = context.WithValue(ctx, "session_version", int64(1))
 
 	_, err = NewMeLogic(ctx, svcCtx).Me()

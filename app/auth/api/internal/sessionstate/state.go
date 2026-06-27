@@ -12,7 +12,7 @@ import (
 const (
 	sessionKeyPrefix     = "auth:session:sid:"
 	userVersionKeyPrefix = "auth:session:userver:"
-	redisWriteTimeout    = 150 * time.Millisecond
+	redisWriteTimeout    = time.Second
 )
 
 type SessionSnapshot struct {
@@ -46,10 +46,11 @@ func (s *RedisStateStore) SaveSession(ctx context.Context, session SessionSnapsh
 	if err != nil {
 		return err
 	}
-	if err := s.rds.SetexCtx(ctx, sessionKey(session.SessionID), string(payload), int(ttl.Seconds())); err != nil {
-		return err
-	}
-	return s.rds.SetCtx(ctx, userVersionKey(session.UserID), fmt.Sprintf("%d", session.SessionVersion))
+	return s.rds.PipelinedCtx(ctx, func(pipe redis.Pipeliner) error {
+		pipe.Set(ctx, sessionKey(session.SessionID), string(payload), ttl)
+		pipe.Set(ctx, userVersionKey(session.UserID), fmt.Sprintf("%d", session.SessionVersion), 0)
+		return nil
+	})
 }
 
 func (s *RedisStateStore) DeleteSession(ctx context.Context, sessionID string) error {

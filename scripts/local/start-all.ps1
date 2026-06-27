@@ -45,7 +45,26 @@ $pidFile = Join-Path $runtimeDir "local-services.json"
 $logDir = Join-Path $repoRoot "logs\local"
 $binDir = Join-Path $runtimeDir "bin"
 $runStamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$localExecutableNames = @("auth-api.exe", "product-rpc.exe", "order-rpc.exe", "order-api.exe")
+$localExecutableNames = @("auth-api.exe", "product-rpc.exe", "order-rpc.exe", "entry-api.exe")
+
+function Set-DefaultEnv {
+  param(
+    [string]$Name,
+    [string]$Value
+  )
+
+  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($Name, "Process"))) {
+    [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+  }
+}
+
+Set-DefaultEnv -Name "FLASH_MALL_JWT_AUTH_SECRET" -Value "flash-mall-local-jwt-secret"
+Set-DefaultEnv -Name "FLASH_MALL_PAYMENT_CALLBACK_SECRET" -Value "flash-mall-local-payment-secret"
+Set-DefaultEnv -Name "FLASH_MALL_DEMO_PASSWORD" -Value "flashmall123"
+Set-DefaultEnv -Name "FLASH_MALL_RABBITMQ_URL" -Value "amqp://flashmall:flashmall-local@127.0.0.1:5672/"
+Set-DefaultEnv -Name "FLASH_MALL_AUTH_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+Set-DefaultEnv -Name "FLASH_MALL_ORDER_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+Set-DefaultEnv -Name "FLASH_MALL_PRODUCT_DATASOURCE" -Value "root:6494kj06@tcp(127.0.0.1:3307)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
 
 function Test-TcpPort {
   param(
@@ -390,7 +409,7 @@ $ErrorActionPreference = "Continue"
 & taskkill /IM product-rpc.exe /F 2>&1 | Out-Null
 & taskkill /IM order.exe /F 2>&1 | Out-Null
 & taskkill /IM order-rpc.exe /F 2>&1 | Out-Null
-& taskkill /IM order-api.exe /F 2>&1 | Out-Null
+& taskkill /IM entry-api.exe /F 2>&1 | Out-Null
 $ErrorActionPreference = "Stop"
 Start-Sleep -Seconds 2
 Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
@@ -434,7 +453,7 @@ if (-not $SkipDbInit) {
 
 if (-not $SkipSeedStock) {
   Write-Host "[STEP] seed redis stock shards"
-  Invoke-Native { go run ./app/order/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4 } "redis stock seed failed"
+  Invoke-Native { go run ./app/entry/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4 } "redis stock seed failed"
 }
 
 if (-not $SkipFrontend) {
@@ -473,9 +492,9 @@ try {
   $procs += $svc
   Wait-TcpPort -Name "order-rpc" -TargetHost "127.0.0.1" -Port 8090 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
 
-  $svc = Start-GoService -Name "order-api" -Entry "./app/order/api/order.go" -Config "./app/order/api/etc/order-api.yaml"
+  $svc = Start-GoService -Name "entry-api" -Entry "./app/entry/api/entry.go" -Config "./app/entry/api/etc/entry-api.yaml"
   $procs += $svc
-  Wait-TcpPort -Name "order-api" -TargetHost "127.0.0.1" -Port 8888 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
+  Wait-TcpPort -Name "entry-api" -TargetHost "127.0.0.1" -Port 8888 -TimeoutSeconds $PortWaitSeconds -ProcessId $svc.pid -ErrorLog $svc.err
 
   $procs | ConvertTo-Json | Set-Content -Encoding UTF8 $pidFile
 } catch {

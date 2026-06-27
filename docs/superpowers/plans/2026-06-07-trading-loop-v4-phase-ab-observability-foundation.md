@@ -4,7 +4,7 @@
 
 **Goal:** Establish the V4 baseline by merging Trading Loop V3, fixing CI governance for the active frontend workspace, and adding configurable OpenTelemetry foundation for the synchronous order flow.
 
-**Architecture:** Phase A makes `main` a correct implementation baseline by merging V3 and fixing GitHub Actions. Phase B adds a small shared observability package used by order-api, order-rpc, and product-rpc; tracing stays config-gated and additive. RabbitMQ async trace headers, performance workflow, and playbooks are intentionally left for a later Phase C-D plan.
+**Architecture:** Phase A makes `main` a correct implementation baseline by merging V3 and fixing GitHub Actions. Phase B adds a small shared observability package used by entry-api, order-rpc, and product-rpc; tracing stays config-gated and additive. RabbitMQ async trace headers, performance workflow, and playbooks are intentionally left for a later Phase C-D plan.
 
 **Tech Stack:** Go 1.24, go-zero REST/RPC, gRPC, OpenTelemetry Go SDK, Prometheus client, MySQL, Redis, RabbitMQ, React/Vite frontend, GitHub Actions.
 
@@ -17,7 +17,7 @@ This plan implements V4 Phase A-B only:
 1. Merge `codex/trading-loop-v3` into `main`.
 2. Fix CI to build the active `frontend` workspace.
 3. Add shared observability config/runtime helpers.
-4. Enable configurable OpenTelemetry in order-api, order-rpc, and product-rpc.
+4. Enable configurable OpenTelemetry in entry-api, order-rpc, and product-rpc.
 5. Add basic correlation helpers and critical synchronous flow instrumentation.
 6. Add local Jaeger support for demonstration.
 
@@ -45,10 +45,10 @@ Modify:
 
 - `.github/workflows/ci.yml`: active frontend cache/build paths and focused verification commands.
 - `deploy/docker-compose.yml`: optional local Jaeger service for trace demo.
-- `app/order/api/internal/config/config.go`: add shared observability config.
-- `app/order/api/etc/order-api.yaml`: add disabled-by-default V4 tracing config.
-- `app/order/api/order.go`: initialize tracing and shared diagnostics.
-- `app/order/api/internal/logic/createorderlogic.go`: add correlation fields around create-order logs.
+- `app/entry/api/internal/config/config.go`: add shared observability config.
+- `app/entry/api/etc/entry-api.yaml`: add disabled-by-default V4 tracing config.
+- `app/entry/api/entry.go`: initialize tracing and shared diagnostics.
+- `app/entry/api/internal/logic/createorderlogic.go`: add correlation fields around create-order logs.
 - `app/order/rpc/internal/config/config.go`: add shared observability config.
 - `app/order/rpc/etc/order.yaml`: add disabled-by-default V4 tracing config.
 - `app/order/rpc/order.go`: initialize tracing and shared diagnostics.
@@ -96,8 +96,8 @@ Expected: merge succeeds or reports explicit conflicts. If conflicts occur, reso
 Run:
 
 ```powershell
-go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... -count=1
-goctl api validate -api app/order/api/order.api
+go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... -count=1
+goctl api validate -api app/entry/api/entry.api
 ```
 
 Expected: all Go packages pass and `goctl` prints `api format ok`.
@@ -162,15 +162,15 @@ with:
 
 ```yaml
       - name: Test active services
-        run: go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
+        run: go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
 
-      - name: Validate order API contract
+      - name: Validate entry API contract
         run: |
           go install github.com/zeromicro/go-zero/tools/goctl@v1.9.2
-          goctl api validate -api app/order/api/order.api
+          goctl api validate -api app/entry/api/entry.api
 ```
 
-Expected: CI validates the services used by this project and validates the order API contract.
+Expected: CI validates the services used by this project and validates the entry API contract.
 
 - [ ] **Step 3: Run local equivalent checks**
 
@@ -180,8 +180,8 @@ Run:
 npm ci --prefix frontend
 npm run build:shop --prefix frontend
 npm run build:admin --prefix frontend
-go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
-goctl api validate -api app/order/api/order.api
+go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
+goctl api validate -api app/entry/api/entry.api
 ```
 
 Expected: all commands exit 0.
@@ -222,7 +222,7 @@ func TestTracingConfigEnabled(t *testing.T) {
 	}
 
 	cfg.Enabled = true
-	cfg.ServiceName = "order-api"
+	cfg.ServiceName = "entry-api"
 	if !cfg.IsEnabled() {
 		t.Fatal("enabled tracing config with service name should be enabled")
 	}
@@ -638,10 +638,10 @@ Expected: correlation helpers committed.
 ### Task 5: Wire Observability Config into Services
 
 **Files:**
-- Modify: `app/order/api/internal/config/config.go`
+- Modify: `app/entry/api/internal/config/config.go`
 - Modify: `app/order/rpc/internal/config/config.go`
 - Modify: `app/product/rpc/internal/config/config.go`
-- Modify: `app/order/api/etc/order-api.yaml`
+- Modify: `app/entry/api/etc/entry-api.yaml`
 - Modify: `app/order/rpc/etc/order.yaml`
 - Modify: `app/product/rpc/etc/product.yaml`
 - Modify: `k8s/apps/01-configmaps.yaml`
@@ -650,7 +650,7 @@ Expected: correlation helpers committed.
 
 Add imports and fields.
 
-For `app/order/api/internal/config/config.go`:
+For `app/entry/api/internal/config/config.go`:
 
 ```go
 import (
@@ -680,13 +680,13 @@ MetricsAddr string
 
 - [ ] **Step 2: Add disabled local YAML config**
 
-Append to `app/order/api/etc/order-api.yaml`, `app/order/rpc/etc/order.yaml`, and `app/product/rpc/etc/product.yaml`:
+Append to `app/entry/api/etc/entry-api.yaml`, `app/order/rpc/etc/order.yaml`, and `app/product/rpc/etc/product.yaml`:
 
 ```yaml
 Observability:
   Tracing:
     Enabled: false
-    ServiceName: order-api
+    ServiceName: entry-api
     Exporter: stdout
     Endpoint:
     SampleRatio: 0
@@ -703,14 +703,14 @@ MetricsAddr: 0.0.0.0:9092
 
 - [ ] **Step 3: Add K8s config**
 
-In `k8s/apps/01-configmaps.yaml`, add matching disabled `Observability` blocks for order-api, order-rpc, and product-rpc. Add `PprofAddr: 0.0.0.0:6062` and `MetricsAddr: 0.0.0.0:9092` to the product-rpc config map.
+In `k8s/apps/01-configmaps.yaml`, add matching disabled `Observability` blocks for entry-api, order-rpc, and product-rpc. Add `PprofAddr: 0.0.0.0:6062` and `MetricsAddr: 0.0.0.0:9092` to the product-rpc config map.
 
 - [ ] **Step 4: Compile config users**
 
 Run:
 
 ```powershell
-go test ./app/order/api/internal/config ./app/order/rpc/internal/config ./app/product/rpc/internal/config -count=1
+go test ./app/entry/api/internal/config ./app/order/rpc/internal/config ./app/product/rpc/internal/config -count=1
 ```
 
 Expected: packages compile, even if there are no test files.
@@ -720,7 +720,7 @@ Expected: packages compile, even if there are no test files.
 Run:
 
 ```powershell
-git add app/order/api/internal/config/config.go app/order/rpc/internal/config/config.go app/product/rpc/internal/config/config.go app/order/api/etc/order-api.yaml app/order/rpc/etc/order.yaml app/product/rpc/etc/product.yaml k8s/apps/01-configmaps.yaml
+git add app/entry/api/internal/config/config.go app/order/rpc/internal/config/config.go app/product/rpc/internal/config/config.go app/entry/api/etc/entry-api.yaml app/order/rpc/etc/order.yaml app/product/rpc/etc/product.yaml k8s/apps/01-configmaps.yaml
 git commit -m "feat: add observability config to services"
 ```
 
@@ -731,14 +731,14 @@ Expected: config commit with tracing disabled by default.
 ### Task 6: Initialize Tracing and Diagnostics in Service Entrypoints
 
 **Files:**
-- Modify: `app/order/api/order.go`
+- Modify: `app/entry/api/entry.go`
 - Modify: `app/order/rpc/order.go`
 - Modify: `app/product/rpc/product.go`
 - Modify: `k8s/apps/04-product-rpc.yaml`
 
 - [ ] **Step 1: Replace duplicated diagnostics startup**
 
-In `app/order/api/order.go`, replace direct `/metrics` and pprof startup with:
+In `app/entry/api/entry.go`, replace direct `/metrics` and pprof startup with:
 
 ```go
 shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
@@ -759,10 +759,10 @@ import (
 	"fmt"
 
 	"flash-mall/app/common/observability"
-	"flash-mall/app/order/api/internal/config"
-	"flash-mall/app/order/api/internal/handler"
-	"flash-mall/app/order/api/internal/svc"
-	"flash-mall/app/order/api/job"
+	"flash-mall/app/entry/api/internal/config"
+	"flash-mall/app/entry/api/internal/handler"
+	"flash-mall/app/entry/api/internal/svc"
+	"flash-mall/app/entry/api/job"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/rest"
@@ -846,7 +846,7 @@ If the manifest already contains these ports, leave it unchanged.
 Run:
 
 ```powershell
-go test ./app/order/api ./app/order/rpc ./app/product/rpc -count=1
+go test ./app/entry/api ./app/order/rpc ./app/product/rpc -count=1
 ```
 
 Expected: all three main packages compile.
@@ -856,7 +856,7 @@ Expected: all three main packages compile.
 Run:
 
 ```powershell
-git add app/order/api/order.go app/order/rpc/order.go app/product/rpc/product.go k8s/apps/04-product-rpc.yaml
+git add app/entry/api/entry.go app/order/rpc/order.go app/product/rpc/product.go k8s/apps/04-product-rpc.yaml
 git commit -m "feat: initialize observability in service entrypoints"
 ```
 
@@ -867,13 +867,13 @@ Expected: service startup commit.
 ### Task 7: Add Critical Synchronous Flow Correlation
 
 **Files:**
-- Modify: `app/order/api/internal/logic/createorderlogic.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic.go`
 - Modify: `app/order/rpc/internal/logic/createOrderLogic.go`
 - Modify: `app/product/rpc/internal/logic/deductLogic.go`
 
-- [ ] **Step 1: Add order-api create-order correlation fields**
+- [ ] **Step 1: Add entry-api create-order correlation fields**
 
-In `app/order/api/internal/logic/createorderlogic.go`, import:
+In `app/entry/api/internal/logic/createorderlogic.go`, import:
 
 ```go
 commonobs "flash-mall/app/common/observability"
@@ -957,7 +957,7 @@ span.SetAttributes(attribute.Int("stock.bucket_idx", bucketIdx))
 Run:
 
 ```powershell
-go test ./app/order/api/internal/logic ./app/order/rpc/internal/logic ./app/product/rpc/internal/logic -count=1
+go test ./app/entry/api/internal/logic ./app/order/rpc/internal/logic ./app/product/rpc/internal/logic -count=1
 ```
 
 Expected: all packages pass.
@@ -967,7 +967,7 @@ Expected: all packages pass.
 Run:
 
 ```powershell
-git add app/order/api/internal/logic/createorderlogic.go app/order/rpc/internal/logic/createOrderLogic.go app/product/rpc/internal/logic/deductLogic.go
+git add app/entry/api/internal/logic/createorderlogic.go app/order/rpc/internal/logic/createOrderLogic.go app/product/rpc/internal/logic/deductLogic.go
 git commit -m "feat: add synchronous trading trace correlation"
 ```
 
@@ -979,7 +979,7 @@ Expected: focused instrumentation commit.
 
 **Files:**
 - Modify: `deploy/docker-compose.yml`
-- Modify: `app/order/api/etc/order-api.yaml`
+- Modify: `app/entry/api/etc/entry-api.yaml`
 - Modify: `app/order/rpc/etc/order.yaml`
 - Modify: `app/product/rpc/etc/product.yaml`
 
@@ -1027,7 +1027,7 @@ Expected: compose config renders successfully.
 Run:
 
 ```powershell
-git add deploy/docker-compose.yml app/order/api/etc/order-api.yaml app/order/rpc/etc/order.yaml app/product/rpc/etc/product.yaml
+git add deploy/docker-compose.yml app/entry/api/etc/entry-api.yaml app/order/rpc/etc/order.yaml app/product/rpc/etc/product.yaml
 git commit -m "chore: add local jaeger tracing demo config"
 ```
 
@@ -1044,8 +1044,8 @@ Expected: local demo config commit.
 Run:
 
 ```powershell
-go test ./app/common/observability ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
-goctl api validate -api app/order/api/order.api
+go test ./app/common/observability ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
+goctl api validate -api app/entry/api/entry.api
 ```
 
 Expected: all tests pass and API contract validates.
@@ -1086,7 +1086,7 @@ Temporarily set `Observability.Tracing.Enabled: true` in local YAML files, start
 http://127.0.0.1:16686
 ```
 
-Expected: Jaeger shows spans for at least order-api, order-rpc, and product-rpc. Revert the local YAML `Enabled` changes before committing unless the plan intentionally changes defaults.
+Expected: Jaeger shows spans for at least entry-api, order-rpc, and product-rpc. Revert the local YAML `Enabled` changes before committing unless the plan intentionally changes defaults.
 
 - [ ] **Step 5: Review final diff with MCP**
 

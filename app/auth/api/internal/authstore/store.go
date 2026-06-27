@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +24,7 @@ var (
 	ErrUserNotFound         = errors.New("user not found")
 	ErrInvalidCredentials   = errors.New("invalid credentials")
 	ErrInvalidCode          = errors.New("invalid verification code")
+	ErrSessionNotFound      = errors.New("session not found")
 	ErrRefreshTokenInvalid  = errors.New("refresh token invalid")
 	ErrRefreshTokenReplayed = errors.New("refresh token replayed")
 )
@@ -34,6 +36,8 @@ type User struct {
 	PasswordHash   string
 	SessionVersion int64
 	Role           string
+	Status         int64
+	CreateTime     string
 }
 
 type verifyCode struct {
@@ -101,6 +105,8 @@ func (s *Store) seedDemoUser(password string) error {
 		PasswordHash:   string(hash),
 		SessionVersion: 1,
 		Role:           "user",
+		Status:         statusActive,
+		CreateTime:     time.Now().Format("2006-01-02 15:04:05"),
 	}
 	s.usersByID[user.ID] = user
 	s.usersByPhone[user.Phone] = user
@@ -118,6 +124,8 @@ func (s *Store) seedDemoUser(password string) error {
 		PasswordHash:   string(adminHash),
 		SessionVersion: 1,
 		Role:           "admin",
+		Status:         statusActive,
+		CreateTime:     time.Now().Format("2006-01-02 15:04:05"),
 	}
 	s.usersByID[admin.ID] = admin
 	s.usersByPhone[admin.Phone] = admin
@@ -202,12 +210,14 @@ func (s *Store) CreateUser(phone, displayName, password string) (*User, error) {
 		PasswordHash:   string(hash),
 		SessionVersion: 1,
 		Role:           "user",
+		Status:         statusActive,
+		CreateTime:     time.Now().Format("2006-01-02 15:04:05"),
 	}
 	s.nextUserID++
 	s.usersByID[user.ID] = user
 	s.usersByPhone[user.Phone] = user
 	s.syncUserVersionLocked(user.ID)
-	return user, nil
+	return cloneUser(user), nil
 }
 
 func (s *Store) Authenticate(userID int64, phone, password string) (*User, error) {
@@ -218,44 +228,137 @@ func (s *Store) Authenticate(userID int64, phone, password string) (*User, error
 	} else {
 		user = s.usersByID[userID]
 	}
+	user = cloneUser(user)
 	s.mu.RUnlock()
 
-	if user == nil {
+	if user == nil || user.Status != statusActive {
 		return nil, ErrInvalidCredentials
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, ErrInvalidCredentials
 	}
-	return user, nil
+	return cloneUser(user), nil
 }
 
-func (s *Store) GetUserByPhone(phone string) (*User, bool) {
+func (s *Store) GetUserByPhone(phone string) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	user, ok := s.usersByPhone[phone]
-	return user, ok
+	if !ok || user.Status != statusActive {
+		return nil, ErrUserNotFound
+	}
+	return cloneUser(user), nil
 }
 
-func (s *Store) GetUserByID(userID int64) (*User, bool) {
+func (s *Store) GetUserByID(userID int64) (*User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	user, ok := s.usersByID[userID]
-	return user, ok
+	if !ok || user.Status != statusActive {
+		return nil, ErrUserNotFound
+	}
+	return cloneUser(user), nil
+}
+
+func (s *Store) GetUserByIDAnyStatus(userID int64) (*User, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	user, ok := s.usersByID[userID]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	return cloneUser(user), nil
 }
 
 func (s *Store) ListAllUsers() []*User {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	users := make([]*User, 0, len(s.usersByID))
-	for _, u := range s.usersByID {
-		users = append(users, u)
-	}
+	users, _, _ := s.ListUsers(1, 0, 0, "", "")
 	return users
 }
 
-func (s *Store) GetActiveSession(sessionID string) (*Session, bool) {
+func (s *Store) ListUsers(page, pageSize, status int64, role, keyword string) ([]*User, int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	role = strings.TrimSpace(role)
+	keyword = strings.ToLower(strings.TrimSpace(keyword))
+	users := make([]*User, 0, len(s.usersByID))
+	for _, u := range s.usersByID {
+		if status > 0 && adminUserStatusValue(u.Status) != status {
+			continue
+		}
+		if role != "" && u.Role != role {
+			continue
+		}
+		if keyword != "" && !userMatchesKeyword(u, keyword) {
+			continue
+		}
+		users = append(users, cloneUser(u))
+	}
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].ID > users[j].ID
+	})
+	total := int64(len(users))
+	if pageSize <= 0 {
+		return users, total, nil
+	}
+	if page <= 0 {
+		page = 1
+	}
+	start := (page - 1) * pageSize
+	if start >= total {
+		return []*User{}, total, nil
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return users[int(start):int(end)], total, nil
+}
+
+func adminUserStatusValue(status int64) int64 {
+	if status == 0 {
+		return statusActive
+	}
+	return status
+}
+
+func userMatchesKeyword(user *User, keyword string) bool {
+	if user == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(user.Phone), keyword) ||
+		strings.Contains(strings.ToLower(user.DisplayName), keyword) ||
+		strings.Contains(strconv.FormatInt(user.ID, 10), keyword)
+}
+
+func (s *Store) SetUserStatus(userID int64, status int64) (*User, error) {
+	if status != statusActive && status != userStatusDisabled {
+		return nil, ErrInvalidCredentials
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.usersByID[userID]
+	if !ok {
+		return nil, ErrUserNotFound
+	}
+	user.Status = status
+	user.SessionVersion++
+	if status != statusActive {
+		sessionIDs := make([]string, 0, len(s.userSessionIDs[userID]))
+		for sessionID := range s.userSessionIDs[userID] {
+			sessionIDs = append(sessionIDs, sessionID)
+		}
+		for _, sessionID := range sessionIDs {
+			s.revokeSessionLocked(sessionID)
+		}
+	}
+	s.syncUserVersionLocked(userID)
+	return cloneUser(user), nil
+}
+
+func (s *Store) GetActiveSession(sessionID string) (*Session, error) {
 	if sessionID == "" {
-		return nil, false
+		return nil, ErrSessionNotFound
 	}
 
 	s.mu.RLock()
@@ -263,9 +366,9 @@ func (s *Store) GetActiveSession(sessionID string) (*Session, bool) {
 
 	session, ok := s.sessions[sessionID]
 	if !ok || session == nil || session.Revoked || time.Now().After(session.ExpiresAt) {
-		return nil, false
+		return nil, ErrSessionNotFound
 	}
-	return cloneSession(session), true
+	return cloneSession(session), nil
 }
 
 func (s *Store) CreateSession(userID int64, ttlSeconds int64) (string, string, error) {

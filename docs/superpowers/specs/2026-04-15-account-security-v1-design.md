@@ -13,7 +13,7 @@
 - 不是简单补几个登录接口
 - 不是把 demo JWT 登录迁移到另一个目录
 - 而是将账号安全能力收敛到独立 `auth-service`
-- 并通过 `order-api` 维持统一 BFF 入口
+- 并通过 `entry-api` 维持统一 BFF 入口
 - 最终形成“认证中心拆分 + 会话强校验 + 防滥用 + 安全审计”的业务级账号安全闭环
 
 最终希望面试官记住这件事：
@@ -39,7 +39,7 @@ V1 必须覆盖以下能力：
 - 登录失败限流
 - 发码防刷
 - 基础安全审计事件
-- `order-api` 侧 JWT + Redis 会话强校验
+- `entry-api` 侧 JWT + Redis 会话强校验
 
 ### Out Of Scope
 
@@ -58,12 +58,12 @@ V1 必须覆盖以下能力：
 
 ### Recommended Approach
 
-采用“强化现有 `auth-service`，`order-api` 继续做 BFF”的增量架构。
+采用“强化现有 `auth-service`，`entry-api` 继续做 BFF”的增量架构。
 
 这是当前仓库最优解，原因如下：
 
 - 延续当前已存在的认证拆分方向，避免推翻重做
-- 改动集中在 `auth-service` 和 `order-api` 两处，实施成本最低
+- 改动集中在 `auth-service` 和 `entry-api` 两处，实施成本最低
 - 边界清晰，最符合“认证域拆分”的面试叙事
 - 能在当前分布式订单项目基础上自然叠加，不割裂原有主线
 
@@ -85,13 +85,13 @@ V1 必须覆盖以下能力：
 - 防滥用策略
 - 安全审计记录
 
-#### `order-api`
+#### `entry-api`
 
 继续作为统一主站入口 / BFF：
 
-- 浏览器只访问 `order-api`
-- `/api/auth/*` 由 `order-api` 转发到 `auth-service`
-- `/api/order/*` 继续由 `order-api` 暴露
+- 浏览器只访问 `entry-api`
+- `/api/auth/*` 由 `entry-api` 转发到 `auth-service`
+- `/api/order/*` 继续由 `entry-api` 暴露
 - 对业务请求执行本地 JWT 验签和 Redis 会话强校验
 
 #### `order-rpc` / `product-rpc`
@@ -104,7 +104,7 @@ V1 必须覆盖以下能力：
 
 ### Why Not Other Approaches
 
-不选择“把安全逻辑继续塞回 `order-api`”，因为这会弱化“认证域拆分”的价值。
+不选择“把安全逻辑继续塞回 `entry-api`”，因为这会弱化“认证域拆分”的价值。
 
 也不选择本期继续拆独立 `risk-service` / `audit-service`，因为这会把 V1 从“业务级闭环”推向“平台级系统”，复杂度和联调成本过高，不符合当前项目节奏。
 
@@ -119,8 +119,8 @@ V1 必须覆盖以下能力：
 
 实际链路：
 
-1. 浏览器请求 `order-api`
-2. `order-api` 将请求转发给 `auth-service`
+1. 浏览器请求 `entry-api`
+2. `entry-api` 将请求转发给 `auth-service`
 3. `auth-service` 完成账号校验
 4. 登录成功后创建或替换当前设备类型会话
 5. `auth-service` 签发短期 `access token`
@@ -143,7 +143,7 @@ V1 必须覆盖以下能力：
 实际链路：
 
 1. 浏览器携带 `Authorization: Bearer <access_token>`
-2. `order-api` 先做 JWT 验签
+2. `entry-api` 先做 JWT 验签
 3. 再从 Redis 读取 `sid` 对应会话快照
 4. 校验 `sid` 是否存在
 5. 校验 `sid` 对应 `user_id` 是否与 JWT `sub` 一致
@@ -163,8 +163,8 @@ V1 必须覆盖以下能力：
 
 实际链路：
 
-1. 浏览器请求 `order-api`
-2. `order-api` 转发到 `auth-service`
+1. 浏览器请求 `entry-api`
+2. `entry-api` 转发到 `auth-service`
 3. `auth-service` 校验 refresh token 是否有效且属于当前会话
 4. 校验通过后执行 rotation
 5. 签发新的 `access token`
@@ -219,7 +219,7 @@ V1 不拆新服务，但在 `auth-service` 内部固定四个模块边界。
 
 - 维护 Redis 会话快照
 - 维护用户级 `session_version`
-- 为 `order-api` 提供本地强校验语义
+- 为 `entry-api` 提供本地强校验语义
 
 ### `risk`
 
@@ -479,7 +479,7 @@ V1 至少记录以下事件：
 
 ## API Strategy
 
-浏览器只访问 `order-api`，对外保留统一接口：
+浏览器只访问 `entry-api`，对外保留统一接口：
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
@@ -494,7 +494,7 @@ V1 至少记录以下事件：
 
 责任划分：
 
-- `order-api`
+- `entry-api`
   - 请求转发
   - cookie 透传
   - 错误透传
@@ -514,7 +514,7 @@ V1 至少记录以下事件：
 用途：
 
 - 返回最近 N 条安全事件
-- 由 `order-api` 继续代理到 `auth-service`
+- 由 `entry-api` 继续代理到 `auth-service`
 - 供商城开发者面板直接展示
 
 这不是产品功能，而是演示和面试证据出口。
@@ -588,7 +588,7 @@ V1 最终必须支持现场演示以下链路：
 本次设计确认的最终决策如下：
 
 - 采用强化现有 `auth-service` 的增量架构
-- `order-api` 继续作为统一 BFF，不让浏览器直连 `auth-service`
+- `entry-api` 继续作为统一 BFF，不让浏览器直连 `auth-service`
 - V1 聚焦认证中心、会话强校验、防滥用和审计闭环
 - 风控和审计先作为 `auth-service` 内部模块存在，不拆独立服务
 - V1 增加最近安全事件查询接口，作为演示证据出口

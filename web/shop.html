@@ -15,6 +15,7 @@
         <a href="#campaign-strip">今日会场</a>
         <a href="#featured-products">精选商品</a>
         <a href="#featured-products">热卖推荐</a>
+        <a href="javascript:void(0)" id="nav-cart">购物车 <span id="cart-count" class="nav-count">0</span></a>
         <a href="javascript:void(0)" id="nav-orders">我的订单</a>
       </nav>
       <div class="row">
@@ -66,16 +67,19 @@
             <h3>满减专区</h3>
             <strong>满199减30</strong>
             <p>精选商品参与满减，多买多省</p>
+            <button class="button primary" type="button" data-claim-coupon="FULL_199_30">领取</button>
           </article>
           <article class="promo-card">
             <h3>新品首发</h3>
             <strong>新品尝鲜价</strong>
             <p>当季新款，首发特惠不容错过</p>
+            <button class="button soft" type="button" data-claim-coupon="NEW_USER_10">新人券</button>
           </article>
           <article class="promo-card">
             <h3>热卖榜单</h3>
             <strong>人气好物TOP</strong>
             <p>大家都在买，跟着买不出错</p>
+            <button class="button soft" type="button" id="show-coupons">我的券</button>
           </article>
         </div>
       </div>
@@ -101,6 +105,112 @@
       </div>
     </section>
   </main>
+
+  <aside id="cart-drawer" class="cart-drawer" aria-hidden="true">
+    <div class="cart-head">
+      <div>
+        <h2>购物车</h2>
+        <p id="cart-summary">共 0 件商品</p>
+      </div>
+      <button id="close-cart" class="button soft" type="button">关闭</button>
+    </div>
+    <div id="cart-list" class="cart-list"></div>
+    <div class="cart-foot">
+      <div>
+        <span>预计合计</span>
+        <strong id="cart-total">¥0.00</strong>
+      </div>
+      <button id="cart-checkout" class="button primary" type="button">去结算</button>
+    </div>
+  </aside>
+  <div id="cart-backdrop" class="cart-backdrop hidden"></div>
+
+  <div id="checkout-modal" class="checkout-modal hidden" aria-hidden="true">
+    <div class="checkout-box">
+      <div class="checkout-head">
+        <div>
+          <h2>确认订单</h2>
+          <p>选择收货地址并核对商品价格</p>
+        </div>
+        <button id="close-checkout" class="button soft" type="button">关闭</button>
+      </div>
+      <section class="checkout-section">
+        <div class="checkout-section-head">
+          <h3>收货地址</h3>
+          <button id="show-address-form" class="button soft" type="button">新增地址</button>
+        </div>
+        <div id="address-list" class="address-list"></div>
+        <div id="address-form" class="address-form hidden">
+          <input id="addr-name" placeholder="收货人" />
+          <input id="addr-phone" placeholder="手机号" />
+          <input id="addr-province" placeholder="省份" />
+          <input id="addr-city" placeholder="城市" />
+          <input id="addr-district" placeholder="区县" />
+          <input id="addr-detail" placeholder="详细地址" />
+          <button id="save-address" class="button primary" type="button">保存地址</button>
+        </div>
+      </section>
+      <section class="checkout-section">
+        <h3>商品清单</h3>
+        <div id="checkout-items" class="checkout-items"></div>
+      </section>
+      <section class="checkout-section">
+        <div class="checkout-section-head">
+          <h3>优惠券</h3>
+          <span id="coupon-saving" class="cart-item-meta">暂无可用优惠</span>
+        </div>
+        <div id="checkout-coupons" class="coupon-list"></div>
+      </section>
+      <div id="checkout-error" class="checkout-error"></div>
+      <div class="checkout-foot">
+        <strong id="checkout-total">¥0.00</strong>
+        <button id="submit-checkout" class="button primary" type="button">提交订单</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="refund-modal" class="checkout-modal hidden" aria-hidden="true">
+    <div class="checkout-box refund-box">
+      <div class="checkout-head">
+        <div>
+          <h2>申请退款</h2>
+          <p id="refund-order-label">填写退款原因</p>
+        </div>
+        <button id="close-refund" class="button soft" type="button">关闭</button>
+      </div>
+      <section class="checkout-section">
+        <textarea id="refund-reason" class="refund-reason" placeholder="请输入退款原因">user refund</textarea>
+      </section>
+      <div id="refund-error" class="checkout-error"></div>
+      <div class="checkout-foot">
+        <span></span>
+        <button id="submit-refund" class="button primary" type="button">提交退款</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="pay-modal" class="checkout-modal hidden" aria-hidden="true">
+    <div class="checkout-box refund-box">
+      <div class="checkout-head">
+        <div>
+          <h2>模拟支付台</h2>
+          <p id="pay-order-label">确认支付订单</p>
+        </div>
+        <button id="close-pay" class="button soft" type="button">关闭</button>
+      </div>
+      <section class="checkout-section">
+        <div class="pay-channel selected">
+          <strong>Mock Pay</strong>
+          <span>本地模拟支付，确认后触发支付回调逻辑</span>
+        </div>
+      </section>
+      <div id="pay-error" class="checkout-error"></div>
+      <div class="checkout-foot">
+        <span></span>
+        <button id="submit-pay" class="button primary" type="button">确认支付</button>
+      </div>
+    </div>
+  </div>
 
   <div id="auth-modal" class="auth-modal" aria-hidden="true">
     <div class="auth-box">

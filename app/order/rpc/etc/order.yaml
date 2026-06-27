@@ -15,7 +15,7 @@ Telemetry:
   Sampler: 1.0
   Batcher: jaeger
 
-DataSource: root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Local
+DataSource: ${FLASH_MALL_ORDER_DATASOURCE}
 
 RedisConf:
   Host: 127.0.0.1:6379
@@ -46,7 +46,7 @@ Observability:
 
 StockShardCount: 4
 
-RabbitMQURL: amqp://flashmall:flashmall123@127.0.0.1:5672/
+RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
 RabbitMQExchange: order.events
 RabbitMQRouteKey: order.created
 OutboxBatchSize: 20

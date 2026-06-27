@@ -1,3 +1,4 @@
+//nolint:staticcheck // Tests intentionally mimic go-zero JWT claim string keys.
 package auth
 
 import (

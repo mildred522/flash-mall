@@ -2,6 +2,7 @@
 .vscode/
 .superpowers/
 .worktrees/
+.codex_tmp/
 .runtime/
 logs/
 tmp/
@@ -34,3 +35,7 @@ data/
 !.env.example
 
 web/node_modules/
+
+# Root-level Go build artifacts
+/api
+/rpc

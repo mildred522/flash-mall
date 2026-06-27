@@ -2,13 +2,13 @@
 
 ## Goal
 
-将当前 `order-api` 内部的 demo JWT 登录改造成业务级认证体系，落地独立 `auth-service`，同时保持商城前端与下单链路仍通过统一主站入口访问。
+将当前 `entry-api` 内部的 demo JWT 登录改造成业务级认证体系，落地独立 `auth-service`，同时保持商城前端与下单链路仍通过统一主站入口访问。
 
 ## Current State
 
 当前系统的认证能力仅覆盖最小演示闭环：
 
-- `POST /api/auth/login` 由 `order-api` 直接提供
+- `POST /api/auth/login` 由 `entry-api` 直接提供
 - 登录只校验 `user_id + AuthDemoPassword`
 - 登录成功后签发短期 JWT
 - `POST /api/order/create` 由 `rest.WithJwt(...)` 保护
@@ -58,7 +58,7 @@
 1. `auth-service`
    - 负责账号域与认证域
    - 负责注册、登录、验证码、会话、refresh、logout、密码重置
-2. `order-api`
+2. `entry-api`
    - 继续作为统一主站入口/BFF
    - 承载商城页、调试页、订单相关接口
    - 将 `/api/auth/*` 请求转发给 `auth-service`
@@ -72,7 +72,7 @@
 
 - 浏览器只信任主站入口
 - `auth-service` 是唯一签发认证凭证的服务
-- `order-api` 与其他业务服务本地验 JWT，不对每个请求回调认证服务
+- `entry-api` 与其他业务服务本地验 JWT，不对每个请求回调认证服务
 - 业务侧绝不信任请求体中的用户身份字段
 
 ### 3. Token Model
@@ -216,7 +216,7 @@
 接入模式：
 
 - 商城前端请求 `/api/auth/*`
-- `order-api` 作为 BFF 转发到 `auth-service`
+- `entry-api` 作为 BFF 转发到 `auth-service`
 - 主域统一写入/携带 `HttpOnly Cookie`
 
 ### 2. Storefront UI Requirements
@@ -291,7 +291,7 @@
 ### Phase 1
 
 - 新建独立 `auth-service`
-- 保持 `order-api` 作为统一入口
+- 保持 `entry-api` 作为统一入口
 - 新增 `/api/auth/*` 转发能力
 - 下单接口仍继续从 JWT 中获取用户身份
 
@@ -327,7 +327,7 @@
 2. 业务级改造的关键不是“加一个注册接口”，而是把认证域拆开
 3. JWT 只负责短期访问凭证，不负责完整会话治理
 4. refresh token + session + Redis 才能实现登出、踢下线、封禁和同端互斥
-5. 使用 `order-api` 作为 BFF，可在不打碎前端接入面的情况下完成认证服务独立化
+5. 使用 `entry-api` 作为 BFF，可在不打碎前端接入面的情况下完成认证服务独立化
 
 ## Accepted Decisions
 
@@ -340,8 +340,8 @@
 - 使用 refresh token
 - refresh token 走 `HttpOnly Cookie`
 - 同端互斥，不同端可共存
-- `order-api` 本地验 JWT
-- `order-api` 继续作为统一入口/BFF
+- `entry-api` 本地验 JWT
+- `entry-api` 继续作为统一入口/BFF
 - 第一阶段包含找回密码/重置密码
 - 使用强一致会话失效
 - 认证数据先与现有项目共用同一套 MySQL 基础设施，但逻辑独立

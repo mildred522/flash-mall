@@ -1,6 +1,7 @@
 import { state, $, log } from "./state.js";
 import { api } from "./api-client.js";
-import { order } from "./order.js";
+import { addToCart } from "./cart.js";
+import { openCheckout } from "./checkout.js";
 
 export const PRODUCT_META = new Map([
   [100, {
@@ -65,6 +66,7 @@ export function renderProducts(items) {
         : 0;
       const badge = product.promotion_tag || (hasDiscount ? `${discountPercent}% OFF` : meta.tags[0]);
       const inStock = product.stock_available > 0;
+      const imageUrl = product.image_url || meta.image;
 
       return `
       <article class="product">
@@ -73,7 +75,7 @@ export function renderProducts(items) {
             <span class="pill">${badge}</span>
             ${meta.tags.length > 1 ? `<span class="pill orange">${meta.tags[1]}</span>` : ""}
           </div>
-          <img class="thumb-img" src="${meta.image}" alt="${product.name || '商品图片'}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
+          <img class="thumb-img" src="${imageUrl}" alt="${product.name || '商品图片'}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
           <span class="thumb-icon" style="display:none">${meta.icon}</span>
         </div>
         <div class="product-info">
@@ -87,9 +89,10 @@ export function renderProducts(items) {
           </div>
           <div class="product-meta">
             <span>${inStock ? `库存 ${product.stock_available}` : "暂时缺货"}</span>
-            <button class="btn-buy" type="button" data-buy-index="${index}" ${inStock ? "" : "disabled"}>
-              ${inStock ? "立即购买" : "已售罄"}
-            </button>
+          </div>
+          <div class="product-actions">
+            <button class="btn-cart" type="button" data-cart-index="${index}" ${inStock ? "" : "disabled"}>加入购物车</button>
+            <button class="btn-buy" type="button" data-buy-index="${index}" ${inStock ? "" : "disabled"}>${inStock ? "立即购买" : "已售罄"}</button>
           </div>
         </div>
       </article>`;
@@ -100,7 +103,15 @@ export function renderProducts(items) {
     button.addEventListener("click", async (e) => {
       e.stopPropagation();
       const index = Number(button.getAttribute("data-buy-index"));
-      await order(state.products[index].product_id, 1, "card-buy");
+      const product = state.products[index];
+      await openCheckout([{ ...product, qty: 1 }]);
+    })
+  );
+  document.querySelectorAll("[data-cart-index]").forEach((button) =>
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const index = Number(button.getAttribute("data-cart-index"));
+      addToCart(state.products[index], 1);
     })
   );
 }

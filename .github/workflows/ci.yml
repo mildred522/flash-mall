@@ -26,10 +26,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            web/package-lock.json
 
       - name: Build frontend
         run: cd frontend && npm ci && npm run build:shop && npm run build:admin
+
+      - name: Build embedded web
+        run: cd web && npm ci && npm run build
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -44,15 +49,18 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
+        run: go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
 
-      - name: Parse order API contract
+      - name: Parse entry API contract
         run: |
           go install github.com/zeromicro/go-zero/tools/goctl@v1.9.2
-          goctl api format --stdin < app/order/api/order.api > /tmp/order-api.formatted
+          goctl api format --stdin < app/entry/api/entry.api > /tmp/entry-api.formatted
+
+      - name: Parse auth API contract
+        run: goctl api format --stdin < app/auth/api/auth.api > /tmp/auth-api.formatted
 
       - name: Build binaries
-        run: go build ./app/order/api ./app/order/rpc ./app/product/rpc
+        run: go build ./app/entry/api ./app/auth/api ./app/order/rpc ./app/product/rpc
 
   smoke-e2e:
     runs-on: ubuntu-latest
@@ -66,10 +74,15 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: |
+            frontend/package-lock.json
+            web/package-lock.json
 
       - name: Build frontend
         run: cd frontend && npm ci && npm run build:shop && npm run build:admin
+
+      - name: Build embedded web
+        run: cd web && npm ci && npm run build
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -89,8 +102,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: order-api
-            dockerfile: build/docker/order-api.Dockerfile
+          - image: entry-api
+            dockerfile: build/docker/entry-api.Dockerfile
+          - image: auth-api
+            dockerfile: build/docker/auth-api.Dockerfile
           - image: order-rpc
             dockerfile: build/docker/order-rpc.Dockerfile
           - image: product-rpc

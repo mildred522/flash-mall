@@ -1,0 +1,55 @@
+Name: order.rpc
+ListenOn: 0.0.0.0:8090
+Timeout: 8000
+CpuThreshold: 900
+Middlewares:
+  Trace: true
+  Recover: true
+  Stat: true
+  Prometheus: true
+  Breaker: true
+
+DataSource: ${FLASH_MALL_ORDER_DATASOURCE}
+
+RedisConf:
+  Host: redis:6379
+  Type: node
+
+Etcd:
+  Hosts:
+    - etcd:2379
+  Key: order.rpc
+
+ProductRpcConf:
+  Endpoints:
+    - product-rpc:8080
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
+  Timeout: 8000
+
+PprofAddr: 0.0.0.0:6061
+MetricsAddr: 0.0.0.0:9091
+
+Observability:
+  Tracing:
+    Enabled: false
+    ServiceName: order-rpc
+    Exporter: otlphttp
+    Endpoint: http://jaeger:4318/v1/traces
+    SampleRatio: 1
+
+StockShardCount: 4
+
+RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
+RabbitMQExchange: order.events
+RabbitMQRouteKey: order.created
+OutboxBatchSize: 20
+OutboxPollMs: 1000
+OutboxRetrySec: 5
+OutboxTimeoutSec: 60
+OutboxMaxRetries: 8
+OutboxSingleActive: true
+OutboxLeaderLockKey: order:outbox:publisher:leader
+OutboxLeaderLockTTL: 90

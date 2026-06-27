@@ -24,6 +24,17 @@ spec:
           image: flash-mall/order-rpc:dev
           imagePullPolicy: IfNotPresent
           args: ["-f", "/etc/flash-mall/order.yaml"]
+          env:
+            - name: FLASH_MALL_ORDER_DATASOURCE
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: order-datasource
+            - name: FLASH_MALL_RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: rabbitmq-url
           ports:
             - name: grpc
               containerPort: 8090

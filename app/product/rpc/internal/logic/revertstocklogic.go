@@ -3,11 +3,13 @@ package logic
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strconv"
 
 	"flash-mall/app/product/rpc/internal/svc"
 	"flash-mall/app/product/rpc/product"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/logx"
 )
 
@@ -53,7 +55,9 @@ func (l *RevertStockLogic) RevertStock(in *product.RevertStockReq) (*product.Rev
 	// 3) 手动屏障：插入流水记录（order_id + type 唯一）
 	_, err = tx.ExecContext(l.ctx, "INSERT INTO stock_log (order_id, type) VALUES (?, 'REVERT')", orderId)
 	if err != nil {
-		// 重复说明已处理过，直接返回成功
+		if !isDuplicateStockLog(err) {
+			return nil, err
+		}
 		return &product.RevertStockResp{}, nil
 	}
 
@@ -75,4 +79,9 @@ func (l *RevertStockLogic) RevertStock(in *product.RevertStockReq) (*product.Rev
 	}
 
 	return &product.RevertStockResp{}, nil
+}
+
+func isDuplicateStockLog(err error) bool {
+	var mysqlErr *mysqlDriver.MySQLError
+	return errors.As(err, &mysqlErr) && mysqlErr.Number == 1062
 }

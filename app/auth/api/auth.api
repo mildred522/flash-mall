@@ -2,30 +2,112 @@ syntax = "v1"
 
 type (
 	LoginReq {
-		UserId int64 `json:"user_id"`
-		Password string `json:"password"`
+		UserId     int64  `json:"user_id,optional"`
+		Phone      string `json:"phone,optional"`
+		Password   string `json:"password"`
 		DeviceType string `json:"device_type,optional"`
 	}
 	LoginResp {
 		AccessToken string `json:"access_token"`
-		TokenType string `json:"token_type"`
-		ExpiresAt int64 `json:"expires_at"`
+		TokenType   string `json:"token_type"`
+		ExpiresAt   int64  `json:"expires_at"`
+		UserId      int64  `json:"user_id"`
+		DisplayName string `json:"display_name"`
+		Phone       string `json:"phone"`
 	}
 	LoginCodeReq {
-		Phone string `json:"phone"`
-		Code string `json:"code"`
+		Phone      string `json:"phone"`
+		Code       string `json:"code"`
 		DeviceType string `json:"device_type,optional"`
 	}
 	RegisterReq {
-		Phone string `json:"phone"`
-		Password string `json:"password"`
-		Code string `json:"code"`
+		Phone       string `json:"phone"`
+		Password    string `json:"password"`
+		Code        string `json:"code"`
 		DisplayName string `json:"display_name,optional"`
-		DeviceType string `json:"device_type,optional"`
+		DeviceType  string `json:"device_type,optional"`
 	}
 	MeResp {
-		UserId int64 `json:"user_id"`
+		UserId      int64  `json:"user_id"`
 		DisplayName string `json:"display_name"`
+		Phone       string `json:"phone"`
+		Role        string `json:"role"`
+	}
+	SendCodeReq {
+		Phone string `json:"phone"`
+		Scene string `json:"scene"`
+	}
+	SendCodeResp {
+		Sent      bool   `json:"sent"`
+		ExpiresAt int64  `json:"expires_at"`
+		DebugCode string `json:"debug_code,omitempty"`
+	}
+	ForgotPasswordReq {
+		Phone string `json:"phone"`
+	}
+	ResetPasswordReq {
+		Phone       string `json:"phone"`
+		Code        string `json:"code"`
+		NewPassword string `json:"new_password"`
+	}
+	LogoutResp {
+		Success bool `json:"success"`
+	}
+	SecurityEventItem {
+		EventType string `json:"event_type"`
+		Result    string `json:"result"`
+		UserId    int64  `json:"user_id"`
+		Subject   string `json:"subject"`
+		IP        string `json:"ip"`
+		UserAgent string `json:"user_agent"`
+		CreatedAt int64  `json:"created_at"`
+	}
+	SecurityEventsRecentReq {
+		Limit     int64  `form:"limit,optional,default=20"`
+		UserId    int64  `form:"user_id,optional"`
+		EventType string `form:"event_type,optional"`
+		Result    string `form:"result,optional"`
+		Keyword   string `form:"keyword,optional"`
+	}
+	AdminSecurityEventRecordReq {
+		EventType string `json:"event_type"`
+		Result    string `json:"result,optional"`
+		Subject   string `json:"subject,optional"`
+	}
+	SecurityEventsRecentResp {
+		Items []SecurityEventItem `json:"items"`
+	}
+	AdminUserListReq {
+		Page     int64  `form:"page,optional,default=1"`
+		PageSize int64  `form:"page_size,optional,default=20"`
+		Status   int64  `form:"status,optional"`
+		Role     string `form:"role,optional"`
+		Keyword  string `form:"keyword,optional"`
+	}
+	AdminUserItem {
+		UserId      int64  `json:"user_id"`
+		DisplayName string `json:"display_name"`
+		Phone       string `json:"phone"`
+		Role        string `json:"role"`
+		Status      int64  `json:"status"`
+		StatusText  string `json:"status_text"`
+		CreateTime  string `json:"create_time"`
+	}
+	AdminUserListResp {
+		Items []AdminUserItem `json:"items"`
+		Total int64           `json:"total"`
+	}
+	AdminUserStatusReq {
+		UserId int64 `json:"user_id"`
+		Status int64 `json:"status"`
+	}
+	AdminUserDetailReq {
+		UserId int64 `form:"user_id"`
+	}
+	AdminUserStatusResp {
+		UserId     int64  `json:"user_id"`
+		Status     int64  `json:"status"`
+		StatusText string `json:"status_text"`
 	}
 )
 
@@ -43,20 +125,38 @@ service auth-api {
 	post /api/auth/refresh
 
 	@handler Logout
-	post /api/auth/logout
+	post /api/auth/logout returns (LogoutResp)
 
 	@handler LogoutAll
-	post /api/auth/logout-all
+	post /api/auth/logout-all returns (LogoutResp)
 
 	@handler Me
 	get /api/auth/me returns (MeResp)
 
 	@handler SendCode
-	post /api/auth/code/send
+	post /api/auth/code/send (SendCodeReq) returns (SendCodeResp)
 
 	@handler ForgotPassword
-	post /api/auth/password/forgot
+	post /api/auth/password/forgot (ForgotPasswordReq)
 
 	@handler ResetPassword
-	post /api/auth/password/reset
+	post /api/auth/password/reset (ResetPasswordReq)
+
+	@handler SecurityEventsRecent
+	get /api/auth/security/events/recent returns (SecurityEventsRecentResp)
+
+	@handler AdminUserList
+	get /api/admin/users (AdminUserListReq) returns (AdminUserListResp)
+
+	@handler AdminUserDetail
+	get /api/admin/users/detail (AdminUserDetailReq) returns (AdminUserItem)
+
+	@handler AdminUserStatus
+	post /api/admin/users/status (AdminUserStatusReq) returns (AdminUserStatusResp)
+
+	@handler AdminSecurityEventsRecent
+	get /api/admin/security/events/recent (SecurityEventsRecentReq) returns (SecurityEventsRecentResp)
+
+	@handler AdminSecurityEventRecord
+	post /api/admin/security/events/record (AdminSecurityEventRecordReq) returns (LogoutResp)
 }

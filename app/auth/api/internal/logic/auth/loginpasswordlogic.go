@@ -2,11 +2,13 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
+	"flash-mall/app/auth/api/internal/risk"
 	"flash-mall/app/auth/api/internal/svc"
 	"flash-mall/app/auth/api/internal/types"
 
@@ -45,13 +47,13 @@ func (l *LoginPasswordLogic) Login(req *types.LoginReq) (*types.LoginResp, error
 
 	user, err := l.svcCtx.Store.Authenticate(req.UserId, req.Phone, req.Password)
 	if err != nil {
-		if err == authstore.ErrInvalidCredentials {
+		if errors.Is(err, authstore.ErrInvalidCredentials) {
 			if incrErr := l.recordLoginFailure(req); incrErr != nil {
 				return nil, incrErr
 			}
 			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
-				EventType:     "login_password_fail",
-				Result:        "fail",
+				EventType:     auditEventLoginPasswordFail,
+				Result:        auditResultFail,
 				UserID:        auditUserIDByPhone(l.svcCtx, req.Phone),
 				IdentityValue: auditIdentity(req.Phone, req.UserId),
 				IP:            req.ClientIP,
@@ -59,6 +61,7 @@ func (l *LoginPasswordLogic) Login(req *types.LoginReq) (*types.LoginResp, error
 			})
 			return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 		}
+		l.Errorf("authenticate user failed: phone=%s user_id=%d err=%v", req.Phone, req.UserId, err)
 		return nil, status.Error(codes.Internal, "authenticate user failed")
 	}
 
@@ -66,8 +69,8 @@ func (l *LoginPasswordLogic) Login(req *types.LoginReq) (*types.LoginResp, error
 	if err != nil {
 		return nil, status.Error(codes.Internal, "create session failed")
 	}
-	session, ok := l.svcCtx.Store.GetActiveSession(sessionID)
-	if !ok {
+	session, err := l.svcCtx.Store.GetActiveSession(sessionID)
+	if err != nil {
 		return nil, status.Error(codes.Internal, "load session failed")
 	}
 
@@ -87,8 +90,8 @@ func (l *LoginPasswordLogic) Login(req *types.LoginReq) (*types.LoginResp, error
 	}
 	l.resetLoginRisk(req)
 	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
-		EventType:     "login_password_success",
-		Result:        "success",
+		EventType:     auditEventLoginPasswordSuccess,
+		Result:        auditResultSuccess,
 		UserID:        user.ID,
 		IdentityValue: user.Phone,
 		IP:            req.ClientIP,
@@ -102,22 +105,40 @@ func (l *LoginPasswordLogic) checkLoginRisk(req *types.LoginReq) error {
 	if limiter == nil {
 		return nil
 	}
+	type riskCheck struct {
+		key string
+		max int64
+	}
+	checks := make([]riskCheck, 0, 2)
 	if accountKey := loginAccountRiskKey(req); accountKey != "" {
-		blocked, _, err := limiter.Blocked(l.ctx, accountKey, l.svcCtx.Config.LoginFailPhoneMaxAttempts)
-		if err != nil {
-			return status.Error(codes.Internal, "check login risk failed")
-		}
-		if blocked {
-			return status.Error(codes.ResourceExhausted, "too many login attempts, please try again later")
-		}
+		checks = append(checks, riskCheck{key: accountKey, max: l.svcCtx.Config.LoginFailPhoneMaxAttempts})
 	}
 	if req.ClientIP != "" {
-		blocked, _, err := limiter.Blocked(l.ctx, loginIPRiskKey(req.ClientIP), l.svcCtx.Config.LoginFailIPMaxAttempts)
-		if err != nil {
-			return status.Error(codes.Internal, "check login risk failed")
-		}
-		if blocked {
-			return status.Error(codes.ResourceExhausted, "too many login attempts, please try again later")
+		checks = append(checks, riskCheck{key: loginIPRiskKey(req.ClientIP), max: l.svcCtx.Config.LoginFailIPMaxAttempts})
+	}
+	if len(checks) == 0 {
+		return nil
+	}
+
+	errCh := make(chan error, len(checks))
+	for _, check := range checks {
+		check := check
+		go func() {
+			blocked, _, err := limiter.Blocked(l.ctx, check.key, check.max)
+			if err != nil {
+				errCh <- status.Error(codes.Internal, "check login risk failed")
+				return
+			}
+			if blocked {
+				errCh <- status.Error(codes.ResourceExhausted, "too many login attempts, please try again later")
+				return
+			}
+			errCh <- nil
+		}()
+	}
+	for range checks {
+		if err := <-errCh; err != nil {
+			return err
 		}
 	}
 	return nil
@@ -147,6 +168,12 @@ func (l *LoginPasswordLogic) resetLoginRisk(req *types.LoginReq) {
 		return
 	}
 	if accountKey := loginAccountRiskKey(req); accountKey != "" {
+		if _, ok := limiter.(*risk.RedisLimiter); ok {
+			go func() {
+				_ = limiter.Reset(context.Background(), accountKey)
+			}()
+			return
+		}
 		_ = limiter.Reset(l.ctx, accountKey)
 	}
 }

@@ -3,39 +3,47 @@ package authstore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
-func (s *SQLStore) GetActiveSession(sessionID string) (*Session, bool) {
+func (s *SQLStore) GetActiveSession(sessionID string) (*Session, error) {
 	if sessionID == "" {
-		return nil, false
+		return nil, ErrSessionNotFound
 	}
 	if err := s.ensureDemoUser(); err != nil {
-		return nil, false
+		return nil, err
 	}
 
 	db, err := s.rawDB()
 	if err != nil {
-		return nil, false
+		return nil, err
 	}
 
 	session, err := querySession(
 		db.QueryRowContext(
 			context.Background(),
-			`SELECT id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, expires_at, status
-			 FROM user_sessions
-			 WHERE id = ?
+			`SELECT s.id, s.user_id, s.device_type, s.session_version, s.refresh_token_hash, s.previous_refresh_token_hash, s.refresh_family_secret, s.refresh_generation, s.expires_at, s.status
+			 FROM user_sessions s
+			 WHERE s.id = ?
+			   AND EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id AND u.status = ?)
 			 LIMIT 1`,
-			sessionID,
+			sessionID, statusActive,
 		),
 	)
-	if err != nil || session == nil {
-		return nil, false
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrSessionNotFound
+		}
+		return nil, err
+	}
+	if session == nil {
+		return nil, ErrSessionNotFound
 	}
 	if session.Revoked || time.Now().After(session.ExpiresAt) {
-		return nil, false
+		return nil, ErrSessionNotFound
 	}
-	return session, true
+	return session, nil
 }
 
 func (s *SQLStore) CreateSession(userID int64, ttlSeconds int64) (string, string, error) {
@@ -76,7 +84,7 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 	if err != nil {
 		return "", "", err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	user, err := queryUser(
 		tx.QueryRowContext(
@@ -91,7 +99,7 @@ func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSe
 		),
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return "", "", ErrUserNotFound
 		}
 		return "", "", err
@@ -173,21 +181,22 @@ func (s *SQLStore) RefreshSession(refreshToken string, ttlSeconds int64) (*Sessi
 	if err != nil {
 		return nil, "", err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	refreshHash := hashToken(refreshToken)
 	session, err := querySession(
 		tx.QueryRowContext(
 			ctx,
-			`SELECT id, user_id, device_type, session_version, refresh_token_hash, previous_refresh_token_hash, refresh_family_secret, refresh_generation, expires_at, status
-			 FROM user_sessions
-			 WHERE id = ?
+			`SELECT s.id, s.user_id, s.device_type, s.session_version, s.refresh_token_hash, s.previous_refresh_token_hash, s.refresh_family_secret, s.refresh_generation, s.expires_at, s.status
+			 FROM user_sessions s
+			 WHERE s.id = ?
+			   AND EXISTS (SELECT 1 FROM users u WHERE u.id = s.user_id AND u.status = ?)
 			 LIMIT 1 FOR UPDATE`,
-			sessionID,
+			sessionID, statusActive,
 		),
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, "", ErrRefreshTokenInvalid
 		}
 		return nil, "", err
@@ -269,7 +278,7 @@ func (s *SQLStore) Logout(refreshToken string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	session, err := querySession(
 		tx.QueryRowContext(
@@ -282,7 +291,7 @@ func (s *SQLStore) Logout(refreshToken string) error {
 		),
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrRefreshTokenInvalid
 		}
 		return err
@@ -342,7 +351,7 @@ func (s *SQLStore) LogoutAll(userID int64) {
 	if err != nil {
 		return
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	sessionIDs, err := listActiveSessionIDsTx(ctx, tx, userID, "")
 	if err != nil {
@@ -435,7 +444,7 @@ func listActiveSessionIDsTx(ctx context.Context, tx *sql.Tx, userID int64, devic
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	sessionIDs := make([]string, 0)
 	for rows.Next() {

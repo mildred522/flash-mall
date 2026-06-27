@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the first business-grade account-security slice for `flash-mall` by extending `auth-service` with throttling, session hardening, audit visibility, and BFF exposure through `order-api`.
+**Goal:** Build the first business-grade account-security slice for `flash-mall` by extending `auth-service` with throttling, session hardening, audit visibility, and BFF exposure through `entry-api`.
 
-**Architecture:** Keep `auth-service` as the owner of auth, session, risk, and audit behavior. Keep `order-api` as the only browser-facing BFF and continue to proxy `/api/auth/*`. Implement the work in four focused slices: security foundation, anti-abuse rules, session hardening, and storefront visibility plus verification.
+**Architecture:** Keep `auth-service` as the owner of auth, session, risk, and audit behavior. Keep `entry-api` as the only browser-facing BFF and continue to proxy `/api/auth/*`. Implement the work in four focused slices: security foundation, anti-abuse rules, session hardening, and storefront visibility plus verification.
 
 **Tech Stack:** Go, go-zero, MySQL, Redis, JWT, bcrypt, HttpOnly Cookie, server-rendered HTML
 
@@ -54,10 +54,10 @@
 - Create: `app/auth/api/internal/logic/auth/securityeventslogic_test.go`
 - Modify: `app/auth/api/internal/handler/routes.go`
 - Modify: `app/auth/api/internal/types/types.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/authproxyhandler_test.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Modify: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/authproxyhandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/webuihandler_test.go`
 
 ### Docs
 
@@ -496,10 +496,10 @@ git commit -m "feat: harden auth sessions"
 - Create: `app/auth/api/internal/logic/auth/securityeventslogic_test.go`
 - Modify: `app/auth/api/internal/handler/routes.go`
 - Modify: `app/auth/api/internal/types/types.go`
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/handler/authproxyhandler_test.go`
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Modify: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/handler/authproxyhandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/webuihandler_test.go`
 - Create: `docs/ACCOUNT_SECURITY_V1_20260415.md`
 
 - [ ] **Step 1: Write failing tests for recent event listing and storefront anchors**
@@ -531,7 +531,7 @@ for _, needle := range []string{
 
 - [ ] **Step 2: Run the focused tests and verify red**
 
-Run: `go test ./app/auth/api/internal/logic/auth ./app/order/api/internal/handler -run "SecurityEvents|ShopUI" -count=1`
+Run: `go test ./app/auth/api/internal/logic/auth ./app/entry/api/internal/handler -run "SecurityEvents|ShopUI" -count=1`
 
 Expected: FAIL because the endpoint and UI hooks do not exist yet.
 
@@ -573,7 +573,7 @@ Run: `go test ./app/auth/api/... -count=1`
 
 Expected: PASS
 
-Run: `go test ./app/order/api/... -count=1`
+Run: `go test ./app/entry/api/... -count=1`
 
 Expected: PASS
 
@@ -590,7 +590,7 @@ Expected: PASS
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/local/start-all.ps1`
 
-Expected: auth-api on `8890` and order-api on `8888` start cleanly.
+Expected: auth-api on `8890` and entry-api on `8888` start cleanly.
 
 Run: `powershell -ExecutionPolicy Bypass -File scripts/local/stop-all.ps1 -WithDeps`
 
@@ -599,7 +599,7 @@ Expected: no leftover listeners remain on the validation ports.
 Run:
 
 ```powershell
-git add app/auth/api/internal/handler/securityeventsrecenthandler.go app/auth/api/internal/logic/auth/securityeventslogic.go app/auth/api/internal/logic/auth/securityeventslogic_test.go app/auth/api/internal/handler/routes.go app/auth/api/internal/types/types.go app/order/api/internal/handler/routes.go app/order/api/internal/handler/authproxyhandler_test.go app/order/api/internal/handler/web/shop.html app/order/api/internal/handler/webuihandler_test.go docs/ACCOUNT_SECURITY_V1_20260415.md
+git add app/auth/api/internal/handler/securityeventsrecenthandler.go app/auth/api/internal/logic/auth/securityeventslogic.go app/auth/api/internal/logic/auth/securityeventslogic_test.go app/auth/api/internal/handler/routes.go app/auth/api/internal/types/types.go app/entry/api/internal/handler/routes.go app/entry/api/internal/handler/authproxyhandler_test.go app/entry/api/internal/handler/web/shop.html app/entry/api/internal/handler/webuihandler_test.go docs/ACCOUNT_SECURITY_V1_20260415.md
 git commit -m "feat: expose account security visibility"
 ```
 
@@ -611,6 +611,6 @@ git commit -m "feat: expose account security visibility"
 - verification codes are scene-bound, time-bound, single-use, and attempt-limited
 - refresh rotates the token each time and replaying an old token kills the session
 - logout-all and reset-password invalidate prior sessions immediately
-- `/api/auth/security/events/recent` is available through `order-api`
+- `/api/auth/security/events/recent` is available through `entry-api`
 - `/shop` shows recent security state without turning into an admin console
-- `go test ./app/auth/api/... ./app/order/api/... -count=1` passes
+- `go test ./app/auth/api/... ./app/entry/api/... -count=1` passes

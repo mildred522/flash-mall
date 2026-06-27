@@ -35,20 +35,32 @@ func (s *stubAuthStore) Authenticate(int64, string, string) (*authstore.User, er
 	return nil, nil
 }
 
-func (s *stubAuthStore) GetUserByPhone(string) (*authstore.User, bool) {
-	return nil, false
+func (s *stubAuthStore) GetUserByPhone(string) (*authstore.User, error) {
+	return nil, authstore.ErrUserNotFound
 }
 
-func (s *stubAuthStore) GetUserByID(int64) (*authstore.User, bool) {
-	return nil, false
+func (s *stubAuthStore) GetUserByID(int64) (*authstore.User, error) {
+	return nil, authstore.ErrUserNotFound
+}
+
+func (s *stubAuthStore) GetUserByIDAnyStatus(int64) (*authstore.User, error) {
+	return nil, authstore.ErrUserNotFound
 }
 
 func (s *stubAuthStore) ListAllUsers() []*authstore.User {
 	return nil
 }
 
-func (s *stubAuthStore) GetActiveSession(string) (*authstore.Session, bool) {
-	return nil, false
+func (s *stubAuthStore) ListUsers(int64, int64, int64, string, string) ([]*authstore.User, int64, error) {
+	return nil, 0, nil
+}
+
+func (s *stubAuthStore) SetUserStatus(int64, int64) (*authstore.User, error) {
+	return nil, nil
+}
+
+func (s *stubAuthStore) GetActiveSession(string) (*authstore.Session, error) {
+	return nil, authstore.ErrSessionNotFound
 }
 
 func (s *stubAuthStore) CreateSession(int64, int64) (string, string, error) {

@@ -9,8 +9,10 @@ services:
       - "36789:36789" # HTTP
       - "36790:36790" # gRPC
     depends_on:
-      - etcd
-      - mysql
+      etcd:
+        condition: service_started
+      mysql:
+        condition: service_healthy
 
   etcd:
     image: bitnamilegacy/etcd:3.5
@@ -28,31 +30,80 @@ services:
     pull_policy: never
     container_name: mysql
     environment:
-      # 注意：保持你原来的密码，确保你的 Go 配置文件里也是这个
-      MYSQL_ROOT_PASSWORD: 6494kj06
+      MYSQL_ROOT_PASSWORD: ${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}
     ports:
       - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
-  # --- 新增的 Redis 部分 ---
   redis:
     image: redis:latest
     pull_policy: never
     container_name: redis
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--save", "60", "1"]
     ports:
       - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis-init:
+    image: redis:latest
+    pull_policy: never
+    container_name: flash-mall-redis-init
+    depends_on:
+      redis:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        redis-cli -h redis SETNX stock:100:0 2500
+        redis-cli -h redis SETNX stock:100:1 2500
+        redis-cli -h redis SETNX stock:100:2 2500
+        redis-cli -h redis SETNX stock:100:3 2500
+        redis-cli -h redis SETNX stock:101:0 2500
+        redis-cli -h redis SETNX stock:101:1 2500
+        redis-cli -h redis SETNX stock:101:2 2500
+        redis-cli -h redis SETNX stock:101:3 2500
+        redis-cli -h redis SETNX stock:102:0 2500
+        redis-cli -h redis SETNX stock:102:1 2500
+        redis-cli -h redis SETNX stock:102:2 2500
+        redis-cli -h redis SETNX stock:102:3 2500
+        redis-cli -h redis SETNX stock:103:0 2500
+        redis-cli -h redis SETNX stock:103:1 2500
+        redis-cli -h redis SETNX stock:103:2 2500
+        redis-cli -h redis SETNX stock:103:3 2500
+        redis-cli -h redis SETNX stock:104:0 2500
+        redis-cli -h redis SETNX stock:104:1 2500
+        redis-cli -h redis SETNX stock:104:2 2500
+        redis-cli -h redis SETNX stock:104:3 2500
+    restart: "no"
 
   rabbitmq:
     image: rabbitmq:3.12-management
     pull_policy: never
     container_name: rabbitmq
     environment:
-      RABBITMQ_DEFAULT_USER: flashmall
-      RABBITMQ_DEFAULT_PASS: flashmall123
+      RABBITMQ_DEFAULT_USER: ${FLASH_MALL_RABBITMQ_USER:-flashmall}
+      RABBITMQ_DEFAULT_PASS: ${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}
     ports:
       - "5672:5672"
       - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
 
   jaeger:
     image: jaegertracing/all-in-one:1.57
@@ -65,5 +116,129 @@ services:
       - "4318:4318"
       - "14268:14268"
 
+  mysql-init:
+    image: mysql:5.7
+    pull_policy: never
+    container_name: flash-mall-mysql-init
+    environment:
+      MYSQL_ROOT_PASSWORD: ${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}
+    volumes:
+      - ../scripts/k8s/init-db.sql:/init/init-db.sql:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - mysql -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+    restart: "no"
+
+  auth-api:
+    image: flash-mall/auth-api:${FLASH_MALL_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: build/docker/auth-api.Dockerfile
+    container_name: auth-api
+    environment:
+      FLASH_MALL_AUTH_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+      FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
+      FLASH_MALL_DEMO_PASSWORD: ${FLASH_MALL_DEMO_PASSWORD:-flashmall123}
+    volumes:
+      - ./config/auth-api.yaml:/etc/flash-mall/auth-api.yaml:ro
+    command: ["-f", "/etc/flash-mall/auth-api.yaml"]
+    ports:
+      - "8890:8890"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  product-rpc:
+    image: flash-mall/product-rpc:${FLASH_MALL_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: build/docker/product-rpc.Dockerfile
+    container_name: product-rpc
+    environment:
+      FLASH_MALL_PRODUCT_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+    volumes:
+      - ./config/product.yaml:/etc/flash-mall/product.yaml:ro
+    command: ["-f", "/etc/flash-mall/product.yaml"]
+    ports:
+      - "8080:8080"
+      - "6062:6062"
+      - "9092:9092"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_started
+
+  order-rpc:
+    image: flash-mall/order-rpc:${FLASH_MALL_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: build/docker/order-rpc.Dockerfile
+    container_name: order-rpc
+    environment:
+      FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+      FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
+    volumes:
+      - ./config/order.yaml:/etc/flash-mall/order.yaml:ro
+    command: ["-f", "/etc/flash-mall/order.yaml"]
+    ports:
+      - "8090:8090"
+      - "6061:6061"
+      - "9091:9091"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      redis-init:
+        condition: service_completed_successfully
+      etcd:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      product-rpc:
+        condition: service_started
+
+  entry-api:
+    image: flash-mall/entry-api:${FLASH_MALL_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: build/docker/entry-api.Dockerfile
+    container_name: entry-api
+    environment:
+      FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+      FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
+      FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
+      FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
+    volumes:
+      - ./config/entry-api.yaml:/etc/flash-mall/entry-api.yaml:ro
+    command: ["-f", "/etc/flash-mall/entry-api.yaml"]
+    ports:
+      - "8888:8888"
+      - "6060:6060"
+      - "9090:9090"
+    depends_on:
+      auth-api:
+        condition: service_started
+      product-rpc:
+        condition: service_started
+      order-rpc:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      redis-init:
+        condition: service_completed_successfully
+      dtm:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
 volumes:
   mysql-data:
+  redis-data:

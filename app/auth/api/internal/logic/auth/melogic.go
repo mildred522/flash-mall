@@ -3,8 +3,10 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strconv"
 
+	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/svc"
 	"flash-mall/app/auth/api/internal/types"
 
@@ -40,8 +42,14 @@ func (l *MeLogic) Me() (*types.MeResp, error) {
 	if sessionID == "" {
 		return nil, status.Error(codes.Unauthenticated, "missing session id in jwt")
 	}
-	session, exists := l.svcCtx.Store.GetActiveSession(sessionID)
-	if !exists || session.UserID != userID {
+	session, err := l.svcCtx.Store.GetActiveSession(sessionID)
+	if errors.Is(err, authstore.ErrSessionNotFound) {
+		return nil, status.Error(codes.Unauthenticated, "session invalid or expired")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "load session failed")
+	}
+	if session == nil || session.UserID != userID {
 		return nil, status.Error(codes.Unauthenticated, "session invalid or expired")
 	}
 	sessionVersion, ok := parseUserIDClaim(l.ctx.Value("session_version"))
@@ -52,9 +60,12 @@ func (l *MeLogic) Me() (*types.MeResp, error) {
 		return nil, status.Error(codes.Unauthenticated, "session version mismatch")
 	}
 
-	user, exists := l.svcCtx.Store.GetUserByID(userID)
-	if !exists {
+	user, err := l.svcCtx.Store.GetUserByID(userID)
+	if errors.Is(err, authstore.ErrUserNotFound) {
 		return nil, status.Error(codes.NotFound, "user not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "load user failed")
 	}
 
 	return &types.MeResp{

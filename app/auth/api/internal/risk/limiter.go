@@ -29,6 +29,8 @@ type limiterEntry struct {
 	expiresAt time.Time
 }
 
+const redisOperationTimeout = time.Second
+
 func NewMemoryLimiter() *MemoryLimiter {
 	return &MemoryLimiter{
 		counts: make(map[string]limiterEntry),
@@ -97,10 +99,11 @@ func (l *RedisLimiter) Incr(ctx context.Context, key string, ttl time.Duration) 
 	ctx, cancel := withRedisTimeout(ctx)
 	defer cancel()
 
-	if _, err := l.rds.IncrbyCtx(ctx, key, 1); err != nil {
-		return err
-	}
-	return l.rds.ExpireCtx(ctx, key, int(ttl.Seconds()))
+	return l.rds.PipelinedCtx(ctx, func(pipe redis.Pipeliner) error {
+		pipe.IncrBy(ctx, key, 1)
+		pipe.Expire(ctx, key, ttl)
+		return nil
+	})
 }
 
 func (l *RedisLimiter) Blocked(ctx context.Context, key string, max int64) (bool, int64, error) {
@@ -136,10 +139,10 @@ func (l *RedisLimiter) Reset(ctx context.Context, key string) error {
 
 func withRedisTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.WithTimeout(context.Background(), 150*time.Millisecond)
+		return context.WithTimeout(context.Background(), redisOperationTimeout)
 	}
-	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= 150*time.Millisecond {
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= redisOperationTimeout {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, 150*time.Millisecond)
+	return context.WithTimeout(ctx, redisOperationTimeout)
 }

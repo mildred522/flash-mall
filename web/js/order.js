@@ -40,17 +40,7 @@ function showPaymentBanner(orderId, status) {
   `;
   // Wire pay button inside banner
   banner.querySelectorAll("[data-pay-order]").forEach((btn) =>
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      btn.textContent = "支付中...";
-      const resp = await payOrder(orderId);
-      if (resp.ok) {
-        pollOrderStatus(null, orderId);
-      } else {
-        btn.disabled = false;
-        btn.textContent = "去付款";
-      }
-    })
+    btn.addEventListener("click", () => openPayModal(orderId))
   );
 }
 
@@ -178,14 +168,14 @@ export async function payOrder(orderId) {
   return response;
 }
 
-export async function shipOrder(orderId) {
+export async function cancelOrder(orderId) {
   const t0 = performance.now();
-  const response = await authed("/api/order/ship", { method: "POST", jsonBody: { order_id: orderId } });
+  const response = await authed("/api/order/cancel", { method: "POST", jsonBody: { order_id: orderId, reason: "user cancel" } });
   const cost = (performance.now() - t0).toFixed(1);
   if (response.ok) {
-    log(`发货成功 order=${orderId} latency=${cost}ms`);
+    log(`取消订单成功 order=${orderId} latency=${cost}ms`);
   } else {
-    log(`发货失败 order=${orderId} status=${response.status} body=${JSON.stringify(response.data)} latency=${cost}ms`);
+    log(`取消订单失败 order=${orderId} status=${response.status} body=${JSON.stringify(response.data)} latency=${cost}ms`);
   }
   return response;
 }
@@ -203,8 +193,14 @@ export async function confirmReceipt(orderId) {
 }
 
 export async function refundOrder(orderId) {
+  const reason = $("refund-reason")?.value.trim() || "";
+  if (!reason) {
+    const box = $("refund-error");
+    if (box) box.textContent = "请输入退款原因";
+    return { ok: false, status: 0, data: { error: "reason required" } };
+  }
   const t0 = performance.now();
-  const response = await authed("/api/order/refund", { method: "POST", jsonBody: { order_id: orderId } });
+  const response = await authed("/api/order/refund", { method: "POST", jsonBody: { order_id: orderId, reason } });
   const cost = (performance.now() - t0).toFixed(1);
   if (response.ok) {
     log(`退款成功 order=${orderId} latency=${cost}ms`);
@@ -212,6 +208,87 @@ export async function refundOrder(orderId) {
     log(`退款失败 order=${orderId} status=${response.status} body=${JSON.stringify(response.data)} latency=${cost}ms`);
   }
   return response;
+}
+
+export function openPayModal(orderId) {
+  state.payOrderId = orderId;
+  const label = $("pay-order-label");
+  if (label) label.textContent = `订单 ${orderId}`;
+  const error = $("pay-error");
+  if (error) error.textContent = "";
+  $("pay-modal")?.classList.remove("hidden");
+  $("pay-modal")?.setAttribute("aria-hidden", "false");
+}
+
+export function closePayModal() {
+  $("pay-modal")?.classList.add("hidden");
+  $("pay-modal")?.setAttribute("aria-hidden", "true");
+}
+
+export async function submitPayModal() {
+  if (!state.payOrderId) return;
+  const btn = $("submit-pay");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "支付中...";
+  }
+  const resp = await payOrder(state.payOrderId);
+  if (resp.ok) {
+    closePayModal();
+    pollOrderStatus(null, state.payOrderId);
+    await showOrders();
+  } else {
+    const error = $("pay-error");
+    if (error) error.textContent = `支付失败 status=${resp.status}`;
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "确认支付";
+  }
+}
+
+export function openRefundModal(orderId) {
+  state.refundOrderId = orderId;
+  const label = $("refund-order-label");
+  if (label) label.textContent = `订单 ${orderId}`;
+  const reason = $("refund-reason");
+  if (reason) reason.value = "user refund";
+  const error = $("refund-error");
+  if (error) error.textContent = "";
+  $("refund-modal")?.classList.remove("hidden");
+  $("refund-modal")?.setAttribute("aria-hidden", "false");
+}
+
+export function closeRefundModal() {
+  $("refund-modal")?.classList.add("hidden");
+  $("refund-modal")?.setAttribute("aria-hidden", "true");
+}
+
+export async function submitRefundModal() {
+  if (!state.refundOrderId) return;
+  const btn = $("submit-refund");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "提交中...";
+  }
+  const resp = await refundOrder(state.refundOrderId);
+  if (resp.ok) {
+    closeRefundModal();
+    await showOrders();
+  }
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = "提交退款";
+  }
+}
+
+export async function loadOrderDetail(orderId) {
+  const response = await authed(`/api/orders/detail?order_id=${encodeURIComponent(orderId)}`);
+  if (!response.ok) {
+    log(`订单详情拉取失败 order=${orderId} status=${response.status}`);
+    return null;
+  }
+  return response.data;
 }
 
 export function renderOrders(items) {
@@ -243,40 +320,55 @@ export function renderOrders(items) {
         <div class="order-card-right">
           <div class="order-card-price">¥${formatPriceFen(item.payable_amount_fen)}</div>
           <span class="order-status-badge ${st.cls}">${st.text}</span>
+          <button class="btn-pay" data-detail-order="${item.order_id}">详情</button>
           ${item.status === 0 ? `<button class="btn-pay" data-pay-order="${item.order_id}">去付款</button>` : ""}
-          ${item.status === 1 ? `<button class="btn-ship" data-ship-order="${item.order_id}">发货</button>` : ""}
+          ${item.status === 0 ? `<button class="btn-refund" data-cancel-order="${item.order_id}">取消订单</button>` : ""}
           ${item.status === 3 ? `<button class="btn-confirm" data-confirm-order="${item.order_id}">确认收货</button>` : ""}
-          ${(item.status === 0 || item.status === 1) ? `<button class="btn-refund" data-refund-order="${item.order_id}">申请退款</button>` : ""}
+          ${(item.status === 1 || item.status === 3) ? `<button class="btn-refund" data-refund-order="${item.order_id}">申请退款</button>` : ""}
         </div>
       </div>`;
   }).join("");
 
-  container.querySelectorAll("[data-pay-order]").forEach((btn) =>
+  container.querySelectorAll("[data-detail-order]").forEach((btn) =>
     btn.addEventListener("click", async () => {
-      const orderId = btn.getAttribute("data-pay-order");
-      btn.disabled = true;
-      btn.textContent = "支付中...";
-      const resp = await payOrder(orderId);
-      if (resp.ok) {
-        await showOrders();
-      } else {
-        btn.disabled = false;
-        btn.textContent = "去付款";
+      const orderId = btn.getAttribute("data-detail-order");
+      const detail = await loadOrderDetail(orderId);
+      if (!detail) return;
+      const card = btn.closest(".order-card");
+      let panel = card.querySelector(".order-detail-inline");
+      if (panel) {
+        panel.remove();
+        return;
       }
+      panel = document.createElement("div");
+      panel.className = "order-detail-inline";
+      panel.innerHTML = `
+        <div><span>订单号</span><strong>${detail.order_id}</strong></div>
+        <div><span>支付单</span><strong>${detail.payment_order_id || "—"}</strong></div>
+        <div><span>支付状态</span><strong>${detail.payment_status_text || "—"}</strong></div>
+        <div><span>商品单价</span><strong>¥${formatPriceFen(detail.sale_unit_price_fen)}</strong></div>
+        <div><span>优惠</span><strong>${detail.promotion_tag || "无"} ¥${formatPriceFen(detail.discount_amount_fen)}</strong></div>
+        <div><span>应付</span><strong>¥${formatPriceFen(detail.payable_amount_fen)}</strong></div>
+      `;
+      card.appendChild(panel);
     })
   );
 
-  container.querySelectorAll("[data-ship-order]").forEach((btn) =>
+  container.querySelectorAll("[data-pay-order]").forEach((btn) =>
+    btn.addEventListener("click", () => openPayModal(btn.getAttribute("data-pay-order")))
+  );
+
+  container.querySelectorAll("[data-cancel-order]").forEach((btn) =>
     btn.addEventListener("click", async () => {
-      const orderId = btn.getAttribute("data-ship-order");
+      const orderId = btn.getAttribute("data-cancel-order");
       btn.disabled = true;
-      btn.textContent = "发货中...";
-      const resp = await shipOrder(orderId);
+      btn.textContent = "取消中...";
+      const resp = await cancelOrder(orderId);
       if (resp.ok) {
         await showOrders();
       } else {
         btn.disabled = false;
-        btn.textContent = "发货";
+        btn.textContent = "取消订单";
       }
     })
   );
@@ -297,18 +389,7 @@ export function renderOrders(items) {
   );
 
   container.querySelectorAll("[data-refund-order]").forEach((btn) =>
-    btn.addEventListener("click", async () => {
-      const orderId = btn.getAttribute("data-refund-order");
-      btn.disabled = true;
-      btn.textContent = "退款中...";
-      const resp = await refundOrder(orderId);
-      if (resp.ok) {
-        await showOrders();
-      } else {
-        btn.disabled = false;
-        btn.textContent = "申请退款";
-      }
-    })
+    btn.addEventListener("click", () => openRefundModal(btn.getAttribute("data-refund-order")))
   );
 }
 

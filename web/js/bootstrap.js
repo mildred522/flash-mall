@@ -6,7 +6,10 @@ import {
   sendCode, logout, logoutAll, me, authed,
 } from "./auth.js";
 import { loadCatalog } from "./catalog.js";
-import { burst, order, showOrders, goToOrders } from "./order.js";
+import { burst, order, showOrders, goToOrders, closeRefundModal, submitRefundModal, closePayModal, submitPayModal } from "./order.js";
+import { initCartState, openCart, closeCart, cartItems } from "./cart.js";
+import { openCheckout, closeCheckout, toggleAddressForm, saveAddressFromForm, submitCheckout } from "./checkout.js";
+import { initCoupons, claimCoupon, showCouponWallet } from "./coupon.js";
 import { loadSecurityEvents } from "./security.js";
 import { health } from "./health.js";
 import { timerTick } from "./timer.js";
@@ -46,7 +49,12 @@ authModal.addEventListener("click", (event) => {
   if (event.target === authModal) closeAuth();
 });
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeAuth();
+  if (event.key === "Escape") {
+    closeAuth();
+    closeCheckout();
+    closeRefundModal();
+    closePayModal();
+  }
 });
 $("password-login-action").addEventListener("click", passwordLogin);
 $("register-action").addEventListener("click", register);
@@ -61,6 +69,31 @@ $("console-health-action").addEventListener("click", health);
 $("console-buy-action").addEventListener("click", () => order(100, 1, "console-buy"));
 $("console-burst-action").addEventListener("click", burst);
 $("console-toggle").addEventListener("click", () => collapse(!state.consoleCollapsed));
+$("nav-cart").addEventListener("click", openCart);
+$("close-cart").addEventListener("click", closeCart);
+$("cart-backdrop").addEventListener("click", closeCart);
+$("cart-checkout").addEventListener("click", () => openCheckout(cartItems()));
+$("close-checkout").addEventListener("click", closeCheckout);
+$("checkout-modal").addEventListener("click", (event) => {
+  if (event.target === $("checkout-modal")) closeCheckout();
+});
+$("close-refund").addEventListener("click", closeRefundModal);
+$("refund-modal").addEventListener("click", (event) => {
+  if (event.target === $("refund-modal")) closeRefundModal();
+});
+$("submit-refund").addEventListener("click", submitRefundModal);
+$("close-pay").addEventListener("click", closePayModal);
+$("pay-modal").addEventListener("click", (event) => {
+  if (event.target === $("pay-modal")) closePayModal();
+});
+$("submit-pay").addEventListener("click", submitPayModal);
+$("show-address-form").addEventListener("click", () => toggleAddressForm(true));
+$("save-address").addEventListener("click", saveAddressFromForm);
+$("submit-checkout").addEventListener("click", submitCheckout);
+document.querySelectorAll("[data-claim-coupon]").forEach((button) =>
+  button.addEventListener("click", () => claimCoupon(button.getAttribute("data-claim-coupon")))
+);
+$("show-coupons").addEventListener("click", showCouponWallet);
 
 // My Orders navigation
 $("nav-orders").addEventListener("click", async () => {
@@ -78,6 +111,8 @@ $("back-to-shop").addEventListener("click", () => {
 // Initialize
 import { renderProducts } from "./catalog.js";
 renderProducts([]);
+initCartState();
+initCoupons();
 updateUI();
 collapse(state.consoleCollapsed);
 timerTick();

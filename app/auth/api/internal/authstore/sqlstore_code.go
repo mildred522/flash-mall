@@ -3,6 +3,7 @@ package authstore
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -28,7 +29,7 @@ func (s *SQLStore) IssueCode(phone, scene string, ttlSeconds int64) (string, tim
 	if err != nil {
 		return "", time.Time{}, err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	if _, err = tx.ExecContext(
 		ctx,
@@ -75,7 +76,7 @@ func (s *SQLStore) ConsumeCode(phone, scene, code string, maxAttempts int64) err
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	var (
 		id           int64
@@ -93,7 +94,7 @@ func (s *SQLStore) ConsumeCode(phone, scene, code string, maxAttempts int64) err
 		phone, scene, statusActive,
 	).Scan(&id, &codeHash, &expiresAt, &attemptCount)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return ErrInvalidCode
 		}
 		return err

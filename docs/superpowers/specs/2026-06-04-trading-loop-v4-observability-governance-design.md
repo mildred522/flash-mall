@@ -17,8 +17,8 @@ V4 is intentionally split into independent milestones. Phase A and Phase B are t
 
 Relevant existing assets:
 
-1. `app/order/api/order.go` and `app/order/rpc/order.go` expose pprof and Prometheus endpoints.
-2. `app/order/api/internal/metrics/metrics.go` already defines business counters and histograms.
+1. `app/entry/api/entry.go` and `app/order/rpc/order.go` expose pprof and Prometheus endpoints.
+2. `app/entry/api/internal/metrics/metrics.go` already defines business counters and histograms.
 3. `scripts/k8s/perf-collect.ps1`, `scripts/k8s/perf-reliable.ps1`, and `docs/PERF_RELIABILITY_PLAYBOOK.md` provide repeatable benchmark evidence.
 4. `.github/workflows/ci.yml` runs Go checks, smoke tests, Docker builds, and a frontend build.
 5. `scripts/ci/smoke-e2e.sh` exists as an end-to-end smoke entry point.
@@ -34,7 +34,7 @@ Known gaps:
 
 ## Goals
 
-1. Introduce OpenTelemetry tracing across order-api, order-rpc, product-rpc, RabbitMQ publishing, and RabbitMQ consumption.
+1. Introduce OpenTelemetry tracing across entry-api, order-rpc, product-rpc, RabbitMQ publishing, and RabbitMQ consumption.
 2. Define a stable correlation contract: `trace_id`, `request_id`, `order_id`, `payment_order_id`, and `event_id`.
 3. Make key logs include correlation fields without rewriting all logging.
 4. Add targeted metrics for lifecycle transitions, Outbox publishing, consumer results, and compensation failures where current metrics are too coarse.
@@ -76,12 +76,12 @@ Scope:
 
 1. Add OpenTelemetry config with tracing disabled by default in non-demo configs.
 2. Add HTTP middleware and gRPC interceptors.
-3. Add trace propagation through order-api, order-rpc, and product-rpc.
+3. Add trace propagation through entry-api, order-rpc, and product-rpc.
 4. Add a local Jaeger or OpenTelemetry collector path for demo use.
 
 Exit criteria:
 
-1. A create-order flow produces one trace containing order-api, order-rpc, and product-rpc spans.
+1. A create-order flow produces one trace containing entry-api, order-rpc, and product-rpc spans.
 2. Logs on the same path include `trace_id` and `order_id` where available.
 3. Tracing can be disabled by config without changing business behavior.
 
@@ -121,7 +121,7 @@ V4 adds an observability layer around the existing services:
 
 ```text
 client
-  -> order-api
+  -> entry-api
       -> DTM SAGA
       -> order-rpc
           -> MySQL mall_order
@@ -134,8 +134,8 @@ client
 
 Trace context should move through:
 
-1. HTTP headers into order-api.
-2. gRPC metadata from order-api to order-rpc and product-rpc.
+1. HTTP headers into entry-api.
+2. gRPC metadata from entry-api to order-rpc and product-rpc.
 3. Outbox payload and RabbitMQ message headers from publisher to consumers.
 4. Log fields and business metrics as exemplars or labels where cardinality is safe.
 
@@ -161,7 +161,7 @@ Rules:
 1. Never put high-cardinality IDs into Prometheus labels except where the metric is explicitly debug-only and disabled by default.
 2. Put high-cardinality IDs in traces and logs.
 3. Outbox payload should include `trace_id` when available, but event idempotency must not depend on trace id.
-4. If an incoming request lacks trace headers, order-api creates a new trace.
+4. If an incoming request lacks trace headers, entry-api creates a new trace.
 5. If an async consumer receives an event without trace metadata, it starts a new trace and links the event id.
 
 Default sampling:
@@ -173,7 +173,7 @@ Default sampling:
 
 ## Tracing Design
 
-### order-api
+### entry-api
 
 Add middleware around HTTP routes:
 
@@ -258,9 +258,9 @@ Update `.github/workflows/ci.yml`:
 1. Use `frontend/package-lock.json` for Node cache.
 2. Run `npm ci` in `frontend`.
 3. Run `npm run build:shop` and `npm run build:admin`.
-4. Run `go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/...`.
-5. Run `goctl api validate -api app/order/api/order.api` if goctl is available or install it explicitly.
-6. Keep Docker build checks for order-api, order-rpc, and product-rpc.
+4. Run `go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/...`.
+5. Run `goctl api validate -api app/entry/api/entry.api` if goctl is available or install it explicitly.
+6. Keep Docker build checks for entry-api, order-rpc, and product-rpc.
 
 This is Phase A work. It should be completed before deeper V4 instrumentation so every later patch gets the correct baseline checks.
 
@@ -353,8 +353,8 @@ The observability playbook should answer:
 Backend checks:
 
 ```powershell
-go test ./app/order/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
-goctl api validate -api app/order/api/order.api
+go test ./app/entry/api/... ./app/order/rpc/... ./app/product/rpc/... ./app/auth/api/... -count=1
+goctl api validate -api app/entry/api/entry.api
 ```
 
 Frontend checks:
@@ -368,7 +368,7 @@ Observability checks:
 
 1. Start local dependencies and collector.
 2. Create an order with a known `request_id`.
-3. Verify trace spans across order-api, order-rpc, product-rpc, MySQL, Redis, and Outbox publish.
+3. Verify trace spans across entry-api, order-rpc, product-rpc, MySQL, Redis, and Outbox publish.
 4. Verify logs contain the same `trace_id` and `order_id` on critical path entries.
 5. Verify metrics expose Outbox backlog and lifecycle result counters.
 
@@ -381,7 +381,7 @@ Governance checks:
 ## Success Criteria
 
 1. Given a known `order_id`, an engineer can find the related `trace_id` and critical logs within five minutes using the V4 playbook.
-2. A create-order test flow produces a continuous trace containing at least order-api HTTP span, order-rpc create span, product-rpc deduct span, MySQL operation span, Redis pre-deduct span, and Outbox publish span.
+2. A create-order test flow produces a continuous trace containing at least entry-api HTTP span, order-rpc create span, product-rpc deduct span, MySQL operation span, Redis pre-deduct span, and Outbox publish span.
 3. After V3 merge, one lifecycle flow produces trace/log evidence for pay, ship, confirm receipt, request refund, and approve refund.
 4. Outbox publish retry and consumer duplicate paths increment visible metrics and emit logs with `event_id`, `event_type`, and `trace_id` when available.
 5. CI validates Go packages, API contract, shop build, admin build, and Docker images without referencing obsolete `web` frontend paths.

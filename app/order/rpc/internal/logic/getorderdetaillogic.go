@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/common/paymentstatus"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
 
@@ -80,28 +82,25 @@ LIMIT 1`, orderID)
 
 func orderDetailStatusText(statusCode int64) string {
 	switch statusCode {
-	case 0:
+	case orderstatus.PendingPayment:
 		return "PENDING_PAYMENT"
-	case 1:
+	case orderstatus.Paid:
 		return "PAID"
-	case 2:
+	case orderstatus.Closed:
 		return "CLOSED"
+	case orderstatus.Shipped:
+		return "SHIPPED"
+	case orderstatus.Completed:
+		return "COMPLETED"
+	case orderstatus.RefundRequested:
+		return "REFUND_REQUESTED"
+	case orderstatus.Refunded:
+		return "REFUNDED"
 	default:
 		return "UNKNOWN"
 	}
 }
 
 func paymentStatusText(statusCode int64) string {
-	switch statusCode {
-	case 0:
-		return "INIT"
-	case 1:
-		return "SUCCESS"
-	case 2:
-		return "FAILED"
-	case 3:
-		return "CLOSED"
-	default:
-		return "UNKNOWN"
-	}
+	return paymentstatus.Text(statusCode)
 }

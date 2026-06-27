@@ -250,7 +250,7 @@ Logs:
 The redesign must preserve the current operational capabilities:
 
 - login through the existing login API
-- order creation through the existing order API
+- order creation through the existing entry API
 - token persistence through local storage
 - health checks through the current health endpoint
 - visible success and error states
@@ -263,9 +263,9 @@ No backend contract changes are part of this work.
 
 The current frontend is server-served embedded HTML in:
 
-- `app/order/api/internal/handler/web/shop.html`
-- `app/order/api/internal/handler/web/home.html`
-- `app/order/api/internal/handler/web/debug.html`
+- `app/entry/api/internal/handler/web/shop.html`
+- `app/entry/api/internal/handler/web/home.html`
+- `app/entry/api/internal/handler/web/debug.html`
 
 The redesign should follow the current project delivery model:
 

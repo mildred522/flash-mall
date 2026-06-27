@@ -31,7 +31,10 @@ spec:
           image: mysql:8.0
           env:
             - name: MYSQL_ROOT_PASSWORD
-              value: flashmall
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: mysql-root-password
           ports:
             - containerPort: 3306
           volumeMounts:

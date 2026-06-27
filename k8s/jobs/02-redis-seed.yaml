@@ -20,8 +20,8 @@ spec:
           image: redis:7
           imagePullPolicy: IfNotPresent
           env:
-            - name: PRODUCT_ID
-              value: "100"
+            - name: PRODUCT_IDS
+              value: "100 101 102 103 104"
             - name: TOTAL_STOCK
               value: "10000"
             - name: SHARDS
@@ -35,7 +35,7 @@ spec:
               until redis-cli -h redis ping >/dev/null 2>&1; do
                 sleep 2
               done
-              product="${PRODUCT_ID}"
+              products="${PRODUCT_IDS:-100}"
               total="${TOTAL_STOCK}"
               shards="${SHARDS}"
               if [ "$shards" -le 0 ]; then
@@ -43,14 +43,16 @@ spec:
               fi
               per=$((total / shards))
               remain=$((total % shards))
-              i=0
-              while [ "$i" -lt "$shards" ]; do
-                value="$per"
-                if [ "$i" -eq 0 ]; then
-                  value=$((per + remain))
-                fi
-                # 只在 key 不存在时写入，避免覆盖已有库存
-                redis-cli -h redis SETNX "stock:${product}:${i}" "$value" >/dev/null
-                i=$((i+1))
+              for product in $products; do
+                i=0
+                while [ "$i" -lt "$shards" ]; do
+                  value="$per"
+                  if [ "$i" -eq 0 ]; then
+                    value=$((per + remain))
+                  fi
+                  # 只在 key 不存在时写入，避免覆盖已有库存
+                  redis-cli -h redis SETNX "stock:${product}:${i}" "$value" >/dev/null
+                  i=$((i+1))
+                done
               done
               echo "seed done"

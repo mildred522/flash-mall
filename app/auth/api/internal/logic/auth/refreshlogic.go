@@ -2,7 +2,9 @@ package auth
 
 import (
 	"context"
+	"errors"
 
+	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/svc"
 	"flash-mall/app/auth/api/internal/types"
@@ -32,18 +34,21 @@ func (l *RefreshLogic) Refresh(refreshToken string) (*types.LoginResp, error) {
 
 	session, newRefreshToken, err := l.svcCtx.Store.RefreshSession(refreshToken, l.svcCtx.Config.RefreshTokenTTLSeconds)
 	if err != nil {
-		if err == authstore.ErrRefreshTokenInvalid {
+		if errors.Is(err, authstore.ErrRefreshTokenInvalid) {
 			return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
 		}
-		if err == authstore.ErrRefreshTokenReplayed {
+		if errors.Is(err, authstore.ErrRefreshTokenReplayed) {
 			return nil, status.Error(codes.Unauthenticated, "refresh token replayed")
 		}
 		return nil, status.Error(codes.Internal, "refresh session failed")
 	}
 
-	user, ok := l.svcCtx.Store.GetUserByID(session.UserID)
-	if !ok {
+	user, err := l.svcCtx.Store.GetUserByID(session.UserID)
+	if errors.Is(err, authstore.ErrUserNotFound) {
 		return nil, status.Error(codes.NotFound, "user not found")
+	}
+	if err != nil {
+		return nil, status.Error(codes.Internal, "load user failed")
 	}
 
 	resp, err := issueLoginResp(
@@ -60,5 +65,11 @@ func (l *RefreshLogic) Refresh(refreshToken string) (*types.LoginResp, error) {
 	if err != nil {
 		return nil, status.Error(codes.Internal, "sign jwt failed")
 	}
+	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
+		EventType:     auditEventRefreshSuccess,
+		Result:        auditResultSuccess,
+		UserID:        user.ID,
+		IdentityValue: user.Phone,
+	})
 	return resp, nil
 }

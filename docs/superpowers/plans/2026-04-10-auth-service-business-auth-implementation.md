@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build an independent `auth-service` for business-grade registration and login, then integrate it behind `order-api` as the unified BFF entry while preserving the existing storefront and order flow.
+**Goal:** Build an independent `auth-service` for business-grade registration and login, then integrate it behind `entry-api` as the unified BFF entry while preserving the existing storefront and order flow.
 
-**Architecture:** Introduce a standalone `auth-service` that owns account, identity, credential, session, verification-code, and auth-audit responsibilities. Keep `order-api` as the browser-facing entry and forward `/api/auth/*` requests to `auth-service`, while business endpoints continue local JWT verification plus strong session-state checks via Redis.
+**Architecture:** Introduce a standalone `auth-service` that owns account, identity, credential, session, verification-code, and auth-audit responsibilities. Keep `entry-api` as the browser-facing entry and forward `/api/auth/*` requests to `auth-service`, while business endpoints continue local JWT verification plus strong session-state checks via Redis.
 
 **Tech Stack:** Go, go-zero, MySQL, Redis, JWT, bcrypt, HttpOnly Cookie, server-rendered storefront
 
@@ -32,11 +32,11 @@
 
 ### BFF Integration
 
-- Modify: `app/order/api/internal/handler/routes.go`
-- Modify: `app/order/api/internal/config/config.go`
-- Modify: `app/order/api/etc/order-api.yaml`
-- Create: `app/order/api/internal/handler/authproxyhandler.go`
-- Create: `app/order/api/internal/logic/sessionstate/*` if needed for strong-consistency checks
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Modify: `app/entry/api/internal/config/config.go`
+- Modify: `app/entry/api/etc/entry-api.yaml`
+- Create: `app/entry/api/internal/handler/authproxyhandler.go`
+- Create: `app/entry/api/internal/logic/sessionstate/*` if needed for strong-consistency checks
 
 ### Shared Runtime And Startup
 
@@ -46,9 +46,9 @@
 
 ### Frontend
 
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Modify: `app/order/api/internal/handler/web/home.html`
-- Modify: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/web/home.html`
+- Modify: `app/entry/api/internal/handler/webuihandler_test.go`
 
 ### Docs And Verification
 
@@ -68,7 +68,7 @@
 - Create: `app/auth/api/internal/types/types.go`
 - Create: `app/auth/api/internal/handler/routes.go`
 
-- [ ] Add service directory structure following `order-api` conventions.
+- [ ] Add service directory structure following `entry-api` conventions.
 - [ ] Define auth-facing routes for register, password login, code login, refresh, logout, logout-all, me, send-code, forgot-password, reset-password.
 - [ ] Add service config for MySQL, Redis, JWT secret, token TTLs, cookie config, sms provider mode, and session policy.
 - [ ] Add minimal service bootstrap so `go run ./app/auth/api/auth.go -f ./app/auth/api/etc/auth-api.yaml` can start cleanly.
@@ -149,15 +149,15 @@
 - [ ] Implement logout and logout-all by invalidating session state in both MySQL and Redis.
 - [ ] Implement `me` for storefront identity display and session-aware auth UI.
 
-### Task 7: Integrate Auth Service Behind Order API BFF
+### Task 7: Integrate Auth Service Behind Entry API BFF
 
 **Files:**
-- Modify: `app/order/api/internal/handler/routes.go`
-- Create: `app/order/api/internal/handler/authproxyhandler.go`
-- Modify: `app/order/api/internal/config/config.go`
-- Modify: `app/order/api/etc/order-api.yaml`
+- Modify: `app/entry/api/internal/handler/routes.go`
+- Create: `app/entry/api/internal/handler/authproxyhandler.go`
+- Modify: `app/entry/api/internal/config/config.go`
+- Modify: `app/entry/api/etc/entry-api.yaml`
 
-- [ ] Add `/api/auth/*` proxy routes in `order-api` that forward requests to `auth-service`.
+- [ ] Add `/api/auth/*` proxy routes in `entry-api` that forward requests to `auth-service`.
 - [ ] Preserve a single browser-facing origin so the storefront does not need to know service topology.
 - [ ] Ensure `HttpOnly Cookie` handling survives through the BFF path.
 - [ ] Remove or deprecate the old demo login path once the proxy path is verified.
@@ -166,9 +166,9 @@
 ### Task 8: Upgrade JWT Consumption In Business Services
 
 **Files:**
-- Modify: `app/order/api/internal/handler/createorderhandler.go`
-- Modify: `app/order/api/internal/logic/createorderlogic.go`
-- Add: `app/order/api/internal/logic/sessionstate/*` or equivalent
+- Modify: `app/entry/api/internal/handler/createorderhandler.go`
+- Modify: `app/entry/api/internal/logic/createorderlogic.go`
+- Add: `app/entry/api/internal/logic/sessionstate/*` or equivalent
 
 - [ ] Update claim parsing from demo `user_id` semantics to `sub + sid + session_version`.
 - [ ] Keep request body user identity untrusted and override from verified auth context.
@@ -179,9 +179,9 @@
 ### Task 9: Upgrade Storefront Auth UX
 
 **Files:**
-- Modify: `app/order/api/internal/handler/web/shop.html`
-- Modify: `app/order/api/internal/handler/web/home.html`
-- Modify: `app/order/api/internal/handler/webuihandler_test.go`
+- Modify: `app/entry/api/internal/handler/web/shop.html`
+- Modify: `app/entry/api/internal/handler/web/home.html`
+- Modify: `app/entry/api/internal/handler/webuihandler_test.go`
 
 - [ ] Replace the single demo login modal with login/register/recover flows wired to `/api/auth/*`.
 - [ ] Keep consumer-facing copy in the storefront and restrict technical state to the floating developer console.

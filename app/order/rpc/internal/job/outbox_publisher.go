@@ -240,7 +240,7 @@ LIMIT ?
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	claimed := make([]outboxEvent, 0, batch)
 	for rows.Next() {
@@ -257,7 +257,10 @@ WHERE id = ? AND status = ?
 		if execErr != nil {
 			return nil, execErr
 		}
-		affected, _ := res.RowsAffected()
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
 		if affected == 1 {
 			claimed = append(claimed, evt)
 		}
@@ -346,7 +349,9 @@ WHERE status = ?
 func (p *OutboxPublisher) Stop() {
 	if p.svcCtx.Config.OutboxSingleActive {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		_, _ = p.svcCtx.Redis.EvalCtx(ctx, releaseLeaderLockScript, []string{p.leaderLockKey()}, p.leaderID)
+		if _, err := p.svcCtx.Redis.EvalCtx(ctx, releaseLeaderLockScript, []string{p.leaderLockKey()}, p.leaderID); err != nil {
+			p.Errorf("outbox leader lock release failed: err=%v", err)
+		}
 		cancel()
 	}
 	p.rabbit.Close()

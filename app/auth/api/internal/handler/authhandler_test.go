@@ -203,7 +203,7 @@ func TestLogoutAllHandler_ClearsRefreshCookie(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/logout-all", nil)
 	req.Header.Set("Cookie", loginRec.Header().Get("Set-Cookie"))
-	req = req.WithContext(context.WithValue(req.Context(), "user_id", int64(1001)))
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", int64(1001))) //nolint:staticcheck // go-zero JWT stores claims under string keys.
 	LogoutAllHandler(svcCtx).ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {

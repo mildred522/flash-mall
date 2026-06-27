@@ -37,8 +37,8 @@ func (l *SendCodeLogic) Send(req *types.SendCodeReq) (*types.SendCodeResp, error
 	if err := l.checkSendCodeRisk(req); err != nil {
 		if status.Code(err) == codes.ResourceExhausted {
 			recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
-				EventType:     "send_code_blocked",
-				Result:        "blocked",
+				EventType:     auditEventSendCodeBlocked,
+				Result:        auditResultBlocked,
 				UserID:        auditUserIDByPhone(l.svcCtx, req.Phone),
 				IdentityValue: req.Phone,
 				IP:            req.ClientIP,
@@ -55,8 +55,8 @@ func (l *SendCodeLogic) Send(req *types.SendCodeReq) (*types.SendCodeResp, error
 		l.Errorf("record code send risk failed after issue: phone=%s scene=%s err=%v", req.Phone, req.Scene, err)
 	}
 	recordAuditEvent(l.ctx, l.svcCtx, l.Logger, audit.Event{
-		EventType:     "send_code_success",
-		Result:        "success",
+		EventType:     auditEventSendCodeSuccess,
+		Result:        auditResultSuccess,
 		UserID:        auditUserIDByPhone(l.svcCtx, req.Phone),
 		IdentityValue: req.Phone,
 		IP:            req.ClientIP,

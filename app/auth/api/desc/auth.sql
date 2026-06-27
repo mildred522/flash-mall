@@ -1,6 +1,7 @@
 CREATE TABLE `users` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '用户ID',
   `display_name` varchar(64) NOT NULL DEFAULT '' COMMENT '展示昵称',
+  `role` varchar(32) NOT NULL DEFAULT 'user' COMMENT '用户角色',
   `status` tinyint(3) NOT NULL DEFAULT '1' COMMENT '状态 1-正常 2-禁用',
   `session_version` int(11) NOT NULL DEFAULT '1' COMMENT '会话版本号',
   `create_time` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
