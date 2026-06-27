@@ -140,6 +140,14 @@ start_go_service() {
 
 cd "${REPO_ROOT}"
 
+export FLASH_MALL_AUTH_DATASOURCE="root:6494kj06@tcp(127.0.0.1:3307)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+export FLASH_MALL_PRODUCT_DATASOURCE="root:6494kj06@tcp(127.0.0.1:3307)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+export FLASH_MALL_ORDER_DATASOURCE="root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+export FLASH_MALL_RABBITMQ_URL="amqp://flashmall:flashmall-local@127.0.0.1:5672/"
+export FLASH_MALL_JWT_AUTH_SECRET="flash-mall-ci-jwt-secret"
+export FLASH_MALL_PAYMENT_CALLBACK_SECRET="flash-mall-ci-payment-secret"
+export FLASH_MALL_DEMO_PASSWORD="flashmall123"
+
 if [[ "${CI:-}" == "true" ]]; then
   for image in \
     yedf/dtm \
