@@ -27,6 +27,10 @@ func AdminOrderListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := ensureOrderMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 
 		if req.Page <= 0 {
 			req.Page = 1
@@ -45,6 +49,10 @@ func AdminOrderListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if req.UserId > 0 {
 			where += " AND o.user_id = ?"
 			args = append(args, req.UserId)
+		}
+		if req.MerchantId > 0 {
+			where += " AND o.merchant_id = ?"
+			args = append(args, req.MerchantId)
 		}
 		if req.ProductId > 0 {
 			where += " AND o.product_id = ?"
@@ -76,8 +84,10 @@ func AdminOrderListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 
 		query := fmt.Sprintf(
-			`SELECT o.id, o.user_id, o.product_id, COALESCE(s.product_name, ''), o.amount, o.status, COALESCE(s.payable_amount_fen, 0), COALESCE(o.create_time, '')
-			 FROM orders o LEFT JOIN order_price_snapshot s ON s.order_id = o.id
+			`SELECT o.id, o.user_id, o.merchant_id, COALESCE(m.name, ''), o.product_id, COALESCE(s.product_name, ''), o.amount, o.status, COALESCE(s.payable_amount_fen, 0), COALESCE(o.create_time, '')
+			 FROM orders o
+			 LEFT JOIN order_price_snapshot s ON s.order_id = o.id
+			 LEFT JOIN merchant m ON m.id = o.merchant_id
 			 WHERE %s ORDER BY o.create_time DESC LIMIT ? OFFSET ?`, where)
 		args = append(args, req.PageSize, offset)
 
@@ -92,7 +102,7 @@ func AdminOrderListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		items := make([]types.AdminOrderListItem, 0)
 		for rows.Next() {
 			var item types.AdminOrderListItem
-			if err := rows.Scan(&item.OrderId, &item.UserId, &item.ProductId, &item.ProductName, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
+			if err := rows.Scan(&item.OrderId, &item.UserId, &item.MerchantId, &item.MerchantName, &item.ProductId, &item.ProductName, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
 				logx.WithContext(r.Context()).Errorf("admin order list scan failed: %v", err)
 				httpx.ErrorCtx(r.Context(), w, err)
 				return
@@ -139,19 +149,24 @@ func AdminOrderDetailHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := ensureOrderMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 
 		var item types.OrderDetailResp
 		err = db.QueryRowContext(r.Context(),
-			`SELECT o.id, o.user_id, o.product_id, COALESCE(s.product_name,''), o.amount, o.status,
+			`SELECT o.id, o.user_id, o.merchant_id, COALESCE(m.name, ''), o.product_id, COALESCE(s.product_name,''), o.amount, o.status,
 			        COALESCE(s.origin_unit_price_fen,0), COALESCE(s.sale_unit_price_fen,0),
 			        COALESCE(s.payable_amount_fen,0), COALESCE(s.discount_amount_fen,0),
 			        COALESCE(s.promotion_type,''), COALESCE(s.promotion_tag,''),
 			        COALESCE(p.id,''), COALESCE(p.status,0), COALESCE(o.create_time,'')
 			 FROM orders o
 			 LEFT JOIN order_price_snapshot s ON s.order_id = o.id
+			 LEFT JOIN merchant m ON m.id = o.merchant_id
 			 LEFT JOIN payment_order p ON p.order_id = o.id
 			 WHERE o.id = ?`, orderId,
-		).Scan(&item.OrderId, &item.UserId, &item.ProductId, &item.ProductName, &item.Amount, &item.Status,
+		).Scan(&item.OrderId, &item.UserId, &item.MerchantId, &item.MerchantName, &item.ProductId, &item.ProductName, &item.Amount, &item.Status,
 			&item.OriginUnitPriceFen, &item.SaleUnitPriceFen, &item.PayableAmountFen, &item.DiscountAmountFen,
 			&item.PromotionType, &item.PromotionTag, &item.PaymentOrderId, &item.PaymentStatus, &item.CreateTime)
 		if err != nil {
@@ -311,7 +326,7 @@ func AdminCloseOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if currentStatus != orderstatus.PendingPayment {
+		if !orderstatus.CanPay(currentStatus) {
 			recordAdminAuditFailure(r, svcCtx, adminAuditOrderClosed, fmt.Sprintf("order:%s operator:%d reason:%s", req.OrderId, adminOperatorID(r), adminAuditReasonInvalidStatus))
 			writeConflict(w, "order cannot be closed")
 			return
@@ -375,13 +390,15 @@ func AdminRefundOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 
 		var currentStatus int64
-		err = db.QueryRowContext(r.Context(), "SELECT status FROM orders WHERE id = ?", req.OrderId).Scan(&currentStatus)
+		var productID int64
+		var amount int64
+		err = db.QueryRowContext(r.Context(), "SELECT status, product_id, amount FROM orders WHERE id = ?", req.OrderId).Scan(&currentStatus, &productID, &amount)
 		if err != nil {
 			recordAdminAuditFailure(r, svcCtx, adminAuditOrderRefunded, fmt.Sprintf("order:%s operator:%d reason:%s", req.OrderId, adminOperatorID(r), adminAuditReasonNotFound))
 			writeNotFound(w, "order not found")
 			return
 		}
-		if currentStatus != orderstatus.Paid && currentStatus != orderstatus.Shipped {
+		if !orderstatus.CanRequestRefund(currentStatus) {
 			recordAdminAuditFailure(r, svcCtx, adminAuditOrderRefunded, fmt.Sprintf("order:%s operator:%d reason:%s status:%d", req.OrderId, adminOperatorID(r), adminAuditReasonInvalidStatus, currentStatus))
 			writeConflict(w, "order cannot be refunded")
 			return
@@ -415,6 +432,10 @@ func AdminRefundOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		if _, err = tx.ExecContext(r.Context(),
 			"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
 			req.OrderId, currentStatus, orderstatus.Refunded, operatorID, "admin refund: "+req.Reason); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+		if err := compensateClosedOrderInventory(r.Context(), svcCtx, productID, amount, req.OrderId); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}

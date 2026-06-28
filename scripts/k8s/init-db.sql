@@ -10,10 +10,54 @@ CREATE DATABASE IF NOT EXISTS dtm DEFAULT CHARSET utf8mb4;
 
 USE mall_order;
 
+CREATE TABLE IF NOT EXISTS merchant (
+  id bigint NOT NULL AUTO_INCREMENT,
+  name varchar(128) NOT NULL DEFAULT '',
+  owner_user_id bigint NOT NULL DEFAULT 0,
+  status tinyint NOT NULL DEFAULT 1 COMMENT '1-active 2-disabled 3-pending',
+  contact_phone varchar(32) NOT NULL DEFAULT '',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_status (status),
+  KEY ix_owner_user_id (owner_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS merchant_user (
+  id bigint NOT NULL AUTO_INCREMENT,
+  merchant_id bigint NOT NULL,
+  user_id bigint NOT NULL,
+  role varchar(32) NOT NULL DEFAULT 'owner',
+  status tinyint NOT NULL DEFAULT 1 COMMENT '1-active 2-disabled',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uniq_merchant_user (merchant_id, user_id),
+  KEY ix_user_status (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS merchant_apply (
+  id bigint NOT NULL AUTO_INCREMENT,
+  user_id bigint NOT NULL,
+  merchant_name varchar(128) NOT NULL DEFAULT '',
+  contact_phone varchar(32) NOT NULL DEFAULT '',
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-pending 1-approved 2-rejected',
+  merchant_id bigint NOT NULL DEFAULT 0,
+  audit_remark varchar(255) NOT NULL DEFAULT '',
+  operator_id bigint NOT NULL DEFAULT 0,
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  audit_time timestamp NULL DEFAULT NULL,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_user_status (user_id, status),
+  KEY ix_status_time (status, create_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS orders (
   id varchar(64) NOT NULL COMMENT '订单id',
   request_id varchar(64) DEFAULT NULL COMMENT '幂等请求id',
   user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
+  merchant_id bigint NOT NULL DEFAULT 1000 COMMENT '商家id',
   product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
   amount int NOT NULL DEFAULT 0 COMMENT '数量',
   status tinyint NOT NULL DEFAULT 0 COMMENT '订单状态 0-待支付 1-已支付 2-已关闭 3-已发货 4-已收货 5-申请退款 6-已退款',
@@ -22,8 +66,21 @@ CREATE TABLE IF NOT EXISTS orders (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_request_id (request_id),
   KEY ix_user_id (user_id),
+  KEY ix_merchant_status (merchant_id, status),
   KEY ix_create_time (create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO merchant (id, name, owner_user_id, status, contact_phone)
+VALUES (1000, 'Flash Mall 自营店', 0, 1, '')
+ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND INDEX_NAME = 'ix_merchant_status');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE orders ADD KEY ix_merchant_status (merchant_id, status)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- 订单生命周期：新增时间戳列（幂等迁移）
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'shipped_at');
@@ -58,6 +115,7 @@ CREATE TABLE IF NOT EXISTS order_status_log (
 CREATE TABLE IF NOT EXISTS order_price_snapshot (
   order_id varchar(64) NOT NULL COMMENT '订单id',
   product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
+  merchant_id bigint NOT NULL DEFAULT 1000 COMMENT '商家id',
   supplier_id bigint NOT NULL DEFAULT 0 COMMENT '供应商id',
   product_name varchar(128) NOT NULL DEFAULT '' COMMENT '商品名快照',
   amount int NOT NULL DEFAULT 0 COMMENT '购买数量',
@@ -70,8 +128,17 @@ CREATE TABLE IF NOT EXISTS order_price_snapshot (
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (order_id),
+  KEY ix_merchant_id (merchant_id),
   KEY ix_product_id (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'order_price_snapshot' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE order_price_snapshot ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER product_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'order_price_snapshot' AND INDEX_NAME = 'ix_merchant_id');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE order_price_snapshot ADD KEY ix_merchant_id (merchant_id)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS payment_order (
   id varchar(64) NOT NULL COMMENT '支付单id',
@@ -141,6 +208,7 @@ CREATE TABLE IF NOT EXISTS refund_order (
   order_id varchar(64) NOT NULL COMMENT '订单id',
   payment_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '支付单id',
   user_id bigint NOT NULL DEFAULT 0 COMMENT '用户id',
+  merchant_id bigint NOT NULL DEFAULT 1000 COMMENT '商家id',
   product_id bigint NOT NULL DEFAULT 0 COMMENT '商品id',
   refund_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '退款金额分',
   status tinyint NOT NULL DEFAULT 0 COMMENT '0-requested 1-approved 2-success 3-rejected 4-failed',
@@ -155,8 +223,17 @@ CREATE TABLE IF NOT EXISTS refund_order (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_order_id (order_id),
   KEY ix_user_id (user_id),
+  KEY ix_merchant_status (merchant_id, status),
   KEY ix_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'refund_order' AND COLUMN_NAME = 'merchant_id');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE refund_order ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'refund_order' AND INDEX_NAME = 'ix_merchant_status');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE refund_order ADD KEY ix_merchant_status (merchant_id, status)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS reconciliation_issue (
   id bigint NOT NULL AUTO_INCREMENT,
@@ -274,6 +351,21 @@ SET @sql = IF(
     FROM information_schema.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'product'
+      AND COLUMN_NAME = 'merchant_id'
+  ),
+  'SELECT 1',
+  'ALTER TABLE product ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER id'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+  EXISTS(
+    SELECT 1
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product'
       AND COLUMN_NAME = 'origin_price_fen'
   ),
   'SELECT 1',
@@ -309,6 +401,12 @@ SET @sql = IF(
   'SELECT 1',
   'ALTER TABLE product ADD COLUMN status tinyint NOT NULL DEFAULT 1'
 );
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'product' AND INDEX_NAME = 'ix_merchant_status');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE product ADD KEY ix_merchant_status (merchant_id, status)', 'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
@@ -412,9 +510,10 @@ VALUES (200, 'Flash Supplier', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
 
 -- 初始化示例商品
-INSERT INTO product (id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
-VALUES (100, '首发风衣', 10000, 0, 12900, 11900, 1, 200)
+INSERT INTO product (id, merchant_id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+VALUES (100, 1000, '首发风衣', 10000, 0, 12900, 11900, 1, 200)
 ON DUPLICATE KEY UPDATE
+  merchant_id = VALUES(merchant_id),
   name = VALUES(name),
   stock = VALUES(stock),
   origin_price_fen = VALUES(origin_price_fen),
@@ -439,13 +538,14 @@ INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, 
 VALUES (100, 'LIMITED_PRICE', 9900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
 
 -- 新增商品 101-104
-INSERT INTO product (id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+INSERT INTO product (id, merchant_id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
 VALUES
-  (101, '轻薄羽绒服', 10000, 0, 39900, 25900, 1, 200),
-  (102, '纯棉T恤三件套', 10000, 0, 15900, 9900, 1, 200),
-  (103, '运动休闲鞋', 10000, 0, 49900, 32900, 1, 200),
-  (104, '便携充电宝', 10000, 0, 12900, 7900, 1, 200)
+  (101, 1000, '轻薄羽绒服', 10000, 0, 39900, 25900, 1, 200),
+  (102, 1000, '纯棉T恤三件套', 10000, 0, 15900, 9900, 1, 200),
+  (103, 1000, '运动休闲鞋', 10000, 0, 49900, 32900, 1, 200),
+  (104, 1000, '便携充电宝', 10000, 0, 12900, 7900, 1, 200)
 ON DUPLICATE KEY UPDATE
+  merchant_id = VALUES(merchant_id),
   name = VALUES(name), stock = VALUES(stock),
   origin_price_fen = VALUES(origin_price_fen), sale_price_fen = VALUES(sale_price_fen),
   status = VALUES(status), supplier_id = VALUES(supplier_id);

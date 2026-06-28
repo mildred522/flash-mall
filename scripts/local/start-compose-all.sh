@@ -51,8 +51,6 @@ EOF
 done
 
 . "$script_dir/compose-env.sh"
-cd "$deploy_dir"
-
 command -v docker >/dev/null 2>&1 || {
   echo "docker not found in PATH" >&2
   exit 1
@@ -87,6 +85,8 @@ args="-f $compose_file up --no-build"
 if [ "$foreground" -eq 0 ]; then
   args="$args -d"
 fi
+
+cd "$deploy_dir"
 
 echo "[COMPOSE] docker compose $args"
 # shellcheck disable=SC2086

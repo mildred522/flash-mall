@@ -216,7 +216,7 @@ function escapeHtml(value) {
 }
 
 const WORKSPACE_TABS = {
-  platform: ["dashboard", "users", "reconciliation", "events", "security"],
+  platform: ["dashboard", "merchant-applications", "users", "reconciliation", "events", "security"],
   merchant: ["orders", "refunds", "products", "suppliers", "promotions"],
 };
 
@@ -275,6 +275,7 @@ function switchTab(tab) {
   else if (tab === "products") loadProducts();
   else if (tab === "suppliers") loadSuppliers();
   else if (tab === "promotions") loadPromotions();
+  else if (tab === "merchant-applications") loadMerchantApplications();
   else if (tab === "users") loadUsers();
   else if (tab === "reconciliation") loadReconciliationIssues();
   else if (tab === "events") loadAdminEvents();
@@ -316,6 +317,56 @@ async function loadDashboard() {
   document.querySelectorAll("[data-dashboard-products-stock]").forEach((card) => card.addEventListener("click", () => openDashboardProducts(card.getAttribute("data-dashboard-products-stock"))));
   document.querySelectorAll("[data-dashboard-promotions]").forEach((card) => card.addEventListener("click", () => openDashboardPromotions(card.getAttribute("data-dashboard-promotions"))));
   log("仪表盘数据已刷新");
+}
+
+async function loadMerchantApplications() {
+  const tbody = $("merchant-applications-tbody");
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
+  const resp = await authed("/api/admin/merchants/applications");
+  if (!resp.ok || resp.data.error) {
+    tbody.innerHTML = `<tr><td colspan="8" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
+    return;
+  }
+  const statusText = { 0: "待审核", 1: "已通过", 2: "已拒绝" };
+  const items = resp.data.items || [];
+  tbody.innerHTML = items.length === 0 ? '<tr><td colspan="8" class="empty">暂无商家申请</td></tr>' : items.map((item) => {
+    const pending = Number(item.status) === 0;
+    return `<tr>
+      <td>${item.id || ""}</td>
+      <td>${item.user_id || ""}</td>
+      <td>${escapeHtml(item.merchant_name || "")}</td>
+      <td>${escapeHtml(item.contact_phone || "")}</td>
+      <td>${statusText[item.status] || item.status}</td>
+      <td>${item.merchant_id || "—"}</td>
+      <td>${escapeHtml(item.create_time || "")}</td>
+      <td><div class="table-actions">
+        ${pending ? `<button class="button small primary" data-merchant-apply-approve="${item.id}">通过</button>` : ""}
+        ${pending ? `<button class="button small danger" data-merchant-apply-reject="${item.id}">拒绝</button>` : ""}
+      </div></td>
+    </tr>`;
+  }).join("");
+  document.querySelectorAll("[data-merchant-apply-approve]").forEach((btn) => btn.addEventListener("click", () => auditMerchantApplication(btn.getAttribute("data-merchant-apply-approve"), true)));
+  document.querySelectorAll("[data-merchant-apply-reject]").forEach((btn) => btn.addEventListener("click", () => auditMerchantApplication(btn.getAttribute("data-merchant-apply-reject"), false)));
+}
+
+async function auditMerchantApplication(applyId, approve) {
+  const values = await openAdminFormModal({
+    title: approve ? "通过商家入驻" : "拒绝商家入驻",
+    submitText: approve ? "通过" : "拒绝",
+    fields: [{ name: "remark", label: "备注", type: "textarea", value: approve ? "审核通过" : "资料不完整", required: true }],
+  });
+  if (!values) return;
+  const resp = await authed("/api/admin/merchants/applications/audit", {
+    method: "POST",
+    jsonBody: { apply_id: Number(applyId), approve, remark: values.remark.trim() },
+  });
+  if (!resp.ok || resp.data.error) {
+    log(`商家审核失败 apply_id=${applyId} body=${JSON.stringify(resp.data)}`);
+    return;
+  }
+  log(`商家审核完成 apply_id=${applyId}`);
+  loadMerchantApplications();
 }
 
 function openDashboardOrders(status) {
@@ -387,6 +438,12 @@ const STATUS_MAP = {
   6: { text: "已退款", cls: "refunded" },
 };
 
+const ORDER_ACTION = {
+  canClose: (status) => Number(status) === 0,
+  canShip: (status) => Number(status) === 1,
+  canRefund: (status) => Number(status) === 1 || Number(status) === 3,
+};
+
 let orderFilters = { status: "", order_id: "", user_id: "", product_id: "", product_name: "", created_from: "", created_to: "", page: 1, page_size: 20 };
 
 async function loadOrders() {
@@ -401,7 +458,8 @@ async function loadOrders() {
   if (orderFilters.created_to) params.set("created_to", orderFilters.created_to);
   params.set("page", orderFilters.page);
   params.set("page_size", orderFilters.page_size);
-  const resp = await authed(`/api/admin/orders?${params}`);
+  const orderListPath = state.workspace === "merchant" ? "/api/merchant/orders" : "/api/admin/orders";
+  const resp = await authed(`${orderListPath}?${params}`);
   if (!resp.ok || resp.data.error) {
     $("orders-tbody").innerHTML = `<tr><td colspan="8" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
@@ -411,9 +469,10 @@ async function loadOrders() {
   const total = resp.data.total || 0;
   $("orders-tbody").innerHTML = items.length === 0 ? '<tr><td colspan="8" class="empty">暂无订单</td></tr>' : items.map((o) => {
     const st = STATUS_MAP[o.status] || { text: o.status_text || "未知", cls: "" };
-    const canShip = Number(o.status) === 1;
-    const canClose = Number(o.status) === 0;
-    const canRefund = Number(o.status) === 1 || Number(o.status) === 3;
+    const isMerchantWorkspace = state.workspace === "merchant";
+    const canShip = ORDER_ACTION.canShip(o.status);
+    const canClose = !isMerchantWorkspace && ORDER_ACTION.canClose(o.status);
+    const canRefund = !isMerchantWorkspace && ORDER_ACTION.canRefund(o.status);
     return `<tr>
         <td>${escapeHtml(o.order_id)}</td>
         <td><button class="link-button" data-order-user="${o.user_id}">${o.user_id}</button></td>
@@ -605,7 +664,8 @@ function operatorLink(operatorId) {
 }
 
 async function shipOrder(orderId) {
-  const resp = await authed("/api/admin/orders/ship", { method: "POST", jsonBody: { order_id: orderId } });
+  const shipPath = state.workspace === "merchant" ? "/api/merchant/orders/ship" : "/api/admin/orders/ship";
+  const resp = await authed(shipPath, { method: "POST", jsonBody: { order_id: orderId } });
   if (!resp.ok || resp.data.error) {
     log(`发货失败: ${orderErrorMessage(resp.data.error) || resp.status}`);
     return;
@@ -675,7 +735,8 @@ async function loadRefunds() {
   if (state.refundFilters.status !== "") params.set("status", state.refundFilters.status);
   if (state.refundFilters.orderId) params.set("order_id", state.refundFilters.orderId);
   if (state.refundFilters.userId) params.set("user_id", state.refundFilters.userId);
-  const resp = await authed(`/api/admin/refunds?${params}`);
+  const refundListPath = state.workspace === "merchant" ? "/api/merchant/refunds" : "/api/admin/refunds";
+  const resp = await authed(`${refundListPath}?${params}`);
   if (!resp.ok || resp.data.error) {
     tbody.innerHTML = `<tr><td colspan="8" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
@@ -796,7 +857,8 @@ async function loadProducts() {
   if (state.productFilters.keyword) params.set("keyword", state.productFilters.keyword);
   if (state.productFilters.promotionStatus) params.set("promotion_status", state.productFilters.promotionStatus);
   if (state.productFilters.stockStatus) params.set("stock_status", state.productFilters.stockStatus);
-  const resp = await authed(`/api/admin/products?${params}`);
+  const productListPath = state.workspace === "merchant" ? "/api/merchant/products" : "/api/admin/products";
+  const resp = await authed(`${productListPath}?${params}`);
   if (!resp.ok || resp.data.error) {
     $("products-tbody").innerHTML = `<tr><td colspan="11" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
@@ -886,7 +948,8 @@ async function createProduct() {
     if (!imageUrl) return;
     payload.image_url = imageUrl;
   }
-  const resp = await authed("/api/admin/products/create", { method: "POST", jsonBody: payload });
+  const productCreatePath = state.workspace === "merchant" ? "/api/merchant/products/create" : "/api/admin/products/create";
+  const resp = await authed(productCreatePath, { method: "POST", jsonBody: payload });
   if (!resp.ok || resp.data.error) {
     log(`新增商品失败: ${productErrorMessage(resp.data.error) || resp.status}`);
     return;
@@ -2065,6 +2128,7 @@ $("security-refresh")?.addEventListener("click", loadSecurityEvents);
 $("security-filter-apply")?.addEventListener("click", loadSecurityEvents);
 $("reconciliation-refresh")?.addEventListener("click", loadReconciliationIssues);
 $("events-refresh")?.addEventListener("click", loadAdminEvents);
+$("merchant-applications-refresh")?.addEventListener("click", loadMerchantApplications);
 
 $("console-toggle")?.addEventListener("click", () => {
   $("console-log")?.classList.toggle("hidden");

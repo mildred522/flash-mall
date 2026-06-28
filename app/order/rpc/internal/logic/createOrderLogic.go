@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -84,6 +85,11 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 		return nil, status.Error(codes.FailedPrecondition, "price changed, please retry checkout")
 	}
 
+	merchantID, err := l.loadProductMerchantID(in.ProductId)
+	if err != nil {
+		return nil, err
+	}
+
 	barrier, err := dtmgrpc.BarrierFromGrpc(l.ctx)
 	if err != nil {
 		return nil, status.Error(codes.Internal, "DTM barrier not found")
@@ -96,8 +102,8 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 
 	err = barrier.CallWithDB(db, func(tx *sql.Tx) error {
 		if _, execErr := tx.Exec(
-			"INSERT IGNORE INTO orders (id, request_id, user_id, product_id, amount, status) VALUES (?, ?, ?, ?, ?, 0)",
-			in.OrderId, requestID, in.UserId, in.ProductId, in.Amount,
+			"INSERT IGNORE INTO orders (id, request_id, user_id, merchant_id, product_id, amount, status) VALUES (?, ?, ?, ?, ?, ?, 0)",
+			in.OrderId, requestID, in.UserId, merchantID, in.ProductId, in.Amount,
 		); execErr != nil {
 			return execErr
 		}
@@ -105,6 +111,7 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 INSERT IGNORE INTO order_price_snapshot (
 	order_id,
 	product_id,
+	merchant_id,
 	supplier_id,
 	product_name,
 	amount,
@@ -114,9 +121,10 @@ INSERT IGNORE INTO order_price_snapshot (
 	discount_amount_fen,
 	promotion_type,
 	promotion_tag
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			in.OrderId,
 			quote.ProductId,
+			merchantID,
 			quote.SupplierId,
 			quote.ProductName,
 			quote.Amount,
@@ -153,6 +161,7 @@ INSERT IGNORE INTO payment_order (
 			"order_id":           in.OrderId,
 			"request_id":         requestID,
 			"user_id":            in.UserId,
+			"merchant_id":        merchantID,
 			"product_id":         in.ProductId,
 			"amount":             in.Amount,
 			"payable_amount_fen": quote.PayableAmountFen,
@@ -175,6 +184,21 @@ INSERT IGNORE INTO payment_order (
 		PayableAmountFen: quote.PayableAmountFen,
 		PaymentOrderId:   paymentOrderID,
 	}, nil
+}
+
+func (l *CreateOrderLogic) loadProductMerchantID(productID int64) (int64, error) {
+	var merchantID int64
+	err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &merchantID, "SELECT COALESCE(merchant_id, 1000) FROM mall_product.product WHERE id = ? LIMIT 1", productID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, status.Error(codes.NotFound, "product not found")
+		}
+		return 0, err
+	}
+	if merchantID <= 0 {
+		return 1000, nil
+	}
+	return merchantID, nil
 }
 
 func paymentOrderIDFor(orderID string) string {

@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -56,6 +57,50 @@ func invalidateAdminCatalogCache(ctx context.Context, svcCtx *svc.ServiceContext
 	if svcCtx.CatalogCache != nil {
 		svcCtx.CatalogCache.Invalidate(ctx)
 	}
+}
+
+func seedRedisStockShards(ctx context.Context, svcCtx *svc.ServiceContext, productID, total int64) error {
+	if svcCtx.Redis == nil {
+		return nil
+	}
+	shardCount := svcCtx.Config.StockShardCount
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	keys := make([]string, 0, shardCount)
+	values := splitStockAcrossShards(total, shardCount)
+	args := make([]any, 0, len(values))
+	for i, value := range values {
+		keys = append(keys, fmt.Sprintf("stock:%d:%d", productID, i))
+		args = append(args, value)
+	}
+	const seedLuaScript = `
+        for i = 1, #KEYS do
+            redis.call("set", KEYS[i], ARGV[i])
+        end
+        return 1
+    `
+	_, err := svcCtx.Redis.EvalCtx(ctx, seedLuaScript, keys, args...)
+	return err
+}
+
+func splitStockAcrossShards(total int64, shardCount int) []int64 {
+	if total < 0 {
+		total = 0
+	}
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	values := make([]int64, shardCount)
+	per := total / int64(shardCount)
+	remain := total % int64(shardCount)
+	for i := range values {
+		values[i] = per
+		if i == 0 {
+			values[i] += remain
+		}
+	}
+	return values
 }
 
 func compensateClosedOrderInventory(ctx context.Context, svcCtx *svc.ServiceContext, productID, amount int64, orderID string) error {

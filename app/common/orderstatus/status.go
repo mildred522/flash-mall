@@ -30,3 +30,23 @@ func Text(statusCode int64) string {
 		return "unknown"
 	}
 }
+
+func CanPay(statusCode int64) bool {
+	return statusCode == PendingPayment
+}
+
+func CanShip(statusCode int64) bool {
+	return statusCode == Paid
+}
+
+func CanConfirmReceipt(statusCode int64) bool {
+	return statusCode == Shipped
+}
+
+func CanRequestRefund(statusCode int64) bool {
+	return statusCode == Paid || statusCode == Shipped
+}
+
+func CanAuditRefund(statusCode int64) bool {
+	return statusCode == RefundRequested
+}
