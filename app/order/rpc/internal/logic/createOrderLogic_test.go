@@ -3,6 +3,7 @@ package logic
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,10 +171,25 @@ func ensureOrderCreateSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 	t.Helper()
 
 	statements := []string{
+		`CREATE TABLE IF NOT EXISTS mall_product.product (
+			id bigint NOT NULL,
+			merchant_id bigint NOT NULL DEFAULT 1000,
+			name varchar(128) NOT NULL DEFAULT '',
+			stock int NOT NULL DEFAULT 0,
+			version int NOT NULL DEFAULT 0,
+			origin_price_fen bigint NOT NULL DEFAULT 0,
+			sale_price_fen bigint NOT NULL DEFAULT 0,
+			status tinyint NOT NULL DEFAULT 1,
+			supplier_id bigint NOT NULL DEFAULT 0,
+			create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 		`CREATE TABLE IF NOT EXISTS orders (
 			id varchar(64) NOT NULL,
 			request_id varchar(64) DEFAULT NULL,
 			user_id bigint NOT NULL DEFAULT 0,
+			merchant_id bigint NOT NULL DEFAULT 1000,
 			product_id bigint NOT NULL DEFAULT 0,
 			amount int NOT NULL DEFAULT 0,
 			status tinyint NOT NULL DEFAULT 0,
@@ -185,6 +201,7 @@ func ensureOrderCreateSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 		`CREATE TABLE IF NOT EXISTS order_price_snapshot (
 			order_id varchar(64) NOT NULL,
 			product_id bigint NOT NULL DEFAULT 0,
+			merchant_id bigint NOT NULL DEFAULT 1000,
 			supplier_id bigint NOT NULL DEFAULT 0,
 			product_name varchar(128) NOT NULL DEFAULT '',
 			amount int NOT NULL DEFAULT 0,
@@ -246,6 +263,20 @@ func ensureOrderCreateSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 		if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), statement); err != nil {
 			t.Fatalf("schema ensure failed for %q: %v", statement, err)
 		}
+	}
+
+	alterStatements := []string{
+		"ALTER TABLE mall_product.product ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER id",
+		"ALTER TABLE orders ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id",
+		"ALTER TABLE order_price_snapshot ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER product_id",
+	}
+	for _, statement := range alterStatements {
+		if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), statement); err != nil && !strings.Contains(err.Error(), "Duplicate column") {
+			t.Fatalf("schema alter failed for %q: %v", statement, err)
+		}
+	}
+	if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), "INSERT INTO mall_product.product (id, merchant_id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (9100, 1000, 'Flash Coat', 100, 0, 12900, 9900, 1, 200) ON DUPLICATE KEY UPDATE merchant_id = VALUES(merchant_id), name = VALUES(name), sale_price_fen = VALUES(sale_price_fen), status = VALUES(status)"); err != nil {
+		t.Fatalf("product seed failed: %v", err)
 	}
 }
 
