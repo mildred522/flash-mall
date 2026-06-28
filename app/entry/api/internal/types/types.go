@@ -103,6 +103,8 @@ type OrderListResp struct {
 type OrderDetailResp struct {
 	OrderId            string `json:"order_id"`
 	UserId             int64  `json:"user_id"`
+	MerchantId         int64  `json:"merchant_id"`
+	MerchantName       string `json:"merchant_name"`
 	ProductId          int64  `json:"product_id"`
 	ProductName        string `json:"product_name"`
 	Amount             int64  `json:"amount"`
@@ -159,6 +161,7 @@ type SystemHealthResp struct {
 type AdminOrderListReq struct {
 	Page        int64  `form:"page,optional,default=1"`
 	PageSize    int64  `form:"page_size,optional,default=20"`
+	MerchantId  int64  `form:"merchant_id,optional"`
 	ProductId   int64  `form:"product_id,optional"`
 	SupplierId  int64  `form:"supplier_id,optional"`
 	Status      int64  `form:"status,optional,default=-1"`
@@ -172,6 +175,8 @@ type AdminOrderListReq struct {
 type AdminOrderListItem struct {
 	OrderId          string `json:"order_id"`
 	UserId           int64  `json:"user_id"`
+	MerchantId       int64  `json:"merchant_id"`
+	MerchantName     string `json:"merchant_name"`
 	ProductId        int64  `json:"product_id"`
 	ProductName      string `json:"product_name"`
 	Amount           int64  `json:"amount"`
@@ -207,11 +212,12 @@ type AdminOrderStatusLogResp struct {
 }
 
 type AdminRefundListReq struct {
-	Page     int64  `form:"page,optional,default=1"`
-	PageSize int64  `form:"page_size,optional,default=20"`
-	Status   int64  `form:"status,optional,default=-1"`
-	UserId   int64  `form:"user_id,optional"`
-	OrderId  string `form:"order_id,optional"`
+	Page       int64  `form:"page,optional,default=1"`
+	PageSize   int64  `form:"page_size,optional,default=20"`
+	MerchantId int64  `form:"merchant_id,optional"`
+	Status     int64  `form:"status,optional,default=-1"`
+	UserId     int64  `form:"user_id,optional"`
+	OrderId    string `form:"order_id,optional"`
 }
 
 type AdminRefundItem struct {
@@ -219,6 +225,8 @@ type AdminRefundItem struct {
 	OrderId         string `json:"order_id"`
 	PaymentOrderId  string `json:"payment_order_id"`
 	UserId          int64  `json:"user_id"`
+	MerchantId      int64  `json:"merchant_id"`
+	MerchantName    string `json:"merchant_name"`
 	ProductId       int64  `json:"product_id"`
 	RefundAmountFen int64  `json:"refund_amount_fen"`
 	Status          int64  `json:"status"`
@@ -277,6 +285,7 @@ type AdminReconciliationResp struct {
 type AdminProductListReq struct {
 	Page            int64  `form:"page,optional,default=1"`
 	PageSize        int64  `form:"page_size,optional,default=20"`
+	MerchantId      int64  `form:"merchant_id,optional"`
 	ProductId       int64  `form:"product_id,optional"`
 	SupplierId      int64  `form:"supplier_id,optional"`
 	Status          int64  `form:"status,optional,default=-1"`
@@ -287,6 +296,8 @@ type AdminProductListReq struct {
 
 type AdminProductItem struct {
 	ProductId         int64  `json:"product_id"`
+	MerchantId        int64  `json:"merchant_id"`
+	MerchantName      string `json:"merchant_name"`
 	Name              string `json:"name"`
 	ImageUrl          string `json:"image_url"`
 	OriginPriceFen    int64  `json:"origin_price_fen"`
@@ -308,7 +319,8 @@ type AdminProductListResp struct {
 
 type AdminProductCreateReq struct {
 	Name           string `json:"name"`
-	ImageUrl       string `json:"image_url,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+	ImageUrl       string `json:"image_url,optional"`   //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+	MerchantId     int64  `json:"merchant_id,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
 	OriginPriceFen int64  `json:"origin_price_fen"`
 	SalePriceFen   int64  `json:"sale_price_fen"`
 	StockAvailable int64  `json:"stock_available,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.

@@ -80,6 +80,7 @@ DtmWaitResult: false
 OrderRateLimitQps: 200
 OrderRateLimitBurst: 400
 OrderIdNode: -1
+StockShardCount: 4
 
 RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
 RabbitMQExchange: order.events

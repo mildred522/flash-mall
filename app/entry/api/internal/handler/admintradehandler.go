@@ -34,29 +34,39 @@ func AdminRefundListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := ensureOrderMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 		where, args := "1=1", []any{}
 		if req.Status >= 0 {
-			where += " AND status = ?"
+			where += " AND r.status = ?"
 			args = append(args, req.Status)
 		}
 		if req.UserId > 0 {
-			where += " AND user_id = ?"
+			where += " AND r.user_id = ?"
 			args = append(args, req.UserId)
 		}
+		if req.MerchantId > 0 {
+			where += " AND r.merchant_id = ?"
+			args = append(args, req.MerchantId)
+		}
 		if req.OrderId != "" {
-			where += " AND order_id = ?"
+			where += " AND r.order_id = ?"
 			args = append(args, strings.TrimSpace(req.OrderId))
 		}
 		var total int64
-		if err := db.QueryRowContext(r.Context(), fmt.Sprintf("SELECT COUNT(*) FROM refund_order WHERE %s", where), args...).Scan(&total); err != nil {
+		if err := db.QueryRowContext(r.Context(), fmt.Sprintf("SELECT COUNT(*) FROM refund_order r WHERE %s", where), args...).Scan(&total); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 		args = append(args, req.PageSize, (req.Page-1)*req.PageSize)
 		rows, err := db.QueryContext(r.Context(), fmt.Sprintf(
-			`SELECT id, order_id, payment_order_id, user_id, product_id, refund_amount_fen, status,
+			`SELECT r.id, r.order_id, r.payment_order_id, r.user_id, r.merchant_id, COALESCE(m.name, ''), r.product_id, r.refund_amount_fen, r.status,
 			        reason, audit_remark, operator_id, COALESCE(request_time,''), COALESCE(audit_time,''), COALESCE(finish_time,'')
-			   FROM refund_order WHERE %s ORDER BY create_time DESC LIMIT ? OFFSET ?`, where), args...)
+			   FROM refund_order r
+			   LEFT JOIN merchant m ON m.id = r.merchant_id
+			   WHERE %s ORDER BY r.create_time DESC LIMIT ? OFFSET ?`, where), args...)
 		if err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
@@ -65,7 +75,7 @@ func AdminRefundListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		items := make([]types.AdminRefundItem, 0)
 		for rows.Next() {
 			var item types.AdminRefundItem
-			if err := rows.Scan(&item.RefundId, &item.OrderId, &item.PaymentOrderId, &item.UserId, &item.ProductId,
+			if err := rows.Scan(&item.RefundId, &item.OrderId, &item.PaymentOrderId, &item.UserId, &item.MerchantId, &item.MerchantName, &item.ProductId,
 				&item.RefundAmountFen, &item.Status, &item.Reason, &item.AuditRemark, &item.OperatorId,
 				&item.RequestTime, &item.AuditTime, &item.FinishTime); err != nil {
 				httpx.ErrorCtx(r.Context(), w, err)
@@ -112,7 +122,8 @@ func AdminRefundAuditHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		defer func() { _ = tx.Rollback() }()
 		var orderID string
 		var currentStatus int64
-		if err := tx.QueryRowContext(r.Context(), "SELECT order_id, status FROM refund_order WHERE id = ? FOR UPDATE", req.RefundId).Scan(&orderID, &currentStatus); err != nil {
+		var productID, amount int64
+		if err := tx.QueryRowContext(r.Context(), "SELECT r.order_id, r.product_id, o.amount, r.status FROM refund_order r JOIN orders o ON o.id = r.order_id WHERE r.id = ? FOR UPDATE", req.RefundId).Scan(&orderID, &productID, &amount, &currentStatus); err != nil {
 			writeNotFound(w, "refund order not found")
 			return
 		}
@@ -142,6 +153,10 @@ func AdminRefundAuditHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			if _, err := tx.ExecContext(r.Context(),
 				"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
 				orderID, orderstatus.RefundRequested, orderstatus.Refunded, operatorID, "refund approved: "+req.Remark); err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
+			if err := compensateClosedOrderInventory(r.Context(), svcCtx, productID, amount, orderID); err != nil {
 				httpx.ErrorCtx(r.Context(), w, err)
 				return
 			}

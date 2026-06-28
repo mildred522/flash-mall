@@ -40,9 +40,17 @@ func AdminProductListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := ensureProductMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 
 		where := "1=1"
 		args := []interface{}{}
+		if req.MerchantId > 0 {
+			where += " AND p.merchant_id = ?"
+			args = append(args, req.MerchantId)
+		}
 		if req.ProductId > 0 {
 			where += " AND p.id = ?"
 			args = append(args, req.ProductId)
@@ -96,11 +104,12 @@ func AdminProductListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		}
 
 		query := fmt.Sprintf(
-			`SELECT p.id, p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
+			`SELECT p.id, p.merchant_id, COALESCE(m.name, ''), p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
 			        COALESCE(stock.stock_available, 0),
 			        COALESCE(promo.promotion_price_fen, 0),
 			        p.status
 			 FROM mall_product.product p
+			 LEFT JOIN merchant m ON m.id = p.merchant_id
 			 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
 			 LEFT JOIN (
 			   SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
@@ -130,7 +139,7 @@ func AdminProductListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		items := make([]types.AdminProductItem, 0)
 		for rows.Next() {
 			var item types.AdminProductItem
-			if err := rows.Scan(&item.ProductId, &item.Name, &item.ImageUrl, &item.OriginPriceFen, &item.SalePriceFen, &item.SupplierId, &item.SupplierName, &item.StockAvailable, &item.PromotionPriceFen, &item.Status); err != nil {
+			if err := rows.Scan(&item.ProductId, &item.MerchantId, &item.MerchantName, &item.Name, &item.ImageUrl, &item.OriginPriceFen, &item.SalePriceFen, &item.SupplierId, &item.SupplierName, &item.StockAvailable, &item.PromotionPriceFen, &item.Status); err != nil {
 				logx.WithContext(r.Context()).Errorf("admin product list scan failed: %v", err)
 				httpx.ErrorCtx(r.Context(), w, err)
 				return
@@ -179,14 +188,19 @@ func AdminProductDetailHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := ensureProductMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 
 		var item types.AdminProductItem
 		err = db.QueryRowContext(r.Context(),
-			`SELECT p.id, p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
+			`SELECT p.id, p.merchant_id, COALESCE(m.name, ''), p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
 			        COALESCE(stock.stock_available, 0),
 			        COALESCE(promo.promotion_price_fen, 0),
 			        p.status
 			 FROM mall_product.product p
+			 LEFT JOIN merchant m ON m.id = p.merchant_id
 			 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
 			 LEFT JOIN (
 			   SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
@@ -208,7 +222,7 @@ func AdminProductDetailHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			productID,
 			productID,
 			productID,
-		).Scan(&item.ProductId, &item.Name, &item.ImageUrl, &item.OriginPriceFen, &item.SalePriceFen, &item.SupplierId, &item.SupplierName, &item.StockAvailable, &item.PromotionPriceFen, &item.Status)
+		).Scan(&item.ProductId, &item.MerchantId, &item.MerchantName, &item.Name, &item.ImageUrl, &item.OriginPriceFen, &item.SalePriceFen, &item.SupplierId, &item.SupplierName, &item.StockAvailable, &item.PromotionPriceFen, &item.Status)
 		if err != nil {
 			writeNotFound(w, "product not found")
 			return
@@ -397,6 +411,9 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			writeBadRequest(w, "status must be 1 or 2")
 			return
 		}
+		if req.MerchantId <= 0 {
+			req.MerchantId = defaultMerchantID
+		}
 
 		db, err := svcCtx.SqlConn.RawDB()
 		if err != nil {
@@ -404,6 +421,10 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 		if err := ensureProductImageColumn(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+		if err := ensureProductMerchantSchema(r.Context(), db); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
@@ -424,6 +445,16 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			writeNotFound(w, "active supplier not found")
 			return
 		}
+		merchantExists, err := adminActiveMerchantExists(r.Context(), tx, req.MerchantId)
+		if err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+		if !merchantExists {
+			recordAdminAuditFailure(r, svcCtx, adminAuditProductCreated, fmt.Sprintf("merchant:%d reason:%s", req.MerchantId, adminAuditReasonNotFound))
+			writeNotFound(w, "active merchant not found")
+			return
+		}
 
 		productID, err := nextAdminProductID(r.Context(), tx)
 		if err != nil {
@@ -431,8 +462,8 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 		if _, err = tx.ExecContext(r.Context(),
-			"INSERT INTO mall_product.product (id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?)",
-			productID, req.Name, req.ImageUrl, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
+			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)",
+			productID, req.MerchantId, req.Name, req.ImageUrl, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
 		); err != nil {
 			logx.WithContext(r.Context()).Errorf("admin product create failed: %v", err)
 			httpx.ErrorCtx(r.Context(), w, err)
@@ -448,9 +479,13 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		if err := seedRedisStockShards(r.Context(), svcCtx, productID, req.StockAvailable); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
 
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
-		recordAdminAuditEvent(r, svcCtx, adminAuditProductCreated, fmt.Sprintf("product:%d name:%s", productID, req.Name))
+		recordAdminAuditEvent(r, svcCtx, adminAuditProductCreated, fmt.Sprintf("product:%d merchant:%d name:%s", productID, req.MerchantId, req.Name))
 		httpx.OkJsonCtx(r.Context(), w, types.AdminProductCreateResp{ProductId: productID})
 	}
 }

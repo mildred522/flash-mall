@@ -61,7 +61,7 @@ func CancelOrderHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if currentStatus != orderstatus.PendingPayment {
+		if !orderstatus.CanPay(currentStatus) {
 			writeConflict(w, "order cannot be cancelled")
 			return
 		}

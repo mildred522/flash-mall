@@ -29,6 +29,7 @@ type Config struct {
 	OrderRateLimitQps         int
 	OrderRateLimitBurst       int
 	OrderIdNode               int64
+	StockShardCount           int `json:",optional"` //nolint:staticcheck // go-zero config uses optional in tags.
 	DataSource                string
 	CacheConf                 cache.CacheConf
 	PprofAddr                 string

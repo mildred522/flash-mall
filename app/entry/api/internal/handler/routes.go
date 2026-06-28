@@ -47,6 +47,16 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 			},
 			{
 				Method:  http.MethodGet,
+				Path:    "/js/*any",
+				Handler: StaticWebAssetHandler("/js/"),
+			},
+			{
+				Method:  http.MethodGet,
+				Path:    "/styles/*any",
+				Handler: StaticWebAssetHandler("/styles/"),
+			},
+			{
+				Method:  http.MethodGet,
 				Path:    "/uploads/products/*any",
 				Handler: ProductUploadStaticHandler(serverCtx),
 			},
@@ -211,10 +221,27 @@ func RegisterHandlers(server *rest.Server, serverCtx *svc.ServiceContext) {
 		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
 	)
 
+	// Merchant API routes (JWT protected, merchant membership checked per request)
+	server.AddRoutes(
+		[]rest.Route{
+			{Method: http.MethodGet, Path: "/api/merchant/me", Handler: MerchantMeHandler(serverCtx)},
+			{Method: http.MethodPost, Path: "/api/merchant/apply", Handler: MerchantApplyCreateHandler(serverCtx)},
+			{Method: http.MethodGet, Path: "/api/merchant/dashboard/stats", Handler: MerchantDashboardStatsHandler(serverCtx)},
+			{Method: http.MethodGet, Path: "/api/merchant/products", Handler: MerchantProductListHandler(serverCtx)},
+			{Method: http.MethodPost, Path: "/api/merchant/products/create", Handler: MerchantProductCreateHandler(serverCtx)},
+			{Method: http.MethodGet, Path: "/api/merchant/orders", Handler: MerchantOrderListHandler(serverCtx)},
+			{Method: http.MethodPost, Path: "/api/merchant/orders/ship", Handler: MerchantShipOrderHandler(serverCtx)},
+			{Method: http.MethodGet, Path: "/api/merchant/refunds", Handler: MerchantRefundListHandler(serverCtx)},
+		},
+		rest.WithJwt(serverCtx.Config.JwtAuthSecret),
+	)
+
 	// Admin API routes (JWT + admin role required)
 	adminMW := []rest.Middleware{middleware.NewAdminAuthMiddleware()}
 	server.AddRoutes(
 		rest.WithMiddlewares(adminMW,
+			rest.Route{Method: http.MethodGet, Path: "/api/admin/merchants/applications", Handler: AdminMerchantApplyListHandler(serverCtx)},
+			rest.Route{Method: http.MethodPost, Path: "/api/admin/merchants/applications/audit", Handler: AdminMerchantApplyAuditHandler(serverCtx)},
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders", Handler: AdminOrderListHandler(serverCtx)},
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders/detail", Handler: AdminOrderDetailHandler(serverCtx)},
 			rest.Route{Method: http.MethodGet, Path: "/api/admin/orders/status-logs", Handler: AdminOrderStatusLogHandler(serverCtx)},

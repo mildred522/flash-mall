@@ -17,6 +17,7 @@
       </div>
       <nav class="admin-nav" aria-label="后台导航">
         <button class="admin-tab active" data-tab="dashboard" data-workspace-scope="platform">仪表盘</button>
+        <button class="admin-tab" data-tab="merchant-applications" data-workspace-scope="platform">商家审核</button>
         <button class="admin-tab" data-tab="users" data-workspace-scope="platform">用户管理</button>
         <button class="admin-tab" data-tab="reconciliation" data-workspace-scope="platform">对账风险</button>
         <button class="admin-tab" data-tab="events" data-workspace-scope="platform">事件处理</button>
@@ -38,6 +39,17 @@
     <div id="panel-dashboard" class="admin-panel active">
       <h2>仪表盘</h2>
       <div id="dashboard-content"><div class="loading">加载中...</div></div>
+    </div>
+
+    <div id="panel-merchant-applications" class="admin-panel">
+      <div class="panel-header">
+        <h2>商家入驻审核</h2>
+        <button id="merchant-applications-refresh" class="button primary">刷新</button>
+      </div>
+      <table class="admin-table">
+        <thead><tr><th>申请ID</th><th>用户ID</th><th>商家名称</th><th>联系电话</th><th>状态</th><th>商家ID</th><th>申请时间</th><th>操作</th></tr></thead>
+        <tbody id="merchant-applications-tbody"></tbody>
+      </table>
     </div>
 
     <!-- Orders -->

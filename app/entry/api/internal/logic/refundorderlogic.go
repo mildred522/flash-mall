@@ -43,18 +43,19 @@ func (l *RefundOrderLogic) RefundOrder(req *types.RefundOrderReq, userID int64) 
 	// Verify order exists and belongs to user
 	var currentStatus int64
 	var orderUserID int64
+	var merchantID int64
 	var productID int64
 	var amount int64
 	err = db.QueryRowContext(l.ctx,
-		"SELECT status, user_id, product_id, amount FROM orders WHERE id = ? LIMIT 1", req.OrderId,
-	).Scan(&currentStatus, &orderUserID, &productID, &amount)
+		"SELECT status, user_id, merchant_id, product_id, amount FROM orders WHERE id = ? LIMIT 1", req.OrderId,
+	).Scan(&currentStatus, &orderUserID, &merchantID, &productID, &amount)
 	if err != nil {
 		return nil, status.Error(codes.NotFound, "order not found")
 	}
 	if orderUserID != userID {
 		return nil, status.Error(codes.PermissionDenied, "order does not belong to user")
 	}
-	if currentStatus != orderstatus.Paid && currentStatus != orderstatus.Shipped {
+	if !orderstatus.CanRequestRefund(currentStatus) {
 		return nil, status.Error(codes.FailedPrecondition, "order cannot be refunded in current status")
 	}
 
@@ -89,9 +90,9 @@ func (l *RefundOrderLogic) RefundOrder(req *types.RefundOrderReq, userID int64) 
 	reason := strings.TrimSpace(req.Reason)
 	if _, err = tx.ExecContext(l.ctx,
 		`INSERT INTO refund_order
-		  (id, order_id, payment_order_id, user_id, product_id, refund_amount_fen, status, reason)
-		  VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
-		refundID, req.OrderId, paymentOrderID, userID, productID, refundAmountFen, reason); err != nil {
+		  (id, order_id, payment_order_id, user_id, merchant_id, product_id, refund_amount_fen, status, reason)
+		  VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+		refundID, req.OrderId, paymentOrderID, userID, merchantID, productID, refundAmountFen, reason); err != nil {
 		return nil, status.Error(codes.Internal, "insert refund order failed")
 	}
 	if _, err = tx.ExecContext(l.ctx,
@@ -102,8 +103,8 @@ func (l *RefundOrderLogic) RefundOrder(req *types.RefundOrderReq, userID int64) 
 	}
 	if _, err = tx.ExecContext(l.ctx,
 		`INSERT INTO order_outbox (event_id, event_type, aggregate_id, payload, status)
-		 VALUES (?, 'refund.requested', ?, JSON_OBJECT('refund_id', ?, 'order_id', ?, 'user_id', ?, 'amount_fen', ?), 0)`,
-		"evt_"+refundID, req.OrderId, refundID, req.OrderId, userID, refundAmountFen); err != nil {
+		 VALUES (?, 'refund.requested', ?, JSON_OBJECT('refund_id', ?, 'order_id', ?, 'user_id', ?, 'merchant_id', ?, 'amount_fen', ?), 0)`,
+		"evt_"+refundID, req.OrderId, refundID, req.OrderId, userID, merchantID, refundAmountFen); err != nil {
 		return nil, status.Error(codes.Internal, "insert refund outbox failed")
 	}
 
