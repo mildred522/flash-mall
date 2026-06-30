@@ -13,5 +13,5 @@ for idl in idl/product.thrift idl/inventory.thrift idl/order.thrift idl/merchant
   out="app/generated/kitex/$name"
   mkdir -p "$out"
   echo "[GEN] $idl -> $out"
-  kitex -module flash-mall -service "flash-mall-$name" -I idl -o "$out" "$idl"
+  (cd "$out" && kitex -module flash-mall -service "flash-mall-$name" -I "$repo_root/idl" -gen-path kitex_gen "$repo_root/$idl")
 done

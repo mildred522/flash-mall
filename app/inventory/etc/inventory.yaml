@@ -1,0 +1,7 @@
+Name: inventory-service
+ListenOn: 0.0.0.0:8093
+DataSource: root:123456@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai
+RedisConf:
+  Host: redis:6379
+  Type: node
+StockShardCount: 4

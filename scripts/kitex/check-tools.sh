@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if command -v go >/dev/null 2>&1; then
+  gobin="$(go env GOPATH)/bin"
+  export PATH="$gobin:$PATH"
+elif [ -x "$HOME/.local/go/bin/go" ]; then
+  gobin="$($HOME/.local/go/bin/go env GOPATH)/bin"
+  export PATH="$HOME/.local/go/bin:$gobin:$PATH"
+fi
+
 missing=0
 for tool in kitex thriftgo; do
   if ! command -v "$tool" >/dev/null 2>&1; then
