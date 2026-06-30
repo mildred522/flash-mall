@@ -43,7 +43,6 @@ jobs:
         github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main' &&
-        secrets.KUBE_CONFIG != '' &&
         vars.AUTO_DEPLOY_DEMO != 'false'
       )
     runs-on: ubuntu-latest
@@ -75,7 +74,10 @@ jobs:
         env:
           KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
         run: |
-          test -n "$KUBE_CONFIG_DATA"
+          if [ -z "$KUBE_CONFIG_DATA" ]; then
+            echo "KUBE_CONFIG secret is required for deployment" >&2
+            exit 1
+          fi
           printf '%s' "$KUBE_CONFIG_DATA" > "$RUNNER_TEMP/kubeconfig"
           echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
 
