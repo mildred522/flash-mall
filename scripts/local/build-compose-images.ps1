@@ -12,6 +12,7 @@ $services = @(
   @{ Name = "auth-api"; Package = "./app/auth/api" },
   @{ Name = "product-rpc"; Package = "./app/product/rpc" },
   @{ Name = "order-rpc"; Package = "./app/order/rpc" },
+  @{ Name = "inventory-kitex"; Package = "./app/inventory/kitex" },
   @{ Name = "entry-api"; Package = "./app/entry/api" }
 )
 

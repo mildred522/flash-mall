@@ -34,12 +34,12 @@ command -v kubectl >/dev/null 2>&1 || {
   exit 1
 }
 
-for deploy in auth-api entry-api order-rpc product-rpc; do
+for deploy in auth-api entry-api order-rpc product-rpc inventory-kitex; do
   echo "[LOCAL PROFILE] scale deployment/$deploy to 1"
   kubectl -n "$namespace" scale "deployment/$deploy" --replicas=1
 done
 
-for hpa in auth-api-hpa entry-api-hpa order-rpc-hpa product-rpc-hpa; do
+for hpa in auth-api-hpa entry-api-hpa order-rpc-hpa product-rpc-hpa inventory-kitex-hpa; do
   if kubectl -n "$namespace" get hpa "$hpa" >/dev/null 2>&1; then
     echo "[LOCAL PROFILE] constrain hpa/$hpa to 1 replica"
     kubectl -n "$namespace" patch hpa "$hpa" --type merge -p '{"spec":{"minReplicas":1,"maxReplicas":1}}'

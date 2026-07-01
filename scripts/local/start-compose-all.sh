@@ -75,7 +75,7 @@ fi
 
 if [ "$no_build" -eq 0 ]; then
   if [ "$compose_build" -eq 1 ]; then
-    docker compose -f "$compose_file" build auth-api product-rpc order-rpc entry-api
+    docker compose -f "$compose_file" build auth-api product-rpc order-rpc inventory-kitex entry-api
   else
     "$script_dir/build-compose-images.sh" "$FLASH_MALL_IMAGE_TAG"
   fi

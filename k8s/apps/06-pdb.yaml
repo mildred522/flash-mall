@@ -56,3 +56,17 @@ spec:
   selector:
     matchLabels:
       app: product-rpc
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: inventory-kitex-pdb
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: inventory-kitex
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: inventory-kitex

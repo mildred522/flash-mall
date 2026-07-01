@@ -15,10 +15,11 @@ command -v docker >/dev/null 2>&1 || {
 services='auth-api:build/docker/auth-api.Dockerfile
 entry-api:build/docker/entry-api.Dockerfile
 order-rpc:build/docker/order-rpc.Dockerfile
-product-rpc:build/docker/product-rpc.Dockerfile'
+product-rpc:build/docker/product-rpc.Dockerfile
+inventory-kitex:build/docker/inventory-kitex.Dockerfile'
 
 idx=1
-total=4
+total=5
 printf '%s\n' "$services" | while IFS=: read -r name dockerfile; do
   echo "[$idx/$total] build flash-mall/$name:$tag"
   docker build -f "$dockerfile" -t "flash-mall/$name:$tag" .

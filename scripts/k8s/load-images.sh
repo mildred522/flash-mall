@@ -40,6 +40,7 @@ images='flash-mall/auth-api:dev
 flash-mall/entry-api:dev
 flash-mall/order-rpc:dev
 flash-mall/product-rpc:dev
+flash-mall/inventory-kitex:dev
 mysql:8.0
 redis:7
 rabbitmq:3.13-management

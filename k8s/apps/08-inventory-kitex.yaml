@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-kitex
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: inventory-kitex
+    app.kubernetes.io/part-of: flash-mall
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inventory-kitex
+  template:
+    metadata:
+      labels:
+        app: inventory-kitex
+    spec:
+      containers:
+        - name: inventory-kitex
+          image: flash-mall/inventory-kitex:dev
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: INVENTORY_LISTEN_ON
+              value: 0.0.0.0:8093
+            - name: INVENTORY_REDIS_HOST
+              value: redis:6379
+            - name: INVENTORY_DATASOURCE
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: product-datasource
+            - name: INVENTORY_STOCK_SHARD_COUNT
+              value: "4"
+          ports:
+            - name: rpc
+              containerPort: 8093
+          readinessProbe:
+            tcpSocket:
+              port: rpc
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: rpc
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-kitex
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: inventory-kitex
+spec:
+  selector:
+    app: inventory-kitex
+  ports:
+    - name: rpc
+      port: 8093
+      targetPort: rpc
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inventory-kitex-hpa
+  namespace: flash-mall
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inventory-kitex
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -30,7 +30,7 @@ Set-DefaultEnv -Name "FLASH_MALL_IMAGE_TAG" -Value "dev"
 
 if (-not $NoBuild) {
   if ($ComposeBuild) {
-    & docker compose -f $composeFile build auth-api product-rpc order-rpc entry-api
+    & docker compose -f $composeFile build auth-api product-rpc order-rpc inventory-kitex entry-api
     if ($LASTEXITCODE -ne 0) {
       throw "docker compose image build failed"
     }

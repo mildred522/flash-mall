@@ -47,7 +47,7 @@ print_compose_status() {
 
 print_key_logs() {
   echo "[LOGS] key containers"
-  for container in flash-mall-mysql-init flash-mall-redis-init auth-api product-rpc order-rpc entry-api dtm mysql redis rabbitmq etcd; do
+  for container in flash-mall-mysql-init flash-mall-redis-init auth-api product-rpc order-rpc inventory-kitex entry-api dtm mysql redis rabbitmq etcd; do
     echo "--- $container ---"
     docker logs --tail 80 "$container" 2>&1 || true
   done

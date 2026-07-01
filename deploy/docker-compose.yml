@@ -205,6 +205,27 @@ services:
       product-rpc:
         condition: service_started
 
+  inventory-kitex:
+    image: flash-mall/inventory-kitex:${FLASH_MALL_IMAGE_TAG:-dev}
+    build:
+      context: ..
+      dockerfile: build/docker/inventory-kitex.Dockerfile
+    container_name: inventory-kitex
+    environment:
+      INVENTORY_LISTEN_ON: 0.0.0.0:8093
+      INVENTORY_REDIS_HOST: redis:6379
+      INVENTORY_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
+      INVENTORY_STOCK_SHARD_COUNT: 4
+    ports:
+      - "8093:8093"
+    depends_on:
+      mysql-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      redis-init:
+        condition: service_completed_successfully
+
   entry-api:
     image: flash-mall/entry-api:${FLASH_MALL_IMAGE_TAG:-dev}
     build:
@@ -216,6 +237,7 @@ services:
       FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
       FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
       FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
+      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
     volumes:
       - ./config/entry-api.yaml:/etc/flash-mall/entry-api.yaml:ro
     command: ["-f", "/etc/flash-mall/entry-api.yaml"]
@@ -229,6 +251,8 @@ services:
       product-rpc:
         condition: service_started
       order-rpc:
+        condition: service_started
+      inventory-kitex:
         condition: service_started
       redis:
         condition: service_healthy

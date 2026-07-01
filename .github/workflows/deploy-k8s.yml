@@ -99,6 +99,7 @@ jobs:
           kubectl apply -f k8s/apps/02-entry-api.yaml
           kubectl apply -f k8s/apps/03-order-rpc.yaml
           kubectl apply -f k8s/apps/04-product-rpc.yaml
+          kubectl apply -f k8s/apps/08-inventory-kitex.yaml
           kubectl apply -f k8s/apps/05-ingress.yaml
 
       - name: Run init jobs
@@ -113,6 +114,7 @@ jobs:
           kubectl -n "$NAMESPACE" set image deployment/entry-api entry-api="$REGISTRY/${{ github.repository_owner }}/flash-mall-entry-api:${{ steps.vars.outputs.image_tag }}"
           kubectl -n "$NAMESPACE" set image deployment/order-rpc order-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-rpc:${{ steps.vars.outputs.image_tag }}"
           kubectl -n "$NAMESPACE" set image deployment/product-rpc product-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-product-rpc:${{ steps.vars.outputs.image_tag }}"
+          kubectl -n "$NAMESPACE" set image deployment/inventory-kitex inventory-kitex="$REGISTRY/${{ github.repository_owner }}/flash-mall-inventory-kitex:${{ steps.vars.outputs.image_tag }}"
 
       - name: Wait for rollout
         run: |
@@ -120,3 +122,4 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deployment/entry-api --timeout=180s
           kubectl -n "$NAMESPACE" rollout status deployment/order-rpc --timeout=180s
           kubectl -n "$NAMESPACE" rollout status deployment/product-rpc --timeout=180s
+          kubectl -n "$NAMESPACE" rollout status deployment/inventory-kitex --timeout=180s

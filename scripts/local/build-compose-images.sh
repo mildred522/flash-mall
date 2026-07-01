@@ -10,6 +10,7 @@ dockerfile="$repo_root/build/docker/local-binary.Dockerfile"
 services='auth-api:./app/auth/api
 product-rpc:./app/product/rpc
 order-rpc:./app/order/rpc
+inventory-kitex:./app/inventory/kitex
 entry-api:./app/entry/api'
 
 command -v go >/dev/null 2>&1 || {

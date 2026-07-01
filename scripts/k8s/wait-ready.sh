@@ -59,7 +59,7 @@ for job in mysql-init redis-seed; do
   wait_job "$job"
 done
 
-for deploy in auth-api product-rpc order-rpc entry-api; do
+for deploy in auth-api product-rpc order-rpc inventory-kitex entry-api; do
   wait_deploy "$deploy"
 done
 

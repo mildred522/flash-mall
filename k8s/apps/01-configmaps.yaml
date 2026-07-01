@@ -17,6 +17,7 @@ data:
     DtmServer: dtm:36790
     ProductRpcTarget: product-rpc:8080
     OrderRpcTarget: order-rpc:8090
+    InventoryKitexEndpoint: inventory-kitex:8093
     OrderTimeoutSeconds: 60
 
     # Required configs (avoid startup failure)
