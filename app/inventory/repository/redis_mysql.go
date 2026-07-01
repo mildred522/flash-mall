@@ -10,7 +10,10 @@ import (
 	"flash-mall/app/inventory/domain"
 )
 
-const reservationTTLSeconds = 24 * 60 * 60
+const (
+	reservationTTLSeconds          = 24 * 60 * 60
+	confirmedReservationTTLSeconds = 180 * 24 * 60 * 60
+)
 
 type RedisClient interface {
 	EvalCtx(ctx context.Context, script string, keys []string, args ...any) (any, error)
@@ -79,7 +82,7 @@ func (r *RedisMySQLRepository) ReserveStock(ctx context.Context, orderID string,
 }
 
 func (r *RedisMySQLRepository) ConfirmDeduct(ctx context.Context, orderID string) error {
-	_, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID)}, reservationTTLSeconds)
+	_, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "confirm stock deduction failed", err)
 	}
