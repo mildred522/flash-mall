@@ -33,6 +33,8 @@ ProductRpcConf:
     Key: product.rpc
   Timeout: 2000
 
+InventoryKitexEndpoint: ''
+
 PprofAddr: 0.0.0.0:6061
 MetricsAddr: 0.0.0.0:9091
 

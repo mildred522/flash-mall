@@ -184,6 +184,7 @@ services:
     environment:
       FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
+      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
     volumes:
       - ./config/order.yaml:/etc/flash-mall/order.yaml:ro
     command: ["-f", "/etc/flash-mall/order.yaml"]
@@ -203,6 +204,8 @@ services:
       rabbitmq:
         condition: service_healthy
       product-rpc:
+        condition: service_started
+      inventory-kitex:
         condition: service_started
 
   inventory-kitex:
