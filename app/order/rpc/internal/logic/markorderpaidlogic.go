@@ -145,6 +145,11 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	if l.svcCtx.InventoryClient != nil {
+		if err := l.svcCtx.InventoryClient.ConfirmDeduct(l.ctx, in.OrderId); err != nil {
+			l.Errorf("inventory confirm deduct failed: order_id=%s err=%v", in.OrderId, err)
+		}
+	}
 
 	return &order.MarkOrderPaidResp{Updated: true, OrderStatus: "PAID"}, nil
 }

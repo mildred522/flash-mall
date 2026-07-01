@@ -15,6 +15,7 @@ import (
 
 type Client interface {
 	ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64) error
+	ConfirmDeduct(ctx context.Context, orderID string) error
 	ReleaseStock(ctx context.Context, orderID string, reason string) error
 }
 
@@ -32,6 +33,11 @@ func NewKitexClient(endpoint string) (*KitexClient, error) {
 
 func (c *KitexClient) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64) error {
 	_, err := c.client.ReserveStock(ctx, &inventory.ReserveStockRequest{OrderId: orderID, ProductId: productID, Quantity: quantity})
+	return toOrderStatusError(err)
+}
+
+func (c *KitexClient) ConfirmDeduct(ctx context.Context, orderID string) error {
+	_, err := c.client.ConfirmDeduct(ctx, &inventory.ConfirmDeductRequest{OrderId: orderID})
 	return toOrderStatusError(err)
 }
 

@@ -11,6 +11,7 @@ import (
 
 type Client interface {
 	SeedStock(ctx context.Context, productID int64, total int64, shardCount int) error
+	ConfirmDeduct(ctx context.Context, orderID string) error
 	ReconcileStock(ctx context.Context, productID int64) (*inventory.ReconcileStockResponse, error)
 }
 
@@ -33,6 +34,11 @@ func (c *KitexClient) SeedStock(ctx context.Context, productID int64, total int6
 		shardCountPtr = &value
 	}
 	_, err := c.client.SeedStock(ctx, &inventory.SeedStockRequest{ProductId: productID, Total: total, ShardCount: shardCountPtr})
+	return err
+}
+
+func (c *KitexClient) ConfirmDeduct(ctx context.Context, orderID string) error {
+	_, err := c.client.ConfirmDeduct(ctx, &inventory.ConfirmDeductRequest{OrderId: orderID})
 	return err
 }
 

@@ -96,6 +96,11 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "commit failed")
 	}
+	if l.svcCtx.InventoryClient != nil {
+		if err := l.svcCtx.InventoryClient.ConfirmDeduct(l.ctx, req.OrderId); err != nil {
+			l.Errorf("inventory confirm deduct failed: order_id=%s err=%v", req.OrderId, err)
+		}
+	}
 
 	// Remove from delay queue so CloseOrderJob won't close it
 	if _, err := l.svcCtx.Redis.ZremCtx(l.ctx, OrderDelayQueueKey, req.OrderId); err != nil {
