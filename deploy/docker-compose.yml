@@ -219,6 +219,7 @@ services:
       INVENTORY_REDIS_HOST: redis:6379
       INVENTORY_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       INVENTORY_STOCK_SHARD_COUNT: 4
+      INVENTORY_FINAL_DEDUCT_ENABLED: "false"
     ports:
       - "8093:8093"
     depends_on:

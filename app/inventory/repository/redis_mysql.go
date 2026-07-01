@@ -20,13 +20,19 @@ type RedisClient interface {
 }
 
 type RedisMySQLRepository struct {
-	redis      RedisClient
-	db         *sql.DB
-	shardCount int
+	redis              RedisClient
+	db                 *sql.DB
+	shardCount         int
+	finalDeductEnabled bool
 }
 
 func NewRedisMySQLRepository(redis RedisClient, db *sql.DB, shardCount int) *RedisMySQLRepository {
 	return &RedisMySQLRepository{redis: redis, db: db, shardCount: NormalizeShardCount(shardCount)}
+}
+
+func (r *RedisMySQLRepository) WithFinalDeductEnabled(enabled bool) *RedisMySQLRepository {
+	r.finalDeductEnabled = enabled
+	return r
 }
 
 func (r *RedisMySQLRepository) GetStock(ctx context.Context, productID int64) (domain.Stock, error) {
@@ -82,9 +88,28 @@ func (r *RedisMySQLRepository) ReserveStock(ctx context.Context, orderID string,
 }
 
 func (r *RedisMySQLRepository) ConfirmDeduct(ctx context.Context, orderID string) error {
-	_, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds)
+	finalDeductFlag := 0
+	if r.finalDeductEnabled && r.db != nil {
+		finalDeductFlag = 1
+	}
+	ret, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds, finalDeductFlag)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "confirm stock deduction failed", err)
+	}
+	if ret == 2 {
+		reservation, err := evalReservation(ctx, r.redis, getReservationLuaScript, []string{reservationKey(orderID)})
+		if err != nil {
+			return apperror.Wrap(apperror.CodeInternal, "read stock reservation failed", err)
+		}
+		if reservation.ProductID <= 0 || reservation.Quantity <= 0 {
+			return nil
+		}
+		if err := r.confirmMySQLDeduct(ctx, orderID, reservation.ProductID, reservation.Quantity); err != nil {
+			return err
+		}
+		if _, err := evalInt64(ctx, r.redis, markMySQLDeductedLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds); err != nil {
+			return apperror.Wrap(apperror.CodeInternal, "mark mysql stock deduction failed", err)
+		}
 	}
 	return nil
 }
@@ -98,6 +123,11 @@ func (r *RedisMySQLRepository) ReleaseStock(ctx context.Context, orderID string,
 	}
 	if reservation.ProductID <= 0 || reservation.Quantity <= 0 {
 		return nil
+	}
+	if r.finalDeductEnabled && r.db != nil {
+		if err := r.releaseMySQLDeduct(ctx, orderID, reservation.ProductID, reservation.Quantity); err != nil {
+			return err
+		}
 	}
 	keys := append(StockShardKeys(reservation.ProductID, r.shardCount), reservationKey(orderID))
 	_, err = evalInt64(ctx, r.redis, releaseStockLuaScript, keys, reservationTTLSeconds, r.shardCount)
@@ -192,6 +222,146 @@ func (r *RedisMySQLRepository) seedMySQLBuckets(ctx context.Context, productID i
 		return apperror.Wrap(apperror.CodeInternal, "commit stock seed transaction failed", err)
 	}
 	return nil
+}
+
+func (r *RedisMySQLRepository) confirmMySQLDeduct(ctx context.Context, orderID string, productID int64, quantity int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "begin stock deduct transaction failed", err)
+	}
+	defer tx.Rollback()
+
+	if exists, err := stockDeductLogExists(ctx, tx, orderID); err != nil {
+		return err
+	} else if exists {
+		return tx.Commit()
+	}
+
+	preferredBucketIdx := StockShardStartIndex(orderID, r.shardCount)
+	bucketIdx, err := lockDeductibleStockBucket(ctx, tx, productID, quantity, preferredBucketIdx)
+	if err != nil {
+		return err
+	}
+	logType := stockDeductBucketLogType(bucketIdx)
+	result, err := tx.ExecContext(ctx, "INSERT IGNORE INTO stock_log (order_id, type) VALUES (?, ?)", orderID, logType)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "insert stock deduct log failed", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "read stock deduct log result failed", err)
+	}
+	if affected == 0 {
+		return tx.Commit()
+	}
+	if _, err = tx.ExecContext(ctx,
+		"UPDATE product_stock_bucket SET stock = stock - ?, version = version + 1 WHERE product_id = ? AND bucket_idx = ? AND stock >= ?",
+		quantity, productID, bucketIdx, quantity,
+	); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "deduct mysql stock bucket failed", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "commit stock deduct transaction failed", err)
+	}
+	return nil
+}
+
+func (r *RedisMySQLRepository) releaseMySQLDeduct(ctx context.Context, orderID string, productID int64, quantity int64) error {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "begin stock release transaction failed", err)
+	}
+	defer tx.Rollback()
+
+	bucketIdx, ok, err := stockDeductBucketFromLog(ctx, tx, orderID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return tx.Commit()
+	}
+	result, err := tx.ExecContext(ctx, "INSERT IGNORE INTO stock_log (order_id, type) VALUES (?, 'REVERT')", orderID)
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "insert stock release log failed", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "read stock release log result failed", err)
+	}
+	if affected == 0 {
+		return tx.Commit()
+	}
+	if _, err = tx.ExecContext(ctx,
+		"INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE stock = stock + VALUES(stock), version = version + 1",
+		productID, bucketIdx, quantity,
+	); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "release mysql stock bucket failed", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "commit stock release transaction failed", err)
+	}
+	return nil
+}
+
+func lockDeductibleStockBucket(ctx context.Context, tx *sql.Tx, productID int64, quantity int64, preferredBucketIdx int) (int, error) {
+	var bucketIdx int
+	err := tx.QueryRowContext(ctx,
+		`SELECT bucket_idx
+		 FROM product_stock_bucket
+		 WHERE product_id = ? AND stock >= ?
+		 ORDER BY CASE WHEN bucket_idx = ? THEN 0 ELSE 1 END, bucket_idx
+		 LIMIT 1
+		 FOR UPDATE`,
+		productID, quantity, preferredBucketIdx,
+	).Scan(&bucketIdx)
+	if err == nil {
+		return bucketIdx, nil
+	}
+	if err != sql.ErrNoRows {
+		return 0, apperror.Wrap(apperror.CodeInternal, "lock mysql stock bucket failed", err)
+	}
+
+	var exists int
+	err = tx.QueryRowContext(ctx, "SELECT 1 FROM product_stock_bucket WHERE product_id = ? LIMIT 1", productID).Scan(&exists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, domain.ErrStockNotFound
+		}
+		return 0, apperror.Wrap(apperror.CodeInternal, "read mysql stock bucket failed", err)
+	}
+	return 0, domain.ErrStockInsufficient
+}
+
+func stockDeductLogExists(ctx context.Context, tx *sql.Tx, orderID string) (bool, error) {
+	var exists int
+	err := tx.QueryRowContext(ctx, "SELECT 1 FROM stock_log WHERE order_id = ? AND type LIKE 'DEDUCT_BUCKET_%' LIMIT 1", orderID).Scan(&exists)
+	if err == nil {
+		return true, nil
+	}
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return false, apperror.Wrap(apperror.CodeInternal, "read stock deduct log failed", err)
+}
+
+func stockDeductBucketFromLog(ctx context.Context, tx *sql.Tx, orderID string) (int, bool, error) {
+	var logType string
+	err := tx.QueryRowContext(ctx, "SELECT type FROM stock_log WHERE order_id = ? AND type LIKE 'DEDUCT_BUCKET_%' ORDER BY id DESC LIMIT 1", orderID).Scan(&logType)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return 0, false, nil
+		}
+		return 0, false, apperror.Wrap(apperror.CodeInternal, "read stock deduct log failed", err)
+	}
+	var bucketIdx int
+	if _, err := fmt.Sscanf(logType, "DEDUCT_BUCKET_%d", &bucketIdx); err != nil {
+		return 0, false, apperror.Wrap(apperror.CodeInternal, "parse stock deduct bucket failed", err)
+	}
+	return bucketIdx, true, nil
+}
+
+func stockDeductBucketLogType(bucketIdx int) string {
+	return fmt.Sprintf("DEDUCT_BUCKET_%d", bucketIdx)
 }
 
 type redisReservation struct {
@@ -321,9 +491,27 @@ local status = redis.call("hget", reservationKey, "status")
 if not status then
   return 1
 end
+if status == "released" then
+  return 1
+end
 if status == "reserved" then
   redis.call("hset", reservationKey, "status", "confirmed")
 end
+local ttl = tonumber(ARGV[1])
+if ttl and ttl > 0 then
+  redis.call("expire", reservationKey, ttl)
+end
+local finalDeductEnabled = tonumber(ARGV[2])
+local mysqlDeducted = redis.call("hget", reservationKey, "mysql_deducted")
+if finalDeductEnabled == 1 and mysqlDeducted ~= "1" then
+  return 2
+end
+return 1
+`
+
+const markMySQLDeductedLuaScript = `
+local reservationKey = KEYS[1]
+redis.call("hset", reservationKey, "mysql_deducted", "1")
 local ttl = tonumber(ARGV[1])
 if ttl and ttl > 0 then
   redis.call("expire", reservationKey, ttl)

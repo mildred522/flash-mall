@@ -29,7 +29,8 @@ func main() {
 	}
 
 	shardCount := envIntOrDefault("INVENTORY_STOCK_SHARD_COUNT", defaultStockShardCount)
-	inventoryService := service.New(newRepository(shardCount), shardCount)
+	finalDeductEnabled := envBoolOrDefault("INVENTORY_FINAL_DEDUCT_ENABLED", false)
+	inventoryService := service.New(newRepository(shardCount, finalDeductEnabled), shardCount)
 	svr := inventoryservice.NewServer(NewInventoryServiceImpl(inventoryService), server.WithServiceAddr(addr))
 
 	if err := svr.Run(); err != nil {
@@ -37,7 +38,7 @@ func main() {
 	}
 }
 
-func newRepository(shardCount int) repository.StockRepository {
+func newRepository(shardCount int, finalDeductEnabled bool) repository.StockRepository {
 	redisHost := os.Getenv("INVENTORY_REDIS_HOST")
 	if redisHost == "" {
 		log.Println("INVENTORY_REDIS_HOST is empty; using in-memory inventory repository")
@@ -54,7 +55,7 @@ func newRepository(shardCount int) repository.StockRepository {
 	}
 
 	rds := redis.MustNewRedis(redis.RedisConf{Host: redisHost, Type: redis.NodeType})
-	return repository.NewRedisMySQLRepository(rds, db, shardCount)
+	return repository.NewRedisMySQLRepository(rds, db, shardCount).WithFinalDeductEnabled(finalDeductEnabled)
 }
 
 func envOrDefault(key string, fallback string) string {
@@ -71,6 +72,18 @@ func envIntOrDefault(key string, fallback int) int {
 	}
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed <= 0 {
+		return fallback
+	}
+	return parsed
+}
+
+func envBoolOrDefault(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
 		return fallback
 	}
 	return parsed

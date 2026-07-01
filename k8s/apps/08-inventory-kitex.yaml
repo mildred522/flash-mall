@@ -32,6 +32,8 @@ spec:
                   key: product-datasource
             - name: INVENTORY_STOCK_SHARD_COUNT
               value: "4"
+            - name: INVENTORY_FINAL_DEDUCT_ENABLED
+              value: "false"
           ports:
             - name: rpc
               containerPort: 8093
