@@ -34,9 +34,9 @@ As long as that branch exists, `InventoryService.ConfirmDeduct` must not update 
 To make `InventoryService` the final stock write owner, apply the migration in this order:
 
 1. Keep `INVENTORY_FINAL_DEDUCT_ENABLED=false` in deployed `inventory-kitex`.
-2. Add a matching config switch in `entry-api`, for example `InventoryOwnsFinalDeduct`.
-3. When both switches are enabled, skip `product-rpc.Deduct` in the create-order SAGA.
-4. When both switches are enabled, skip `product-rpc` rollback/revert in close and refund compensation paths.
+2. Keep `InventoryOwnsFinalDeduct=false` in deployed `entry-api`.
+3. When both switches are enabled, `entry-api` skips `product-rpc.Deduct` in the create-order SAGA.
+4. When both switches are enabled, `entry-api` skips `product-rpc` rollback/revert in close and refund compensation paths.
 5. Keep `product-rpc.Deduct` as the default path until the inventory-owned path is verified in compose and k8s.
 6. Remove product stock write APIs only after the inventory-owned path is stable.
 
@@ -44,6 +44,7 @@ To make `InventoryService` the final stock write owner, apply the migration in t
 
 - `InventoryKitexEndpoint` controls only Redis reservation and reservation confirmation today.
 - `INVENTORY_FINAL_DEDUCT_ENABLED` exists in `inventory-kitex`, but deployed configs keep it disabled today.
+- `InventoryOwnsFinalDeduct` exists in `entry-api`, but deployed configs keep it disabled today.
 - `product-rpc` remains the source of final MySQL stock bucket deduction today.
 - Refund and close flows must continue to call both:
   - `product-rpc` rollback/revert for MySQL buckets.

@@ -26,6 +26,7 @@ data:
     DtmRequestTimeoutSeconds: 10
     # CHG 2026-02-24: 变更=DTM 异步提交; 之前=同步等待结果; 原因=降低接口尾延迟与阻塞。
     DtmWaitResult: false
+    InventoryOwnsFinalDeduct: false
 
     # CHG 2026-02-24: 变更=新增 API 限流配置; 之前=无限流; 原因=高峰期快速失败保护后端。
     OrderRateLimitQps: 200

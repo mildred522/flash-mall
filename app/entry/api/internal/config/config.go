@@ -27,6 +27,7 @@ type Config struct {
 	DtmTimeoutToFailSeconds   int64
 	DtmRequestTimeoutSeconds  int64
 	DtmWaitResult             bool
+	InventoryOwnsFinalDeduct  bool
 	OrderRateLimitQps         int
 	OrderRateLimitBurst       int
 	OrderIdNode               int64

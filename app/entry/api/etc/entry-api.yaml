@@ -76,6 +76,7 @@ RequestIdTTLSeconds: 86400
 DtmTimeoutToFailSeconds: 120
 DtmRequestTimeoutSeconds: 6
 DtmWaitResult: false
+InventoryOwnsFinalDeduct: false
 
 OrderRateLimitQps: 200
 OrderRateLimitBurst: 400

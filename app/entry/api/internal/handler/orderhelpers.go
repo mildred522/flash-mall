@@ -106,12 +106,14 @@ func splitStockAcrossShards(total int64, shardCount int) []int64 {
 }
 
 func compensateClosedOrderInventory(ctx context.Context, svcCtx *svc.ServiceContext, productID, amount int64, orderID string) error {
-	if _, err := svcCtx.ProductRpc.RevertStock(ctx, &productclient.RevertStockReq{
-		Id:      productID,
-		Num:     amount,
-		OrderId: orderID,
-	}); err != nil {
-		return err
+	if !svcCtx.Config.InventoryOwnsFinalDeduct {
+		if _, err := svcCtx.ProductRpc.RevertStock(ctx, &productclient.RevertStockReq{
+			Id:      productID,
+			Num:     amount,
+			OrderId: orderID,
+		}); err != nil {
+			return err
+		}
 	}
 	if _, err := svcCtx.OrderRpc.PreDeductRollback(ctx, &orderrpc.PreDeductReq{
 		ProductId: productID,
