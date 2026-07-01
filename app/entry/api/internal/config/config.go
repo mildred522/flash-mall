@@ -12,10 +12,11 @@ import (
 type Config struct {
 	rest.RestConf
 
-	ProductRpcConf zrpc.RpcClientConf
-	OrderRpcConf   zrpc.RpcClientConf
-	RedisConf      redis.RedisConf
-	Observability  commonobs.Config `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductRpcConf         zrpc.RpcClientConf
+	OrderRpcConf           zrpc.RpcClientConf
+	InventoryKitexEndpoint string
+	RedisConf              redis.RedisConf
+	Observability          commonobs.Config `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 
 	DtmServer           string
 	ProductRpcTarget    string

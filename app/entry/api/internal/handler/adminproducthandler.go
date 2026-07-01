@@ -483,6 +483,7 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		seedInventoryServiceStock(r.Context(), svcCtx, productID, req.StockAvailable)
 
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminAuditProductCreated, fmt.Sprintf("product:%d merchant:%d name:%s", productID, req.MerchantId, req.Name))
@@ -565,6 +566,7 @@ func AdminProductStockAdjustHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		reconcileInventoryServiceStock(r.Context(), svcCtx, req.ProductId)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d delta:%d bucket:%d", req.ProductId, req.Delta, req.BucketIdx))
 		httpx.OkJsonCtx(r.Context(), w, types.AdminProductStockAdjustResp{

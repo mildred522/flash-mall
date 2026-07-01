@@ -6,6 +6,7 @@ import (
 	"flash-mall/app/entry/api/internal/cache"
 	"flash-mall/app/entry/api/internal/config"
 	"flash-mall/app/entry/api/internal/idgen"
+	"flash-mall/app/entry/api/internal/inventoryclient"
 	"flash-mall/app/entry/api/internal/model"
 	"flash-mall/app/entry/api/internal/sessionstate"
 	orderClient "flash-mall/app/order/rpc/orderclient"
@@ -22,6 +23,7 @@ type ServiceContext struct {
 	Config           config.Config
 	OrderRpc         orderClient.Order
 	ProductRpc       productClient.Product
+	InventoryClient  inventoryclient.Client
 	Redis            *redis.Redis
 	SqlConn          sqlx.SqlConn
 	OrderModel       model.OrdersModel
@@ -53,10 +55,20 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if c.JwtAuthSecret != "" {
 		validator = sessionstate.NewRedisValidator(rds, c.JwtAuthSecret)
 	}
+	var inventoryClient inventoryclient.Client
+	if c.InventoryKitexEndpoint != "" {
+		client, err := inventoryclient.NewKitexClient(c.InventoryKitexEndpoint)
+		if err != nil {
+			logx.Errorf("inventory kitex client disabled: endpoint=%s err=%v", c.InventoryKitexEndpoint, err)
+		} else {
+			inventoryClient = client
+		}
+	}
 	return &ServiceContext{
 		Config:           c,
 		OrderRpc:         orderClient.NewOrder(zrpc.MustNewClient(c.OrderRpcConf)),
 		ProductRpc:       productClient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf)),
+		InventoryClient:  inventoryClient,
 		Redis:            rds,
 		SqlConn:          sqlConn,
 		OrderModel:       model.NewOrdersModel(sqlConn, c.CacheConf),

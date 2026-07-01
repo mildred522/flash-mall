@@ -56,6 +56,7 @@ DtmServer: dtm:36790
 ProductRpcTarget: product-rpc:8080
 OrderTimeoutSeconds: 60
 OrderRpcTarget: order-rpc:8090
+InventoryKitexEndpoint: ''
 RequestIdTTLSeconds: 86400
 DtmTimeoutToFailSeconds: 120
 DtmRequestTimeoutSeconds: 6
