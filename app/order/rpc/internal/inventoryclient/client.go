@@ -42,7 +42,11 @@ func (c *KitexClient) ConfirmDeduct(ctx context.Context, orderID string) error {
 }
 
 func (c *KitexClient) ReleaseStock(ctx context.Context, orderID string, reason string) error {
-	_, err := c.client.ReleaseStock(ctx, &inventory.ReleaseStockRequest{OrderId: orderID, Reason: reason})
+	req := &inventory.ReleaseStockRequest{OrderId: orderID}
+	if reason != "" {
+		req.Reason = &reason
+	}
+	_, err := c.client.ReleaseStock(ctx, req)
 	return toOrderStatusError(err)
 }
 
