@@ -130,7 +130,7 @@ services:
     command:
       - sh
       - -c
-      - mysql -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+      - mysql --default-character-set=utf8mb4 -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
     restart: "no"
 
   auth-api:

@@ -27,6 +27,19 @@ or runnable demos.
 - Delegate only low-risk/high-volume drafting. Codex owns security, payment,
   transaction consistency, final review, verification, and commits.
 
+## Encoding Rules
+
+- Treat Chinese mojibake in product names, seed data, SQL, HTML, JSON, or API
+  responses as a P0 regression.
+- Keep source files, SQL fixtures, HTML, JSON, and logs in UTF-8. Do not replace
+  Chinese text with `????` or other placeholders as a "fix".
+- Every MySQL import path must use `--default-character-set=utf8mb4`, and SQL
+  initialization files must set the connection to `utf8mb4` before writing seed
+  data.
+- When product names render as `????`, trace the bytes in this order before
+  editing UI code: SQL source file, MySQL column charset/collation and stored
+  `HEX(name)`, API JSON response, then frontend rendering.
+
 ## Context Lookup
 
 - Read `PROJECT_NOTES.md` for the compact project map.

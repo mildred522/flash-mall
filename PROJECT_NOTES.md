@@ -45,6 +45,13 @@ operational demo readiness.
   `scripts\local\start-wsl-compose.ps1` from Windows PowerShell. Windows should
   access the mall through `http://127.0.0.1:8888`, not the WSL `172.x.x.x`
   address.
+- `scripts\local\start-wsl-compose.ps1` starts a project keepalive process by
+  default so Windows does not reclaim the WSL distro immediately after startup;
+  without that, Docker stops cleanly and all compose containers exit.
+- All MySQL init/import commands must pass
+  `--default-character-set=utf8mb4`. If product names appear as `????`, inspect
+  SQL source, MySQL `HEX(name)` plus charset/collation, API JSON, then frontend
+  rendering in that order.
 - The Windows GUI launcher now has dedicated `WSL 启动` and `WSL 停止` actions.
   The legacy `快速启动` and `完整启动` actions still run the Windows exe path.
 - K8s local deployment should also run inside WSL. Prefer

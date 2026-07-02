@@ -168,7 +168,7 @@ wait_for_port "dtm-grpc" "127.0.0.1" "36790" 90
 wait_for_port "rabbitmq" "127.0.0.1" "5672" 90
 wait_for_mysql 600
 
-docker exec -i mysql mysql --force -uroot -p6494kj06 < scripts/k8s/init-db.sql
+docker exec -i mysql mysql --force --default-character-set=utf8mb4 -uroot -p6494kj06 < scripts/k8s/init-db.sql
 
 go run ./app/entry/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4
 
