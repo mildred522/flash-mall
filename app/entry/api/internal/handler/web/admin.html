@@ -19,6 +19,9 @@
   --brand-light: #fff0f0;
   --brand2: #ff6b35;
   --brand-gradient: linear-gradient(135deg, #e4393c, #ff6b35);
+  --primary: #c1272d;
+  --primary-hover: #a51f26;
+  --primary-active: #861a20;
 
   /* Status */
   --ok: #52c41a;
@@ -33,6 +36,7 @@
 
   /* Radius */
   --radius-lg: 12px;
+  --radius-md: 8px;
   --radius-sm: 6px;
   --radius-full: 999px;
 }
@@ -64,8 +68,6 @@ h1, h2, h3, h4 {
   margin: 0;
   font-weight: 600;
 }
-
-@import "./variables.css";
 
 .container {
   width: min(1200px, calc(100% - 32px));
@@ -327,7 +329,7 @@ h1, h2, h3, h4 {
 /* ─── Buttons ─── */
 .button {
   appearance: none;
-  border: none;
+  border: 1px solid transparent;
   padding: 8px 20px;
   border-radius: var(--radius-sm);
   font-size: 14px;
@@ -336,10 +338,20 @@ h1, h2, h3, h4 {
   transition: all 0.15s;
 }
 .button.primary {
-  background: var(--primary);
+  background: var(--primary, #c1272d);
+  border-color: var(--primary, #c1272d);
   color: #fff;
+  box-shadow: 0 1px 2px rgba(193, 39, 45, 0.22);
 }
-.button.primary:hover { filter: brightness(1.1); }
+.button.primary:hover {
+  background: var(--primary-hover, #a51f26);
+  border-color: var(--primary-hover, #a51f26);
+  filter: none;
+}
+.button.primary:active {
+  background: var(--primary-active, #861a20);
+  border-color: var(--primary-active, #861a20);
+}
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
@@ -650,7 +662,8 @@ h1, h2, h3, h4 {
     order: 3;
     width: 100%;
   }
-}</style>
+}
+</style>
 </head>
 <body>
   <header class="topbar">
@@ -3187,4 +3200,3 @@ log("后台管理已就绪");
 </script>
 </body>
 </html>
-

@@ -13,6 +13,9 @@
   --brand-light: #fff0f0;
   --brand2: #ff6b35;
   --brand-gradient: linear-gradient(135deg, #e4393c, #ff6b35);
+  --primary: #c1272d;
+  --primary-hover: #a51f26;
+  --primary-active: #861a20;
 
   /* Status */
   --ok: #52c41a;
@@ -27,6 +30,7 @@
 
   /* Radius */
   --radius-lg: 12px;
+  --radius-md: 8px;
   --radius-sm: 6px;
   --radius-full: 999px;
 }
