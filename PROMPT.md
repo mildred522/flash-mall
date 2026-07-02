@@ -40,6 +40,15 @@ or runnable demos.
   editing UI code: SQL source file, MySQL column charset/collation and stored
   `HEX(name)`, API JSON response, then frontend rendering.
 
+## Admin UI Rules
+
+- Create/edit flows for products, suppliers, promotions, and similar backstage
+  entities must use explicit user-triggered modals. Page load, navigation
+  filters, data refresh, or initial query state must not open create/edit
+  modals.
+- Closing an admin modal must clear editing state and reset the form so stale
+  values from a previous edit cannot leak into the next create action.
+
 ## Context Lookup
 
 - Read `PROJECT_NOTES.md` for the compact project map.

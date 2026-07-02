@@ -115,6 +115,7 @@ export default function ProductsPage() {
 
   const openCreate = () => {
     setEditingProduct(null);
+    productForm.resetFields();
     productForm.setFieldsValue({
       name: '',
       origin_price_fen: 0,
@@ -124,6 +125,12 @@ export default function ProductsPage() {
       status: 1,
     });
     setProductModalOpen(true);
+  };
+
+  const closeProductModal = () => {
+    setProductModalOpen(false);
+    setEditingProduct(null);
+    productForm.resetFields();
   };
 
   const openEdit = (product: AdminProductItem) => {
@@ -165,7 +172,7 @@ export default function ProductsPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success('商品已更新');
-          setProductModalOpen(false);
+          closeProductModal();
           if (detail?.product_id === editingProduct.product_id) {
             void openDetail(editingProduct.product_id);
           }
@@ -186,7 +193,7 @@ export default function ProductsPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success(`商品已创建：${res.data.product_id}`);
-          setProductModalOpen(false);
+          closeProductModal();
           reload();
         } else {
           message.error(error || '商品创建失败');
@@ -405,7 +412,7 @@ export default function ProductsPage() {
       <Modal
         title={editingProduct ? '编辑商品' : '新增商品'}
         open={productModalOpen}
-        onCancel={() => setProductModalOpen(false)}
+        onCancel={closeProductModal}
         onOk={saveProduct}
         confirmLoading={submitting}
         destroyOnClose

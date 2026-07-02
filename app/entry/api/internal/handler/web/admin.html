@@ -650,8 +650,7 @@ h1, h2, h3, h4 {
     order: 3;
     width: 100%;
   }
-}
-</style>
+}</style>
 </head>
 <body>
   <header class="topbar">
@@ -765,16 +764,7 @@ h1, h2, h3, h4 {
         </div>
       </div>
       <div class="row product-create-row">
-        <input id="product-name" placeholder="名称" />
-        <input id="product-image-url" placeholder="图片地址或先上传文件" />
-        <input id="product-image-file" type="file" accept="image/*" />
-        <input id="product-origin-price" type="number" min="0" placeholder="原价(分)" />
-        <input id="product-sale-price" type="number" min="0" placeholder="售价(分)" />
-        <input id="product-stock" type="number" min="0" placeholder="初始库存" />
-        <select id="product-supplier">
-          <option value="">请选择供应商</option>
-        </select>
-        <button id="product-create" class="button primary">新增</button>
+        <button id="product-create" class="button primary">新增商品</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>图片</th><th>名称</th><th>供应商</th><th>原价</th><th>售价</th><th>当前价</th><th>活动</th><th>库存</th><th>状态</th><th>操作</th></tr></thead>
@@ -805,8 +795,7 @@ h1, h2, h3, h4 {
         </div>
       </div>
       <div class="row product-create-row">
-        <input id="supplier-name" placeholder="供应商名称" />
-        <button id="supplier-create" class="button primary">新增</button>
+        <button id="supplier-create" class="button primary">新增供应商</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>名称</th><th>商品数</th><th>启用商品</th><th>状态</th><th>操作</th></tr></thead>
@@ -845,13 +834,7 @@ h1, h2, h3, h4 {
         </div>
       </div>
       <div class="row product-create-row">
-        <select id="promotion-product">
-          <option value="">请选择商品</option>
-        </select>
-        <input id="promotion-price" type="number" min="1" placeholder="限时价(分)" />
-        <input id="promotion-starts" placeholder="开始时间 YYYY-MM-DD HH:mm:ss" />
-        <input id="promotion-ends" placeholder="结束时间 YYYY-MM-DD HH:mm:ss" />
-        <button id="promotion-create" class="button primary">新增</button>
+        <button id="promotion-create" class="button primary">新增促销</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>商品</th><th>类型</th><th>价格</th><th>开始</th><th>结束</th><th>时间态</th><th>状态</th><th>操作</th></tr></thead>
@@ -1023,10 +1006,13 @@ h1, h2, h3, h4 {
   productOptions: [],
   userFilters: { status: "", role: "", keyword: "", page: 1, page_size: 20 },
   securityItems: [],
-  selectedOrderId: ""
+  selectedOrderId: "",
 };
+
 const $ = (id) => document.getElementById(id);
+
 let toastTimer = 0;
+
 function showToast(message) {
   const toast = $("admin-toast");
   if (!toast) return;
@@ -1035,12 +1021,13 @@ function showToast(message) {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => toast.classList.add("hidden"), 4200);
 }
+
 function log(msg) {
   const box = $("console-log");
-  if (box) box.textContent = `[${(/* @__PURE__ */ new Date()).toLocaleTimeString()}] ${msg}
-${box.textContent}`;
+  if (box) box.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n${box.textContent}`;
   if (/失败|错误|不能|请选择|请输入|无效|不存在|加载失败/.test(msg)) showToast(msg);
 }
+
 function openAdminFormModal({ title, fields, submitText = "确定", validate }) {
   const backdrop = $("admin-modal");
   const form = $("admin-modal-form");
@@ -1049,6 +1036,7 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
   const submit = $("admin-modal-submit");
   const errorBox = $("admin-modal-error");
   if (!backdrop || !form || !fieldsEl || !titleEl || !submit) return Promise.resolve(null);
+
   titleEl.textContent = title || "编辑";
   submit.textContent = submitText;
   if (errorBox) {
@@ -1066,8 +1054,10 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
       }).join("")}</select>`;
     } else if (field.type === "textarea") {
       control = `<textarea ${common} ${field.required ? "required" : ""}>${value}</textarea>`;
+    } else if (field.type === "file") {
+      control = `<input ${common} type="file" ${field.accept ? `accept="${escapeHtml(field.accept)}"` : ""} ${field.required ? "required" : ""} />`;
     } else {
-      control = `<input ${common} type="${escapeHtml(field.type || "text")}" value="${value}" ${field.min !== void 0 ? `min="${escapeHtml(field.min)}"` : ""} ${field.required ? "required" : ""} />`;
+      control = `<input ${common} type="${escapeHtml(field.type || "text")}" value="${value}" ${field.min !== undefined ? `min="${escapeHtml(field.min)}"` : ""} ${field.required ? "required" : ""} />`;
     }
     return `<div class="modal-field"><label for="modal-field-${escapeHtml(field.name)}">${escapeHtml(field.label || field.name)}</label>${control}</div>`;
   }).join("");
@@ -1075,6 +1065,7 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
   backdrop.setAttribute("aria-hidden", "false");
   const first = fieldsEl.querySelector("input, select, textarea");
   if (first) first.focus();
+
   return new Promise((resolve) => {
     let done = false;
     const showError = (message) => {
@@ -1100,7 +1091,7 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
       const data = {};
       for (const field of fields) {
         const input = form.elements[field.name];
-        data[field.name] = input ? input.value : "";
+        data[field.name] = field.type === "file" ? input?.files?.[0] || null : input ? input.value : "";
       }
       const error = validate ? validate(data) : "";
       if (error) {
@@ -1123,19 +1114,23 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
     document.addEventListener("keydown", onKeydown);
   });
 }
+
 function productErrorMessage(error) {
   if (error === "sale_price_fen must be <= origin_price_fen") return "现价不能高于原价";
   if (error === "active supplier not found") return "请选择启用中的供应商";
   return error || "";
 }
+
 function supplierErrorMessage(error) {
   if (error === "supplier has active products") return "该供应商仍有关联的启用商品，请先下架或迁移商品";
   return error || "";
 }
+
 function userErrorMessage(error) {
   if (error === "cannot disable current admin") return "不能禁用当前登录的管理员账号";
   return error || "";
 }
+
 function orderErrorMessage(error) {
   if (error === "order not in paid status" || error === "order is not in paid status") return "订单不是已支付状态，不能发货";
   if (error === "order cannot be refunded" || error === "order cannot be refunded in current status") return "当前订单状态不能退款";
@@ -1144,6 +1139,7 @@ function orderErrorMessage(error) {
   if (error === "order not found") return "订单不存在";
   return error || "";
 }
+
 async function authed(path, opts = {}) {
   const headers = { "Content-Type": "application/json" };
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -1151,19 +1147,21 @@ async function authed(path, opts = {}) {
     opts.body = JSON.stringify(opts.jsonBody);
     delete opts.jsonBody;
   }
-  const resp = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers || {} } });
+
+  const resp = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
   if (resp.status === 401) {
     const refreshed = await tryRefresh();
     if (refreshed) {
       headers.Authorization = `Bearer ${state.token}`;
-      const retry = await fetch(path, { ...opts, headers: { ...headers, ...opts.headers || {} } });
-      const data2 = await retry.json().catch(() => ({}));
-      return { ok: retry.ok, status: retry.status, data: data2 };
+      const retry = await fetch(path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+      const data = await retry.json().catch(() => ({}));
+      return { ok: retry.ok, status: retry.status, data };
     }
   }
   const data = await resp.json().catch(() => ({}));
   return { ok: resp.ok, status: resp.status, data };
 }
+
 async function authedForm(path, formData) {
   const headers = {};
   if (state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -1173,19 +1171,20 @@ async function authedForm(path, formData) {
     if (refreshed) {
       headers.Authorization = `Bearer ${state.token}`;
       const retry = await fetch(path, { method: "POST", headers, body: formData });
-      const data2 = await retry.json().catch(() => ({}));
-      return { ok: retry.ok, status: retry.status, data: data2 };
+      const data = await retry.json().catch(() => ({}));
+      return { ok: retry.ok, status: retry.status, data };
     }
   }
   const data = await resp.json().catch(() => ({}));
   return { ok: resp.ok, status: resp.status, data };
 }
+
 async function tryRefresh() {
   if (!state.refreshToken) return false;
   const resp = await fetch("/api/auth/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${state.token}` },
-    body: JSON.stringify({ refresh_token: state.refreshToken })
+    body: JSON.stringify({ refresh_token: state.refreshToken }),
   });
   if (!resp.ok) return false;
   const data = await resp.json().catch(() => ({}));
@@ -1198,26 +1197,37 @@ async function tryRefresh() {
   }
   return true;
 }
+
 function formatPriceFen(fen) {
   if (!fen && fen !== 0) return "0.00";
   return (fen / 100).toFixed(2);
 }
+
 function escapeHtml(value) {
-  return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
+
 const WORKSPACE_TABS = {
   platform: ["dashboard", "merchant-applications", "users", "reconciliation", "events", "security"],
-  merchant: ["orders", "refunds", "products", "suppliers", "promotions"]
+  merchant: ["orders", "refunds", "products", "suppliers", "promotions"],
 };
+
 function workspaceForTab(tab) {
   for (const [workspace, tabs] of Object.entries(WORKSPACE_TABS)) {
     if (tabs.includes(tab)) return workspace;
   }
   return "platform";
 }
+
 function firstTabForWorkspace(workspace) {
   return (WORKSPACE_TABS[workspace] || WORKSPACE_TABS.platform)[0];
 }
+
 function setWorkspace(workspace, options = {}) {
   const nextWorkspace = WORKSPACE_TABS[workspace] ? workspace : "platform";
   state.workspace = nextWorkspace;
@@ -1230,6 +1240,7 @@ function setWorkspace(workspace, options = {}) {
   });
   if (options.switchDefault) switchTab(firstTabForWorkspace(nextWorkspace));
 }
+
 function currentUserId() {
   try {
     const payload = state.token.split(".")[1];
@@ -1241,6 +1252,7 @@ function currentUserId() {
     return 0;
   }
 }
+
 function switchTab(tab) {
   const normalizedTab = document.querySelector(`[data-tab="${tab}"]`) ? tab : firstTabForWorkspace(state.workspace);
   const targetWorkspace = workspaceForTab(normalizedTab);
@@ -1252,6 +1264,7 @@ function switchTab(tab) {
   if (tabBtn) tabBtn.classList.add("active");
   const panel = $(`panel-${normalizedTab}`);
   if (panel) panel.classList.add("active");
+
   tab = normalizedTab;
   if (tab === "dashboard") loadDashboard();
   else if (tab === "orders") loadOrders();
@@ -1265,6 +1278,7 @@ function switchTab(tab) {
   else if (tab === "events") loadAdminEvents();
   else if (tab === "security") loadSecurityEvents();
 }
+
 async function loadDashboard() {
   $("dashboard-content").innerHTML = '<div class="loading">加载中...</div>';
   const resp = await authed("/api/admin/dashboard/stats");
@@ -1301,6 +1315,7 @@ async function loadDashboard() {
   document.querySelectorAll("[data-dashboard-promotions]").forEach((card) => card.addEventListener("click", () => openDashboardPromotions(card.getAttribute("data-dashboard-promotions"))));
   log("仪表盘数据已刷新");
 }
+
 async function loadMerchantApplications() {
   const tbody = $("merchant-applications-tbody");
   if (!tbody) return;
@@ -1331,16 +1346,17 @@ async function loadMerchantApplications() {
   document.querySelectorAll("[data-merchant-apply-approve]").forEach((btn) => btn.addEventListener("click", () => auditMerchantApplication(btn.getAttribute("data-merchant-apply-approve"), true)));
   document.querySelectorAll("[data-merchant-apply-reject]").forEach((btn) => btn.addEventListener("click", () => auditMerchantApplication(btn.getAttribute("data-merchant-apply-reject"), false)));
 }
+
 async function auditMerchantApplication(applyId, approve) {
   const values = await openAdminFormModal({
     title: approve ? "通过商家入驻" : "拒绝商家入驻",
     submitText: approve ? "通过" : "拒绝",
-    fields: [{ name: "remark", label: "备注", type: "textarea", value: approve ? "审核通过" : "资料不完整", required: true }]
+    fields: [{ name: "remark", label: "备注", type: "textarea", value: approve ? "审核通过" : "资料不完整", required: true }],
   });
   if (!values) return;
   const resp = await authed("/api/admin/merchants/applications/audit", {
     method: "POST",
-    jsonBody: { apply_id: Number(applyId), approve, remark: values.remark.trim() }
+    jsonBody: { apply_id: Number(applyId), approve, remark: values.remark.trim() },
   });
   if (!resp.ok || resp.data.error) {
     log(`商家审核失败 apply_id=${applyId} body=${JSON.stringify(resp.data)}`);
@@ -1349,6 +1365,7 @@ async function auditMerchantApplication(applyId, approve) {
   log(`商家审核完成 apply_id=${applyId}`);
   loadMerchantApplications();
 }
+
 function openDashboardOrders(status) {
   orderFilters = { status: status || "", order_id: "", user_id: "", product_id: "", product_name: "", created_from: "", created_to: "", page: 1, page_size: 20 };
   const statusFilter = $("order-status-filter");
@@ -1367,6 +1384,7 @@ function openDashboardOrders(status) {
   if (toFilter) toFilter.value = "";
   switchTab("orders");
 }
+
 function openDashboardProducts(stockStatus) {
   state.productFilters.status = "";
   state.productFilters.keyword = "";
@@ -1389,6 +1407,7 @@ function openDashboardProducts(stockStatus) {
   if (stockFilter) stockFilter.value = state.productFilters.stockStatus;
   switchTab("products");
 }
+
 function openDashboardPromotions(effectStatus) {
   state.promotionFilters.status = "";
   state.promotionFilters.keyword = "";
@@ -1405,6 +1424,7 @@ function openDashboardPromotions(effectStatus) {
   if (effectFilter) effectFilter.value = state.promotionFilters.effectStatus;
   switchTab("promotions");
 }
+
 const STATUS_MAP = {
   0: { text: "待支付", cls: "pending" },
   1: { text: "已支付", cls: "paid" },
@@ -1412,14 +1432,17 @@ const STATUS_MAP = {
   3: { text: "已发货", cls: "shipped" },
   4: { text: "已收货", cls: "completed" },
   5: { text: "退款中", cls: "refund" },
-  6: { text: "已退款", cls: "refunded" }
+  6: { text: "已退款", cls: "refunded" },
 };
+
 const ORDER_ACTION = {
   canClose: (status) => Number(status) === 0,
   canShip: (status) => Number(status) === 1,
-  canRefund: (status) => Number(status) === 1 || Number(status) === 3
+  canRefund: (status) => Number(status) === 1 || Number(status) === 3,
 };
+
 let orderFilters = { status: "", order_id: "", user_id: "", product_id: "", product_name: "", created_from: "", created_to: "", page: 1, page_size: 20 };
+
 async function loadOrders() {
   $("orders-tbody").innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
   const params = new URLSearchParams();
@@ -1438,6 +1461,7 @@ async function loadOrders() {
     $("orders-tbody").innerHTML = `<tr><td colspan="8" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
   }
+
   const items = resp.data.items || [];
   const total = resp.data.total || 0;
   $("orders-tbody").innerHTML = items.length === 0 ? '<tr><td colspan="8" class="empty">暂无订单</td></tr>' : items.map((o) => {
@@ -1477,6 +1501,7 @@ async function loadOrders() {
   if (state.selectedOrderId) loadOrderDetail(state.selectedOrderId);
   log(`订单列表已刷新 items=${items.length} total=${total}`);
 }
+
 function updateOrderPager(total) {
   const page = Number(orderFilters.page || 1);
   const pageSize = Number(orderFilters.page_size || 20);
@@ -1495,6 +1520,7 @@ function updateOrderPager(total) {
   const next = $("orders-next");
   if (next) next.disabled = page >= totalPages;
 }
+
 async function loadOrderDetail(orderId) {
   if (!orderId) return;
   state.selectedOrderId = orderId;
@@ -1503,14 +1529,15 @@ async function loadOrderDetail(orderId) {
   panel.innerHTML = '<div class="loading">详情加载中...</div>';
   const [detailResp, logsResp] = await Promise.all([
     authed(`/api/admin/orders/detail?order_id=${encodeURIComponent(orderId)}`),
-    authed(`/api/admin/orders/status-logs?order_id=${encodeURIComponent(orderId)}`)
+    authed(`/api/admin/orders/status-logs?order_id=${encodeURIComponent(orderId)}`),
   ]);
   if (!detailResp.ok || detailResp.data.error) {
     panel.innerHTML = `<div class="error">详情加载失败: ${escapeHtml(detailResp.data.error || detailResp.status)}</div>`;
     return;
   }
-  renderOrderDetail(detailResp.data, logsResp.ok ? logsResp.data.items || [] : []);
+  renderOrderDetail(detailResp.data, logsResp.ok ? (logsResp.data.items || []) : []);
 }
+
 function openProductDetailFromOrder(productId) {
   state.productFilters.productId = String(productId || "");
   state.productFilters.status = "";
@@ -1534,6 +1561,7 @@ function openProductDetailFromOrder(productId) {
   switchTab("products");
   loadProductDetail(productId);
 }
+
 async function loadProductDetail(productId) {
   const panel = $("product-detail-panel");
   if (!panel || !productId) return;
@@ -1546,6 +1574,7 @@ async function loadProductDetail(productId) {
   }
   renderProductDetail(resp.data);
 }
+
 function renderProductDetail(product) {
   const productId = Number(product.product_id || 0);
   const isActive = Number(product.status || 0) === 1;
@@ -1579,6 +1608,8 @@ function renderProductDetail(product) {
   document.querySelector("[data-product-detail-security]")?.addEventListener("click", () => openSecurityKeyword(`product:${productId}`));
   log(`商品详情已加载 product_id=${productId}`);
 }
+
+
 function renderOrderDetail(detail, logs) {
   const st = STATUS_MAP[detail.status] || { text: detail.status_text || "未知", cls: "" };
   const logHtml = logs.length === 0 ? '<div class="empty">暂无状态日志</div>' : logs.map((item) => `
@@ -1622,11 +1653,13 @@ function renderOrderDetail(detail, logs) {
   document.querySelector("[data-order-detail-security]")?.addEventListener("click", () => openSecurityKeyword(`order:${detail.order_id}`));
   document.querySelectorAll("[data-operator-user]").forEach((btn) => btn.addEventListener("click", () => openUserDetailFromOrder(btn.getAttribute("data-operator-user"))));
 }
+
 function operatorLink(operatorId) {
   const id = Number(operatorId || 0);
   if (!id) return "0";
   return `<button class="link-button" data-operator-user="${id}">${id}</button>`;
 }
+
 async function shipOrder(orderId) {
   const shipPath = state.workspace === "merchant" ? "/api/merchant/orders/ship" : "/api/admin/orders/ship";
   const resp = await authed(shipPath, { method: "POST", jsonBody: { order_id: orderId } });
@@ -1638,14 +1671,15 @@ async function shipOrder(orderId) {
   loadOrders();
   if (state.selectedOrderId === orderId) loadOrderDetail(orderId);
 }
+
 async function closeOrder(orderId) {
   const values = await openAdminFormModal({
     title: "关闭订单",
     submitText: "确认关闭",
     fields: [
-      { name: "reason", label: "关闭原因", type: "textarea", value: "admin close", required: true }
+      { name: "reason", label: "关闭原因", type: "textarea", value: "admin close", required: true },
     ],
-    validate: (data) => data.reason.trim() ? "" : "请输入关闭原因"
+    validate: (data) => data.reason.trim() ? "" : "请输入关闭原因",
   });
   if (!values) return;
   const resp = await authed("/api/admin/orders/close", { method: "POST", jsonBody: { order_id: orderId, reason: values.reason.trim() } });
@@ -1657,14 +1691,15 @@ async function closeOrder(orderId) {
   loadOrders();
   if (state.selectedOrderId === orderId) loadOrderDetail(orderId);
 }
+
 async function refundOrder(orderId) {
   const values = await openAdminFormModal({
     title: "直接退款",
     submitText: "确认直接退款",
     fields: [
-      { name: "reason", label: "退款原因", type: "textarea", value: "admin refund", required: true }
+      { name: "reason", label: "退款原因", type: "textarea", value: "admin refund", required: true },
     ],
-    validate: (data) => data.reason.trim() ? "" : "请输入退款原因"
+    validate: (data) => data.reason.trim() ? "" : "请输入退款原因",
   });
   if (!values) return;
   const reason = values.reason.trim();
@@ -1677,20 +1712,22 @@ async function refundOrder(orderId) {
   loadOrders();
   if (state.selectedOrderId === orderId) loadOrderDetail(orderId);
 }
+
 const REFUND_STATUS_MAP = {
   0: { text: "待审核", cls: "refund" },
   1: { text: "已审核", cls: "paid" },
   2: { text: "已退款", cls: "refunded" },
   3: { text: "已驳回", cls: "closed" },
-  4: { text: "退款失败", cls: "danger" }
+  4: { text: "退款失败", cls: "danger" },
 };
+
 async function loadRefunds() {
   const tbody = $("refunds-tbody");
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="8" class="loading">加载中...</td></tr>';
   const params = new URLSearchParams({
     page: String(state.refundFilters.page || 1),
-    page_size: String(state.refundFilters.page_size)
+    page_size: String(state.refundFilters.page_size || 50),
   });
   if (state.refundFilters.status !== "") params.set("status", state.refundFilters.status);
   if (state.refundFilters.orderId) params.set("order_id", state.refundFilters.orderId);
@@ -1729,19 +1766,20 @@ async function loadRefunds() {
   $("refunds-total").textContent = `共 ${resp.data.total || 0} 条`;
   log(`退款列表已刷新 items=${items.length} total=${resp.data.total || 0}`);
 }
+
 async function auditRefund(refundId, approve) {
   const values = await openAdminFormModal({
     title: approve ? "通过退款" : "驳回退款",
     submitText: approve ? "确认退款完成" : "确认驳回",
     fields: [
-      { name: "remark", label: approve ? "处理备注" : "驳回原因", type: "textarea", value: approve ? "refund approved" : "refund rejected", required: true }
+      { name: "remark", label: approve ? "处理备注" : "驳回原因", type: "textarea", value: approve ? "refund approved" : "refund rejected", required: true },
     ],
-    validate: (data) => data.remark.trim() ? "" : "请输入处理说明"
+    validate: (data) => data.remark.trim() ? "" : "请输入处理说明",
   });
   if (!values) return;
   const resp = await authed("/api/admin/refunds/audit", {
     method: "POST",
-    jsonBody: { refund_id: refundId, approve, remark: values.remark.trim() }
+    jsonBody: { refund_id: refundId, approve, remark: values.remark.trim() },
   });
   if (!resp.ok || resp.data.error) {
     log(`退款审核失败: ${escapeHtml(resp.data.error || resp.status)}`);
@@ -1751,21 +1789,25 @@ async function auditRefund(refundId, approve) {
   loadRefunds();
   loadDashboard();
 }
+
 function supplierDisplayName(supplierId, supplierName = "") {
   if (supplierName) return `${escapeHtml(supplierName)} (${supplierId || "—"})`;
   const supplier = state.supplierOptions.find((item) => Number(item.supplier_id) === Number(supplierId));
   return supplier ? `${escapeHtml(supplier.name)} (${supplier.supplier_id})` : escapeHtml(supplierId || "—");
 }
+
 function productStockDisplay(stock) {
   const value = Number(stock || 0);
   if (value <= 0) return '<span class="badge closed">缺货</span>';
   if (value <= 100) return `<span class="badge pending">${value}</span>`;
   return String(value);
 }
+
 function productImageCell(imageUrl) {
   if (!imageUrl) return '<span class="product-image-empty">无图</span>';
   return `<img class="product-image-thumb" src="${escapeHtml(imageUrl)}" alt="商品图" loading="lazy" />`;
 }
+
 async function uploadProductImage(file) {
   if (!file) return "";
   const form = new FormData();
@@ -1777,14 +1819,14 @@ async function uploadProductImage(file) {
   }
   return resp.data.image_url || "";
 }
+
 async function loadProductSupplierOptions(selectedSupplierId = 0) {
   const select = $("product-supplier");
-  if (!select) return [];
-  const targetSupplierId = Number(selectedSupplierId || select.value || 0);
-  select.innerHTML = '<option value="">供应商加载中...</option>';
+  const targetSupplierId = Number(selectedSupplierId || select?.value || 0);
+  if (select) select.innerHTML = '<option value="">供应商加载中...</option>';
   const resp = await authed("/api/admin/suppliers?status=1&page=1&page_size=100");
   if (!resp.ok || resp.data.error) {
-    select.innerHTML = '<option value="">供应商加载失败</option>';
+    if (select) select.innerHTML = '<option value="">供应商加载失败</option>';
     log(`供应商选项加载失败: ${resp.data.error || resp.status}`);
     return [];
   }
@@ -1793,11 +1835,16 @@ async function loadProductSupplierOptions(selectedSupplierId = 0) {
   if (targetSupplierId > 0 && !state.supplierOptions.some((s) => Number(s.supplier_id) === Number(targetSupplierId))) {
     state.supplierOptions.push({ supplier_id: Number(targetSupplierId), name: `供应商 ${targetSupplierId}`, status: 1 });
   }
-  select.innerHTML = '<option value="">请选择供应商</option>' + state.supplierOptions.map((s) => `<option value="${s.supplier_id}">${escapeHtml(s.name)} (${s.supplier_id})</option>`).join("");
-  if (targetSupplierId > 0) select.value = String(targetSupplierId);
-  else if (items.length === 1) select.value = String(items[0].supplier_id);
+  if (select) {
+    select.innerHTML = '<option value="">请选择供应商</option>' + state.supplierOptions
+      .map((s) => `<option value="${s.supplier_id}">${escapeHtml(s.name)} (${s.supplier_id})</option>`)
+      .join("");
+    if (targetSupplierId > 0) select.value = String(targetSupplierId);
+    else if (items.length === 1) select.value = String(items[0].supplier_id);
+  }
   return state.supplierOptions;
 }
+
 async function loadProducts() {
   await loadProductSupplierOptions();
   $("products-tbody").innerHTML = '<tr><td colspan="11" class="loading">加载中...</td></tr>';
@@ -1814,6 +1861,7 @@ async function loadProducts() {
     $("products-tbody").innerHTML = `<tr><td colspan="11" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
   }
+
   const items = resp.data.items || [];
   const total = resp.data.total || 0;
   $("products-tbody").innerHTML = items.length === 0 ? '<tr><td colspan="11" class="empty">暂无商品</td></tr>' : items.map((p) => `<tr>
@@ -1853,6 +1901,7 @@ async function loadProducts() {
   updateProductPager(total);
   log(`商品列表已刷新 items=${items.length} total=${total}`);
 }
+
 function updateProductPager(total) {
   const page = Number(state.productFilters.page || 1);
   const pageSize = Number(state.productFilters.page_size || 20);
@@ -1871,28 +1920,49 @@ function updateProductPager(total) {
   const next = $("products-next");
   if (next) next.disabled = page >= totalPages;
 }
+
 async function createProduct() {
-  const supplierId = Number($("product-supplier").value || 0);
-  if (supplierId <= 0) {
-    log("新增商品失败: 请选择供应商");
-    return;
-  }
+  const suppliers = await loadProductSupplierOptions();
+  const values = await openAdminFormModal({
+    title: "新增商品",
+    submitText: "创建",
+    fields: [
+      { name: "name", label: "商品名称", required: true },
+      { name: "imageUrl", label: "图片地址" },
+      { name: "imageFile", label: "上传图片", type: "file", accept: "image/*" },
+      { name: "originPrice", label: "原价(分)", type: "number", min: 0, value: "0", required: true },
+      { name: "salePrice", label: "售价(分)", type: "number", min: 0, value: "0", required: true },
+      { name: "stock", label: "初始库存", type: "number", min: 0, value: "0" },
+      {
+        name: "supplierId",
+        label: "供应商",
+        type: "select",
+        value: suppliers.length === 1 ? String(suppliers[0].supplier_id) : "",
+        options: suppliers.map((supplier) => ({ value: supplier.supplier_id, label: `${supplier.name} (${supplier.supplier_id})` })),
+      },
+    ],
+    validate: (data) => {
+      if (!data.name.trim()) return "请输入商品名称";
+      const originPrice = Number(data.originPrice || 0);
+      const salePrice = Number(data.salePrice || 0);
+      if (originPrice < 0 || salePrice < 0) return "价格不能为负数";
+      if (salePrice > originPrice) return "现价不能高于原价";
+      if (Number(data.supplierId || 0) <= 0) return "请选择供应商";
+      return "";
+    },
+  });
+  if (!values) return;
   const payload = {
-    name: $("product-name").value.trim(),
-    image_url: $("product-image-url")?.value.trim() || "",
-    origin_price_fen: Number($("product-origin-price").value || 0),
-    sale_price_fen: Number($("product-sale-price").value || 0),
-    stock_available: Number($("product-stock").value || 0),
-    supplier_id: supplierId,
-    status: 1
+    name: values.name.trim(),
+    image_url: values.imageUrl.trim(),
+    origin_price_fen: Number(values.originPrice || 0),
+    sale_price_fen: Number(values.salePrice || 0),
+    stock_available: Number(values.stock || 0),
+    supplier_id: Number(values.supplierId || 0),
+    status: 1,
   };
-  if (payload.sale_price_fen > payload.origin_price_fen) {
-    log("新增商品失败: 现价不能高于原价");
-    return;
-  }
-  const imageFile = $("product-image-file")?.files?.[0];
-  if (imageFile) {
-    const imageUrl = await uploadProductImage(imageFile);
+  if (values.imageFile) {
+    const imageUrl = await uploadProductImage(values.imageFile);
     if (!imageUrl) return;
     payload.image_url = imageUrl;
   }
@@ -1902,15 +1972,11 @@ async function createProduct() {
     log(`新增商品失败: ${productErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  ["product-name", "product-image-url", "product-origin-price", "product-sale-price", "product-stock"].forEach((id) => {
-    if ($(id)) $(id).value = "";
-  });
-  if ($("product-image-file")) $("product-image-file").value = "";
-  $("product-supplier").value = "";
   log(`新增商品成功 product_id=${resp.data.product_id}`);
   state.productFilters.page = 1;
   loadProducts();
 }
+
 async function editProduct(product) {
   if (!product) return;
   const suppliers = await loadProductSupplierOptions(product.supplier_id);
@@ -1927,8 +1993,10 @@ async function editProduct(product) {
         label: "供应商",
         type: "select",
         value: String(product.supplier_id || ""),
-        options: suppliers.filter((supplier) => Number(supplier.status || 1) === 1 || Number(supplier.supplier_id) === Number(product.supplier_id)).map((supplier) => ({ value: supplier.supplier_id, label: `${supplier.name} (${supplier.supplier_id})` }))
-      }
+        options: suppliers
+          .filter((supplier) => Number(supplier.status || 1) === 1 || Number(supplier.supplier_id) === Number(product.supplier_id))
+          .map((supplier) => ({ value: supplier.supplier_id, label: `${supplier.name} (${supplier.supplier_id})` })),
+      },
     ],
     validate: (data) => {
       if (!data.name.trim()) return "请输入商品名称";
@@ -1938,7 +2006,7 @@ async function editProduct(product) {
       if (salePrice > originPrice) return "售价不能高于原价";
       if (Number(data.supplierId || 0) <= 0) return "请选择供应商";
       return "";
-    }
+    },
   });
   if (!values) return;
   const payload = {
@@ -1947,7 +2015,7 @@ async function editProduct(product) {
     image_url: values.imageUrl.trim(),
     origin_price_fen: Number(values.originPrice || 0),
     sale_price_fen: Number(values.salePrice || 0),
-    supplier_id: Number(values.supplierId || 0)
+    supplier_id: Number(values.supplierId || 0),
   };
   const resp = await authed("/api/admin/products/update", { method: "POST", jsonBody: payload });
   if (!resp.ok || resp.data.error) {
@@ -1958,10 +2026,11 @@ async function editProduct(product) {
   loadProducts();
   if ($("product-detail-panel")?.style.display !== "none") loadProductDetail(product.product_id);
 }
+
 async function setProductStatus(productId, status) {
   const resp = await authed("/api/admin/products/update", {
     method: "POST",
-    jsonBody: { product_id: Number(productId), status }
+    jsonBody: { product_id: Number(productId), status },
   });
   if (!resp.ok || resp.data.error) {
     log(`商品状态更新失败: ${productErrorMessage(resp.data.error) || resp.status}`);
@@ -1971,10 +2040,11 @@ async function setProductStatus(productId, status) {
   loadProducts();
   if ($("product-detail-panel")?.style.display !== "none") loadProductDetail(productId);
 }
+
 async function adjustProductStock(productId, delta) {
   const resp = await authed("/api/admin/products/stock-adjust", {
     method: "POST",
-    jsonBody: { product_id: Number(productId), delta, bucket_idx: 0 }
+    jsonBody: { product_id: Number(productId), delta, bucket_idx: 0 },
   });
   if (!resp.ok || resp.data.error) {
     log(`库存调整失败: ${resp.data.error || resp.status}`);
@@ -1984,6 +2054,7 @@ async function adjustProductStock(productId, delta) {
   loadProducts();
   if ($("product-detail-panel")?.style.display !== "none") loadProductDetail(productId);
 }
+
 function openProductPromotions(productId) {
   state.promotionFilters.productId = String(productId || "");
   state.promotionFilters.status = "";
@@ -2000,6 +2071,7 @@ function openProductPromotions(productId) {
   if (effectFilter) effectFilter.value = "";
   switchTab("promotions");
 }
+
 function openProductOrders(productId) {
   orderFilters = { status: "", order_id: "", user_id: "", product_id: String(productId || ""), product_name: "", created_from: "", created_to: "", page: 1, page_size: 20 };
   const statusFilter = $("order-status-filter");
@@ -2018,6 +2090,7 @@ function openProductOrders(productId) {
   if (toFilter) toFilter.value = "";
   switchTab("orders");
 }
+
 function openUserOrders(userId) {
   orderFilters = { status: "", order_id: "", user_id: String(userId || ""), product_id: "", product_name: "", created_from: "", created_to: "", page: 1, page_size: 20 };
   const statusFilter = $("order-status-filter");
@@ -2036,6 +2109,7 @@ function openUserOrders(userId) {
   if (toFilter) toFilter.value = "";
   switchTab("orders");
 }
+
 function openUserSecurity(userId) {
   const userFilter = $("security-user-filter");
   if (userFilter) userFilter.value = String(userId || "");
@@ -2047,6 +2121,7 @@ function openUserSecurity(userId) {
   if (resultFilter) resultFilter.value = "";
   switchTab("security");
 }
+
 function openSecurityKeyword(keyword) {
   const userFilter = $("security-user-filter");
   if (userFilter) userFilter.value = "";
@@ -2058,6 +2133,7 @@ function openSecurityKeyword(keyword) {
   if (resultFilter) resultFilter.value = "";
   switchTab("security");
 }
+
 async function loadSuppliers() {
   $("suppliers-tbody").innerHTML = '<tr><td colspan="6" class="loading">加载中...</td></tr>';
   const params = new URLSearchParams({ page: String(state.supplierFilters.page || 1), page_size: String(state.supplierFilters.page_size || 20) });
@@ -2068,6 +2144,7 @@ async function loadSuppliers() {
     $("suppliers-tbody").innerHTML = `<tr><td colspan="6" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
   }
+
   const items = resp.data.items || [];
   const total = resp.data.total || 0;
   state.supplierOptions = items.filter((s) => Number(s.status) === 1);
@@ -2103,6 +2180,7 @@ async function loadSuppliers() {
   updateSupplierPager(total);
   log(`供应商列表已刷新 items=${items.length} total=${total}`);
 }
+
 function updateSupplierPager(total) {
   const page = Number(state.supplierFilters.page || 1);
   const pageSize = Number(state.supplierFilters.page_size || 20);
@@ -2121,40 +2199,45 @@ function updateSupplierPager(total) {
   const next = $("suppliers-next");
   if (next) next.disabled = page >= totalPages;
 }
+
 async function createSupplier() {
-  const name = $("supplier-name").value.trim();
-  if (!name) {
-    log("新增供应商失败: 请输入供应商名称");
-    return;
-  }
+  const values = await openAdminFormModal({
+    title: "新增供应商",
+    submitText: "创建",
+    fields: [
+      { name: "name", label: "供应商名称", required: true },
+    ],
+    validate: (data) => data.name.trim() ? "" : "请输入供应商名称",
+  });
+  if (!values) return;
   const resp = await authed("/api/admin/suppliers/create", {
     method: "POST",
-    jsonBody: { name, status: 1 }
+    jsonBody: { name: values.name.trim(), status: 1 },
   });
   if (!resp.ok || resp.data.error) {
     log(`新增供应商失败: ${supplierErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  $("supplier-name").value = "";
   log(`新增供应商成功 supplier_id=${resp.data.supplier_id}`);
   state.supplierFilters.page = 1;
   loadProductSupplierOptions();
   loadSuppliers();
 }
+
 async function editSupplier(supplier) {
   if (!supplier) return;
   const values = await openAdminFormModal({
     title: `编辑供应商 ${supplier.supplier_id}`,
     submitText: "保存",
     fields: [
-      { name: "name", label: "供应商名称", value: supplier.name || "", required: true }
+      { name: "name", label: "供应商名称", value: supplier.name || "", required: true },
     ],
-    validate: (data) => data.name.trim() ? "" : "请输入供应商名称"
+    validate: (data) => data.name.trim() ? "" : "请输入供应商名称",
   });
   if (!values) return;
   const resp = await authed("/api/admin/suppliers/update", {
     method: "POST",
-    jsonBody: { supplier_id: Number(supplier.supplier_id), name: values.name.trim() }
+    jsonBody: { supplier_id: Number(supplier.supplier_id), name: values.name.trim() },
   });
   if (!resp.ok || resp.data.error) {
     log(`编辑供应商失败: ${supplierErrorMessage(resp.data.error) || resp.status}`);
@@ -2165,10 +2248,11 @@ async function editSupplier(supplier) {
   loadSuppliers();
   if ($("supplier-detail-panel")?.style.display !== "none") loadSupplierDetail(supplier.supplier_id);
 }
+
 async function setSupplierStatus(supplierId, status) {
   const resp = await authed("/api/admin/suppliers/update", {
     method: "POST",
-    jsonBody: { supplier_id: Number(supplierId), status }
+    jsonBody: { supplier_id: Number(supplierId), status },
   });
   if (!resp.ok || resp.data.error) {
     log(`供应商状态更新失败: ${supplierErrorMessage(resp.data.error) || resp.status}`);
@@ -2179,6 +2263,7 @@ async function setSupplierStatus(supplierId, status) {
   loadSuppliers();
   if ($("supplier-detail-panel")?.style.display !== "none") loadSupplierDetail(supplierId);
 }
+
 async function loadSupplierDetail(supplierId) {
   const panel = $("supplier-detail-panel");
   if (!panel || !supplierId) return;
@@ -2191,6 +2276,7 @@ async function loadSupplierDetail(supplierId) {
   }
   renderSupplierDetail(resp.data);
 }
+
 function renderSupplierDetail(supplier) {
   const supplierId = Number(supplier.supplier_id || 0);
   const isActive = Number(supplier.status || 0) === 1;
@@ -2214,6 +2300,7 @@ function renderSupplierDetail(supplier) {
   document.querySelector("[data-supplier-detail-security]")?.addEventListener("click", () => openSecurityKeyword(`supplier:${supplierId}`));
   log(`供应商详情已加载 supplier_id=${supplierId}`);
 }
+
 function openSupplierProducts(supplierId) {
   state.productFilters = { status: "", keyword: "", productId: "", supplierId: String(supplierId || ""), promotionStatus: "", stockStatus: "", page: 1, page_size: 20 };
   const keywordFilter = $("product-keyword-filter");
@@ -2230,11 +2317,13 @@ function openSupplierProducts(supplierId) {
   if (stockFilter) stockFilter.value = "";
   switchTab("products");
 }
+
 function promotionProductDisplay(productId, productName = "") {
   const product = state.productOptions.find((item) => Number(item.product_id) === Number(productId));
   const name = productName || product?.name || "商品";
   return `${escapeHtml(name)} (${productId || "—"})`;
 }
+
 function promotionErrorMessage(error) {
   if (error === "active limited price promotion already exists") return "该商品已有启用中的限时价规则，请先停用原规则";
   if (error === "active limited price promotion window overlaps") return "该商品已有时间重叠的启用限时价规则";
@@ -2242,17 +2331,18 @@ function promotionErrorMessage(error) {
   if (error === "discount_value must be <= product sale_price_fen") return "限时价不能高于商品现价";
   return error || "";
 }
+
 function promotionTypeText(type) {
   return type === "LIMITED_PRICE" || type === "limited_price" ? "限时价" : type || "—";
 }
+
 async function loadPromotionProductOptions(selectedProductId = 0) {
   const select = $("promotion-product");
-  if (!select) return [];
-  const targetProductId = Number(selectedProductId || select.value || 0);
-  select.innerHTML = '<option value="">商品加载中...</option>';
+  const targetProductId = Number(selectedProductId || select?.value || 0);
+  if (select) select.innerHTML = '<option value="">商品加载中...</option>';
   const resp = await authed("/api/admin/products?page=1&page_size=100");
   if (!resp.ok || resp.data.error) {
-    select.innerHTML = '<option value="">商品加载失败</option>';
+    if (select) select.innerHTML = '<option value="">商品加载失败</option>';
     log(`促销商品选项加载失败: ${resp.data.error || resp.status}`);
     return [];
   }
@@ -2261,11 +2351,16 @@ async function loadPromotionProductOptions(selectedProductId = 0) {
   if (targetProductId > 0 && !state.productOptions.some((p) => Number(p.product_id) === Number(targetProductId))) {
     state.productOptions.push({ product_id: Number(targetProductId), name: `商品 ${targetProductId}`, supplier_name: "" });
   }
-  select.innerHTML = '<option value="">请选择商品</option>' + state.productOptions.map((p) => `<option value="${p.product_id}">${escapeHtml(p.name)} (${p.product_id})</option>`).join("");
-  if (targetProductId > 0) select.value = String(targetProductId);
-  else if (items.length === 1) select.value = String(items[0].product_id);
+  if (select) {
+    select.innerHTML = '<option value="">请选择商品</option>' + state.productOptions
+      .map((p) => `<option value="${p.product_id}">${escapeHtml(p.name)} (${p.product_id})</option>`)
+      .join("");
+    if (targetProductId > 0) select.value = String(targetProductId);
+    else if (items.length === 1) select.value = String(items[0].product_id);
+  }
   return state.productOptions;
 }
+
 async function loadPromotions() {
   await loadPromotionProductOptions();
   $("promotions-tbody").innerHTML = '<tr><td colspan="9" class="loading">加载中...</td></tr>';
@@ -2312,6 +2407,7 @@ async function loadPromotions() {
   updatePromotionPager(total);
   log(`促销列表已刷新 items=${items.length} total=${total}`);
 }
+
 function updatePromotionPager(total) {
   const page = Number(state.promotionFilters.page || 1);
   const pageSize = Number(state.promotionFilters.page_size || 20);
@@ -2330,18 +2426,42 @@ function updatePromotionPager(total) {
   const next = $("promotions-next");
   if (next) next.disabled = page >= totalPages;
 }
+
 async function createPromotion() {
-  const productId = Number($("promotion-product").value || 0);
-  const discountValue = Number($("promotion-price").value || 0);
-  if (productId <= 0 || discountValue <= 0) {
-    log("新增促销失败: 请选择商品并填写限时价");
-    return;
-  }
-  const product = state.productOptions.find((item) => Number(item.product_id) === productId);
-  if (product && Number(product.sale_price_fen || 0) > 0 && discountValue > Number(product.sale_price_fen)) {
-    log("新增促销失败: 限时价不能高于商品现价");
-    return;
-  }
+  const products = await loadPromotionProductOptions(state.promotionFilters.productId);
+  const values = await openAdminFormModal({
+    title: "新增促销",
+    submitText: "创建",
+    fields: [
+      {
+        name: "productId",
+        label: "商品",
+        type: "select",
+        value: state.promotionFilters.productId || (products.length === 1 ? String(products[0].product_id) : ""),
+        options: products.map((product) => ({ value: product.product_id, label: `${product.name} (${product.product_id})` })),
+      },
+      { name: "discountValue", label: "限时价(分)", type: "number", min: 1, required: true },
+      { name: "startsAt", label: "开始时间，留空立即生效" },
+      { name: "endsAt", label: "结束时间，留空长期有效" },
+    ],
+    validate: (data) => {
+      const productId = Number(data.productId || 0);
+      const discountValue = Number(data.discountValue || 0);
+      if (productId <= 0) return "请选择商品";
+      if (discountValue <= 0) return "请输入有效的限时价";
+      const product = state.productOptions.find((item) => Number(item.product_id) === productId);
+      if (product && Number(product.sale_price_fen || 0) > 0 && discountValue > Number(product.sale_price_fen)) {
+        return `限时价不能高于商品现价 ¥${formatPriceFen(product.sale_price_fen)}`;
+      }
+      const startsAt = data.startsAt.trim();
+      const endsAt = data.endsAt.trim();
+      if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) return "结束时间必须晚于开始时间";
+      return "";
+    },
+  });
+  if (!values) return;
+  const productId = Number(values.productId || 0);
+  const discountValue = Number(values.discountValue || 0);
   const resp = await authed("/api/admin/promotions/create", {
     method: "POST",
     jsonBody: {
@@ -2349,23 +2469,20 @@ async function createPromotion() {
       type: "LIMITED_PRICE",
       discount_value: discountValue,
       threshold_amount: 0,
-      starts_at: $("promotion-starts").value.trim(),
-      ends_at: $("promotion-ends").value.trim(),
-      status: 1
-    }
+      starts_at: values.startsAt.trim(),
+      ends_at: values.endsAt.trim(),
+      status: 1,
+    },
   });
   if (!resp.ok || resp.data.error) {
     log(`新增促销失败: ${promotionErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  ["promotion-price", "promotion-starts", "promotion-ends"].forEach((id) => {
-    $(id).value = "";
-  });
-  $("promotion-product").value = "";
   log(`新增促销成功 promotion_id=${resp.data.promotion_id}`);
   state.promotionFilters.page = 1;
   loadPromotions();
 }
+
 async function editPromotion(promotion) {
   if (!promotion) return;
   const products = await loadPromotionProductOptions(promotion.product_id);
@@ -2378,26 +2495,26 @@ async function editPromotion(promotion) {
         label: "商品",
         type: "select",
         value: String(promotion.product_id || ""),
-        options: products.map((product) => ({ value: product.product_id, label: `${product.name} (${product.product_id})` }))
+        options: products.map((product) => ({ value: product.product_id, label: `${product.name} (${product.product_id})` })),
       },
       { name: "discountValue", label: "限时价(分)", type: "number", min: 1, value: String(promotion.discount_value || 0), required: true },
       { name: "startsAt", label: "开始时间，留空立即生效", value: promotion.starts_at || "" },
-      { name: "endsAt", label: "结束时间，留空长期有效", value: promotion.ends_at || "" }
+      { name: "endsAt", label: "结束时间，留空长期有效", value: promotion.ends_at || "" },
     ],
     validate: (data) => {
-      const productId2 = Number(data.productId || 0);
-      const discountValue2 = Number(data.discountValue || 0);
-      if (productId2 <= 0) return "请选择商品";
-      if (discountValue2 <= 0) return "请输入有效的限时价";
-      const product = state.productOptions.find((item) => Number(item.product_id) === productId2);
-      if (product && Number(product.sale_price_fen || 0) > 0 && discountValue2 > Number(product.sale_price_fen)) {
+      const productId = Number(data.productId || 0);
+      const discountValue = Number(data.discountValue || 0);
+      if (productId <= 0) return "请选择商品";
+      if (discountValue <= 0) return "请输入有效的限时价";
+      const product = state.productOptions.find((item) => Number(item.product_id) === productId);
+      if (product && Number(product.sale_price_fen || 0) > 0 && discountValue > Number(product.sale_price_fen)) {
         return `限时价不能高于商品现价 ¥${formatPriceFen(product.sale_price_fen)}`;
       }
       const startsAt = data.startsAt.trim();
       const endsAt = data.endsAt.trim();
       if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) return "结束时间必须晚于开始时间";
       return "";
-    }
+    },
   });
   if (!values) return;
   const productId = values.productId;
@@ -2410,8 +2527,8 @@ async function editPromotion(promotion) {
       discount_value: Number(discountValue || 0),
       threshold_amount: Number(promotion.threshold_amount || 0),
       starts_at: values.startsAt.trim(),
-      ends_at: values.endsAt.trim()
-    }
+      ends_at: values.endsAt.trim(),
+    },
   });
   if (!resp.ok || resp.data.error) {
     log(`编辑促销失败: ${promotionErrorMessage(resp.data.error) || resp.status}`);
@@ -2421,10 +2538,11 @@ async function editPromotion(promotion) {
   loadPromotions();
   if ($("promotion-detail-panel")?.style.display !== "none") loadPromotionDetail(promotion.promotion_id);
 }
+
 async function setPromotionStatus(promotionId, status) {
   const resp = await authed("/api/admin/promotions/update", {
     method: "POST",
-    jsonBody: { promotion_id: Number(promotionId), status }
+    jsonBody: { promotion_id: Number(promotionId), status },
   });
   if (!resp.ok || resp.data.error) {
     log(`促销状态更新失败: ${promotionErrorMessage(resp.data.error) || resp.status}`);
@@ -2434,6 +2552,7 @@ async function setPromotionStatus(promotionId, status) {
   loadPromotions();
   if ($("promotion-detail-panel")?.style.display !== "none") loadPromotionDetail(promotionId);
 }
+
 async function loadPromotionDetail(promotionId) {
   const panel = $("promotion-detail-panel");
   if (!panel || !promotionId) return;
@@ -2446,6 +2565,7 @@ async function loadPromotionDetail(promotionId) {
   }
   renderPromotionDetail(resp.data);
 }
+
 function renderPromotionDetail(promotion) {
   const promotionId = Number(promotion.promotion_id || 0);
   const productId = Number(promotion.product_id || 0);
@@ -2476,6 +2596,7 @@ function renderPromotionDetail(promotion) {
   document.querySelector("[data-promotion-detail-security]")?.addEventListener("click", () => openSecurityKeyword(`promotion:${promotionId}`));
   log(`促销详情已加载 promotion_id=${promotionId}`);
 }
+
 async function loadUsers() {
   $("users-tbody").innerHTML = '<tr><td colspan="7" class="loading">加载中...</td></tr>';
   const params = new URLSearchParams({ page: String(state.userFilters.page || 1), page_size: String(state.userFilters.page_size || 20) });
@@ -2487,6 +2608,7 @@ async function loadUsers() {
     $("users-tbody").innerHTML = `<tr><td colspan="7" class="error">加载失败: ${escapeHtml(resp.data.error || resp.status)}</td></tr>`;
     return;
   }
+
   const items = resp.data.items || resp.data.users || [];
   const total = resp.data.total || 0;
   $("users-tbody").innerHTML = items.length === 0 ? '<tr><td colspan="7" class="empty">暂无用户数据</td></tr>' : items.map((u) => {
@@ -2521,6 +2643,7 @@ async function loadUsers() {
   updateUserPager(total);
   log(`用户列表已刷新 items=${items.length} total=${total}`);
 }
+
 function updateUserPager(total) {
   const page = Number(state.userFilters.page || 1);
   const pageSize = Number(state.userFilters.page_size || 20);
@@ -2539,6 +2662,7 @@ function updateUserPager(total) {
   const next = $("users-next");
   if (next) next.disabled = page >= totalPages;
 }
+
 function openUserDetailFromOrder(userId) {
   state.userFilters.keyword = String(userId || "");
   state.userFilters.status = "";
@@ -2553,6 +2677,7 @@ function openUserDetailFromOrder(userId) {
   switchTab("users");
   loadUserDetail(userId);
 }
+
 async function loadUserDetail(userId) {
   const panel = $("user-detail-panel");
   if (!panel || !userId) return;
@@ -2565,6 +2690,7 @@ async function loadUserDetail(userId) {
   }
   renderUserDetail(resp.data);
 }
+
 function renderUserDetail(user) {
   const status = Number(user.status || 1);
   const isActive = status === 1;
@@ -2588,6 +2714,7 @@ function renderUserDetail(user) {
   document.querySelector("[data-user-detail-security]")?.addEventListener("click", () => openUserSecurity(userId));
   log(`用户详情已加载 user_id=${userId}`);
 }
+
 async function setUserStatus(userId, status) {
   if (Number(status) !== 1 && Number(userId) === currentUserId()) {
     log("不能禁用当前登录的管理员账号");
@@ -2595,7 +2722,7 @@ async function setUserStatus(userId, status) {
   }
   const resp = await authed("/api/admin/users/status", {
     method: "POST",
-    jsonBody: { user_id: Number(userId), status }
+    jsonBody: { user_id: Number(userId), status },
   });
   if (!resp.ok || resp.data.error) {
     log(`用户状态更新失败: ${userErrorMessage(resp.data.error) || resp.status}`);
@@ -2605,6 +2732,7 @@ async function setUserStatus(userId, status) {
   loadUsers();
   if ($("user-detail-panel")?.style.display !== "none") loadUserDetail(userId);
 }
+
 const SECURITY_EVENT_TYPES = [
   "login_password_success",
   "login_password_fail",
@@ -2637,8 +2765,9 @@ const SECURITY_EVENT_TYPES = [
   "admin_promotion_created",
   "admin_promotion_updated",
   "admin_promotion_enabled",
-  "admin_promotion_disabled"
+  "admin_promotion_disabled",
 ];
+
 function securityEventText(type) {
   const map = {
     login_password_success: "密码登录成功",
@@ -2672,39 +2801,45 @@ function securityEventText(type) {
     admin_promotion_created: "管理员创建促销",
     admin_promotion_updated: "管理员更新促销",
     admin_promotion_enabled: "管理员启用促销",
-    admin_promotion_disabled: "管理员停用促销"
+    admin_promotion_disabled: "管理员停用促销",
   };
   return map[type] || type || "—";
 }
+
 function securityResultBadge(result) {
   if (result === "success") return '<span class="badge paid">成功</span>';
   if (result === "blocked") return '<span class="badge pending">拦截</span>';
   if (result === "fail" || result === "failed") return '<span class="badge closed">失败</span>';
   return `<span class="badge">${escapeHtml(result || "—")}</span>`;
 }
+
 function securityResultMatches(actual, expected) {
   actual = String(actual || "").toLowerCase();
   expected = String(expected || "").toLowerCase();
-  return actual === expected || (actual === "fail" || actual === "failed") && (expected === "fail" || expected === "failed");
+  return actual === expected || ((actual === "fail" || actual === "failed") && (expected === "fail" || expected === "failed"));
 }
+
 function formatSecurityTime(seconds) {
   const value = Number(seconds || 0);
   if (!value) return "—";
-  return new Date(value * 1e3).toLocaleString();
+  return new Date(value * 1000).toLocaleString();
 }
+
 function populateSecurityEventOptions(items) {
   const select = $("security-event-filter");
   if (!select) return;
   const current = select.value;
-  const types = [.../* @__PURE__ */ new Set([...SECURITY_EVENT_TYPES, ...items.map((item) => item.event_type).filter(Boolean)])];
+  const types = [...new Set([...SECURITY_EVENT_TYPES, ...items.map((item) => item.event_type).filter(Boolean)])];
   select.innerHTML = '<option value="">全部事件</option>' + types.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(securityEventText(type))}</option>`).join("");
   select.value = types.includes(current) ? current : "";
 }
+
 function securitySubjectCell(subject) {
   const value = String(subject || "");
   if (!value) return "—";
   return `<button class="link-button" data-security-subject="${escapeHtml(value)}">${escapeHtml(value)}</button>`;
 }
+
 function securityReasonText(subject) {
   const reason = String(subject || "").match(/\breason:([A-Za-z0-9_-]+)/)?.[1] || "";
   const map = {
@@ -2722,10 +2857,11 @@ function securityReasonText(subject) {
     insufficient_or_missing_bucket: "库存不足或分桶不存在",
     invalid_user_id: "用户ID不合法",
     self_disable_blocked: "禁止禁用当前管理员",
-    store_failed: "存储更新失败"
+    store_failed: "存储更新失败",
   };
   return map[reason] || reason || "—";
 }
+
 function openSecuritySubject(subject) {
   const value = String(subject || "");
   const order = value.match(/\border:([A-Za-z0-9_-]+)/);
@@ -2762,6 +2898,7 @@ function openSecuritySubject(subject) {
   const user = value.match(/\btarget_user:(\d+)/);
   if (user?.[1]) openUserDetailFromOrder(user[1]);
 }
+
 function renderSecurityEvents() {
   const tbody = $("security-tbody");
   if (!tbody) return;
@@ -2780,12 +2917,12 @@ function renderSecurityEvents() {
     return true;
   });
   tbody.innerHTML = items.length === 0 ? '<tr><td colspan="8" class="empty">暂无安全日志</td></tr>' : items.map((item) => {
-    const userId2 = Number(item.user_id || 0);
+    const userId = Number(item.user_id || 0);
     return `<tr>
       <td>${escapeHtml(formatSecurityTime(item.created_at))}</td>
       <td>${escapeHtml(securityEventText(item.event_type))}</td>
       <td>${securityResultBadge(item.result)}</td>
-      <td>${userId2 ? `<button class="link-button" data-security-user="${userId2}">${userId2}</button>` : "—"}</td>
+      <td>${userId ? `<button class="link-button" data-security-user="${userId}">${userId}</button>` : "—"}</td>
       <td>${securitySubjectCell(item.subject)}</td>
       <td>${escapeHtml(item.ip || "—")}</td>
       <td>${escapeHtml(securityReasonText(item.subject))}</td>
@@ -2796,6 +2933,7 @@ function renderSecurityEvents() {
   document.querySelectorAll("[data-security-subject]").forEach((btn) => btn.addEventListener("click", () => openSecuritySubject(btn.getAttribute("data-security-subject"))));
   $("security-total").textContent = `共 ${items.length}/${state.securityItems.length} 条`;
 }
+
 async function loadReconciliationIssues() {
   const tbody = $("reconciliation-tbody");
   if (!tbody) return;
@@ -2819,6 +2957,7 @@ async function loadReconciliationIssues() {
     </tr>
   `).join("");
 }
+
 async function loadAdminEvents() {
   const tbody = $("events-tbody");
   if (!tbody) return;
@@ -2841,6 +2980,7 @@ async function loadAdminEvents() {
     </tr>
   `).join("");
 }
+
 async function loadSecurityEvents() {
   const tbody = $("security-tbody");
   if (!tbody) return;
@@ -2865,13 +3005,17 @@ async function loadSecurityEvents() {
   renderSecurityEvents();
   log(`安全日志已刷新 items=${items.length}`);
 }
-document.querySelectorAll("[data-workspace]").forEach(
-  (btn) => btn.addEventListener("click", () => setWorkspace(btn.getAttribute("data-workspace"), { switchDefault: true }))
+
+document.querySelectorAll("[data-workspace]").forEach((btn) =>
+  btn.addEventListener("click", () => setWorkspace(btn.getAttribute("data-workspace"), { switchDefault: true }))
 );
-document.querySelectorAll("[data-tab]").forEach(
-  (btn) => btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")))
+
+document.querySelectorAll("[data-tab]").forEach((btn) =>
+  btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab")))
 );
+
 setWorkspace(state.workspace);
+
 $("order-filter-apply")?.addEventListener("click", () => {
   orderFilters.status = $("order-status-filter")?.value || "";
   orderFilters.order_id = $("order-id-filter")?.value.trim() || "";
@@ -2883,20 +3027,24 @@ $("order-filter-apply")?.addEventListener("click", () => {
   orderFilters.page = 1;
   loadOrders();
 });
+
 $("orders-prev")?.addEventListener("click", () => {
   if (orderFilters.page <= 1) return;
   orderFilters.page -= 1;
   loadOrders();
 });
+
 $("orders-next")?.addEventListener("click", () => {
   orderFilters.page += 1;
   loadOrders();
 });
+
 $("orders-page-size")?.addEventListener("change", () => {
   orderFilters.page_size = Number($("orders-page-size")?.value || 20);
   orderFilters.page = 1;
   loadOrders();
 });
+
 $("refund-filter-apply")?.addEventListener("click", () => {
   state.refundFilters.status = $("refund-status-filter")?.value ?? "0";
   state.refundFilters.orderId = $("refund-order-filter")?.value.trim() || "";
@@ -2904,7 +3052,9 @@ $("refund-filter-apply")?.addEventListener("click", () => {
   state.refundFilters.page = 1;
   loadRefunds();
 });
+
 $("refund-refresh")?.addEventListener("click", () => loadRefunds());
+
 $("product-filter-apply")?.addEventListener("click", () => {
   state.productFilters.status = $("product-status-filter")?.value || "";
   state.productFilters.keyword = $("product-keyword-filter")?.value.trim() || "";
@@ -2915,42 +3065,52 @@ $("product-filter-apply")?.addEventListener("click", () => {
   state.productFilters.page = 1;
   loadProducts();
 });
+
 $("products-prev")?.addEventListener("click", () => {
   if (state.productFilters.page <= 1) return;
   state.productFilters.page -= 1;
   loadProducts();
 });
+
 $("products-next")?.addEventListener("click", () => {
   state.productFilters.page += 1;
   loadProducts();
 });
+
 $("products-page-size")?.addEventListener("change", () => {
   state.productFilters.page_size = Number($("products-page-size")?.value || 20);
   state.productFilters.page = 1;
   loadProducts();
 });
+
 $("product-create")?.addEventListener("click", createProduct);
+
 $("supplier-filter-apply")?.addEventListener("click", () => {
   state.supplierFilters.status = $("supplier-status-filter")?.value || "";
   state.supplierFilters.keyword = $("supplier-keyword-filter")?.value.trim() || "";
   state.supplierFilters.page = 1;
   loadSuppliers();
 });
+
 $("suppliers-prev")?.addEventListener("click", () => {
   if (state.supplierFilters.page <= 1) return;
   state.supplierFilters.page -= 1;
   loadSuppliers();
 });
+
 $("suppliers-next")?.addEventListener("click", () => {
   state.supplierFilters.page += 1;
   loadSuppliers();
 });
+
 $("suppliers-page-size")?.addEventListener("change", () => {
   state.supplierFilters.page_size = Number($("suppliers-page-size")?.value || 20);
   state.supplierFilters.page = 1;
   loadSuppliers();
 });
+
 $("supplier-create")?.addEventListener("click", createSupplier);
+
 $("promotion-filter-apply")?.addEventListener("click", () => {
   state.promotionFilters.status = $("promotion-status-filter")?.value || "";
   state.promotionFilters.keyword = $("promotion-keyword-filter")?.value.trim() || "";
@@ -2959,21 +3119,26 @@ $("promotion-filter-apply")?.addEventListener("click", () => {
   state.promotionFilters.page = 1;
   loadPromotions();
 });
+
 $("promotions-prev")?.addEventListener("click", () => {
   if (state.promotionFilters.page <= 1) return;
   state.promotionFilters.page -= 1;
   loadPromotions();
 });
+
 $("promotions-next")?.addEventListener("click", () => {
   state.promotionFilters.page += 1;
   loadPromotions();
 });
+
 $("promotions-page-size")?.addEventListener("change", () => {
   state.promotionFilters.page_size = Number($("promotions-page-size")?.value || 20);
   state.promotionFilters.page = 1;
   loadPromotions();
 });
+
 $("promotion-create")?.addEventListener("click", createPromotion);
+
 $("user-filter-apply")?.addEventListener("click", () => {
   state.userFilters.status = $("user-status-filter")?.value || "";
   state.userFilters.role = $("user-role-filter")?.value || "";
@@ -2981,28 +3146,34 @@ $("user-filter-apply")?.addEventListener("click", () => {
   state.userFilters.page = 1;
   loadUsers();
 });
+
 $("users-prev")?.addEventListener("click", () => {
   if (state.userFilters.page <= 1) return;
   state.userFilters.page -= 1;
   loadUsers();
 });
+
 $("users-next")?.addEventListener("click", () => {
   state.userFilters.page += 1;
   loadUsers();
 });
+
 $("users-page-size")?.addEventListener("change", () => {
   state.userFilters.page_size = Number($("users-page-size")?.value || 20);
   state.userFilters.page = 1;
   loadUsers();
 });
+
 $("security-refresh")?.addEventListener("click", loadSecurityEvents);
 $("security-filter-apply")?.addEventListener("click", loadSecurityEvents);
 $("reconciliation-refresh")?.addEventListener("click", loadReconciliationIssues);
 $("events-refresh")?.addEventListener("click", loadAdminEvents);
 $("merchant-applications-refresh")?.addEventListener("click", loadMerchantApplications);
+
 $("console-toggle")?.addEventListener("click", () => {
   $("console-log")?.classList.toggle("hidden");
 });
+
 if (!state.token) {
   $("login-hint").style.display = "";
   $("admin-main").style.display = "none";
@@ -3011,7 +3182,9 @@ if (!state.token) {
   $("admin-main").style.display = "";
   switchTab("dashboard");
 }
+
 log("后台管理已就绪");
 </script>
 </body>
 </html>
+

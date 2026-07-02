@@ -90,6 +90,7 @@ export default function PromotionsPage() {
 
   const openCreate = () => {
     setEditingPromotion(null);
+    form.resetFields();
     form.setFieldsValue({
       product_id: products[0]?.product_id || 0,
       discount_value: 0,
@@ -99,6 +100,12 @@ export default function PromotionsPage() {
       status: 1,
     });
     setModalOpen(true);
+  };
+
+  const closePromotionModal = () => {
+    setModalOpen(false);
+    setEditingPromotion(null);
+    form.resetFields();
   };
 
   const openEdit = (promotion: AdminPromotionItem) => {
@@ -162,7 +169,7 @@ export default function PromotionsPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success('促销规则已更新');
-          setModalOpen(false);
+          closePromotionModal();
           if (detail?.promotion_id === editingPromotion.promotion_id) {
             void openDetail(editingPromotion.promotion_id);
           }
@@ -184,7 +191,7 @@ export default function PromotionsPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success(`促销规则已创建：${res.data.promotion_id}`);
-          setModalOpen(false);
+          closePromotionModal();
           reload();
         } else {
           message.error(error || '促销规则创建失败');
@@ -341,7 +348,7 @@ export default function PromotionsPage() {
       <Modal
         title={editingPromotion ? '编辑促销' : '新增促销'}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closePromotionModal}
         onOk={savePromotion}
         confirmLoading={submitting}
         destroyOnClose
