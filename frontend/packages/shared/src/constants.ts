@@ -19,9 +19,9 @@ export interface ProductMeta {
 }
 
 export const PRODUCT_META: Record<number, ProductMeta> = {
-  100: { icon: '🧥', desc: '首发风衣' },
-  101: { icon: '👟', desc: '限量版运动鞋' },
-  102: { icon: '👕', desc: '纯棉T恤经典款' },
-  103: { icon: '🎒', desc: '高端双肩背包' },
-  104: { icon: '🕶️', desc: '时尚太阳眼镜' },
+  100: { icon: '🧥', image: '/products/100.svg', desc: '首发风衣' },
+  101: { icon: '🪶', image: '/products/101.svg', desc: '轻薄羽绒服' },
+  102: { icon: '👕', image: '/products/102.svg', desc: '纯棉T恤三件套' },
+  103: { icon: '👟', image: '/products/103.svg', desc: '运动休闲鞋' },
+  104: { icon: '🔋', image: '/products/104.svg', desc: '便携充电宝' },
 };

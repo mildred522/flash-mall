@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title">
+  <title id="title">轻薄羽绒服</title>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dcecff"/><stop offset="1" stop-color="#95bce9"/></linearGradient></defs>
+  <rect width="640" height="480" rx="36" fill="url(#bg)"/>
+  <ellipse cx="320" cy="423" rx="150" ry="20" fill="#1e4d84" opacity=".18"/>
+  <path d="M245 103l75-36 75 36 84 81-52 59-39-39 23 211H229l23-211-39 39-52-59z" fill="#2875c7" stroke="#174d87" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M320 69v346M235 166h170M230 230h180M235 296h170M241 359h158" fill="none" stroke="#75afe8" stroke-width="9"/>
+  <path d="M275 96q45 54 90 0" fill="#e9f4ff" stroke="#174d87" stroke-width="9"/>
+</svg>

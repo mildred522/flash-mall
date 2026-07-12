@@ -11,4 +11,5 @@ export {
   isLoggedIn,
 } from './auth';
 export { STATUS_MAP, formatPriceFen, PRODUCT_META } from './constants';
+export { resolveProductImage } from './product-image';
 export type { ProductMeta, TokenPayload } from './auth';

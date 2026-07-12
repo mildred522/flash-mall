@@ -1,6 +1,7 @@
 export interface ProductCard {
   product_id: number;
   name: string;
+  image_url: string;
   origin_price_fen: number;
   final_price_fen: number;
   promotion_tag: string;

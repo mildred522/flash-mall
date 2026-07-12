@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title">
+  <title id="title">纯棉T恤三件套</title>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff0e6"/><stop offset="1" stop-color="#ffc2a5"/></linearGradient></defs>
+  <rect width="640" height="480" rx="36" fill="url(#bg)"/>
+  <ellipse cx="320" cy="420" rx="170" ry="22" fill="#9e432a" opacity=".16"/>
+  <path d="M151 160l73-49 60 25 60-25 73 49-42 74-43-25v199H236V209l-43 25z" fill="#f6f1e9" stroke="#9d715f" stroke-width="9"/>
+  <path d="M260 123q24 49 48 0" fill="none" stroke="#9d715f" stroke-width="9"/>
+  <path d="M300 151l73-49 60 25 60-25 73 49-42 74-43-25v199H385V200l-43 25z" fill="#e56c4b" stroke="#9e432a" stroke-width="9"/>
+  <path d="M409 114q24 49 48 0" fill="none" stroke="#9e432a" stroke-width="9"/>
+</svg>
