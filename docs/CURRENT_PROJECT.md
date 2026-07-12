@@ -220,7 +220,7 @@ both paths instead of replacing one incomplete path with another.
 
 ### Local development path
 
-`scripts/local/build-compose-images.sh` and its PowerShell counterpart become
+`scripts/local/build-compose-images.sh` and its PowerShell counterpart are
 service-selective. With no service arguments they keep the current full-build
 behavior; with service arguments they validate names and build only those
 images. A single-service rebuild command then recreates only that Compose
@@ -282,7 +282,9 @@ Failed builds do not trigger automatic cleanup. At a milestone or major
 branch transition, `docker buildx prune --all --force` may remove the complete
 builder cache. Automatic scripts may remove dangling images, but they do not
 run `docker system prune -a --volumes`. The Compose MySQL and Redis volumes
-receive an explicit `keep=true` label and remain outside every cleanup path.
+retain their stable project-scoped names and remain outside every cleanup
+path. Existing Docker volume labels are immutable, so live data volumes are
+not recreated merely to add a `keep=true` label.
 
 ### Verification and acceptance
 
@@ -297,3 +299,28 @@ The implementation is accepted only when all of the following are observed:
 6. The full customer order and payment path still reaches Inventory Kitex.
 7. `deploy_mysql-data` and `deploy_redis-data` retain their contents before
    and after every cache-cleanup verification.
+
+### Measured implementation results
+
+- The first successful five-service cold Docker build completed in 190.1
+  seconds after one transient module-proxy EOF retry. Scoped contexts were
+  roughly 140 KB to 3 MB instead of repository-wide inputs.
+- A no-change six-service build, including legacy Entry frontend generation,
+  completed in 2.20 seconds with all relevant stages cached.
+- Ten consecutive Order-only context changes completed in 3.46 to 6.65
+  seconds each. The normal iteration policy left 3.788 GB of BuildKit cache,
+  below the 8 GB budget.
+- A focused Hertz rebuild changed only the Hertz container start time; Auth,
+  Product, Order, and Inventory start times were unchanged.
+- The local Hertz image contains `/app/app` and the required `/app/web` pages.
+  Hertz `/`, `/shop`, `/admin`, `/api/system/health`, and
+  `/api/shop/catalog` returned HTTP 200.
+- A real login/create/pay chain changed product 100 stock from 10000 to 9999.
+  Both `order.created` and `order.paid` outbox events were published, and the
+  asynchronous `stock_audit` projection was recorded.
+- `go test ./...`, shell syntax checks, PowerShell AST parsing, and Compose
+  configuration parsing passed. Repository-wide `git diff --check` still
+  reports pre-existing trailing whitespace in generated `admin.html` and
+  `shop.html`; plan-owned files pass the scoped whitespace check.
+- `health-compose.sh` now checks Hertz on port 8889 and accepts both the Hertz
+  `status=ok` and legacy `overall=true` health envelopes.
