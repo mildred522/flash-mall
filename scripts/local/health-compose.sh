@@ -5,7 +5,7 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 deploy_dir="$repo_root/deploy"
 compose_file="docker-compose.yml"
-health_url="${FLASH_MALL_HEALTH_URL:-http://127.0.0.1:8888/api/system/health}"
+health_url="${FLASH_MALL_HEALTH_URL:-http://127.0.0.1:8889/api/system/health}"
 wait_seconds=0
 logs_on_failure=0
 
@@ -25,7 +25,7 @@ while [ "$#" -gt 0 ]; do
 Usage: scripts/local/health-compose.sh [options]
 
 Options:
-  --wait SECONDS       Poll entry-api health until healthy or timeout.
+  --wait SECONDS       Poll the configured gateway health until healthy or timeout.
   --logs-on-failure    Print key container logs when health fails.
 EOF
       exit 0
@@ -47,7 +47,7 @@ print_compose_status() {
 
 print_key_logs() {
   echo "[LOGS] key containers"
-  for container in flash-mall-mysql-init flash-mall-redis-init auth-api product-rpc order-rpc inventory-kitex entry-api dtm mysql redis rabbitmq etcd; do
+  for container in flash-mall-mysql-init flash-mall-redis-init auth-api product-rpc order-rpc inventory-kitex entry-api hertz-gateway dtm mysql redis rabbitmq etcd; do
     echo "--- $container ---"
     docker logs --tail 80 "$container" 2>&1 || true
   done
@@ -63,15 +63,15 @@ check_redis_stock() {
   echo "[OK] redis stock keys ready: $(printf '%s' "$values" | tr '\n' ' ')"
 }
 
-check_entry_health_once() {
+check_gateway_health_once() {
   body=$(curl --noproxy "*" -fsS -m 5 "$health_url" 2>/tmp/flash-mall-health.err || true)
-  if printf '%s' "$body" | grep -q '"overall":true'; then
-    echo "[OK] entry-api health overall=true"
+  if printf '%s' "$body" | grep -Eq '"overall":true|"status":"ok"'; then
+    echo "[OK] gateway health ready"
     printf '%s\n' "$body"
     return 0
   fi
 
-  echo "[WAIT] entry-api health not ready"
+  echo "[WAIT] gateway health not ready"
   if [ -s /tmp/flash-mall-health.err ]; then
     cat /tmp/flash-mall-health.err
   elif [ -n "$body" ]; then
@@ -84,7 +84,7 @@ print_compose_status
 
 deadline=$(( $(date +%s) + wait_seconds ))
 while :; do
-  if check_entry_health_once && check_redis_stock; then
+  if check_gateway_health_once && check_redis_stock; then
     exit 0
   fi
 

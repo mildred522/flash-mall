@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
+  [Parameter(Mandatory = $true)]
+  [string]$Service,
   [string]$Tag = "dev",
-  [string[]]$Services = @(),
   [string]$Distro = "Ubuntu",
   [string]$Workspace = "/home/mildred/code/flash-mall"
 )
@@ -15,11 +16,8 @@ $supportedServices = @(
   "entry-api",
   "hertz-gateway"
 )
-
-foreach ($service in $Services) {
-  if ($service -notin $supportedServices) {
-    throw "unknown service: $service"
-  }
+if ($Service -notin $supportedServices) {
+  throw "unknown service: $Service"
 }
 
 function ConvertTo-BashSingleQuoted {
@@ -27,10 +25,10 @@ function ConvertTo-BashSingleQuoted {
   return "'" + ($Value -replace "'", "'\''") + "'"
 }
 
-$scriptArgs = @("--tag", $Tag) + $Services
 $quotedWorkspace = ConvertTo-BashSingleQuoted $Workspace
-$quotedArgs = $scriptArgs | ForEach-Object { ConvertTo-BashSingleQuoted $_ }
-$bashCommand = "cd $quotedWorkspace && scripts/local/build-compose-images.sh $($quotedArgs -join ' ')"
+$quotedTag = ConvertTo-BashSingleQuoted $Tag
+$quotedService = ConvertTo-BashSingleQuoted $Service
+$bashCommand = "cd $quotedWorkspace && scripts/local/rebuild-compose-service.sh --tag $quotedTag $quotedService"
 
 Write-Host "[WSL] $Distro $bashCommand"
 & wsl.exe -d $Distro -- bash -lc $bashCommand
