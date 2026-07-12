@@ -20,7 +20,7 @@ function userRoleTag(user: Pick<AdminUserItem, 'role'>) {
 }
 
 export default function UsersPage() {
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | undefined>(undefined);
   const currentUserId = getPayload()?.user_id || 0;
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);

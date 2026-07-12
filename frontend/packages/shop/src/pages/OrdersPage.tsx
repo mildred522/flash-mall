@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { authed } from '@flash-mall/shared';
-import type { OrderListItem, OrderListResp, ActionResp } from '@flash-mall/shared';
+import type { OrderListItem, OrderListResp, ActionResp, PaymentIntentResp, PaymentStatusResp } from '@flash-mall/shared';
 import OrderCard from '../components/OrderCard';
+import PaymentModal from '../components/PaymentModal';
 
 interface PendingOrder {
   orderId: string;
@@ -17,6 +18,9 @@ export default function OrdersPage({ pendingOrder, onPendingHandled }: Props) {
   const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<{ orderId: string; status: number } | null>(null);
+  const [paymentIntent, setPaymentIntent] = useState<PaymentIntentResp | null>(null);
+  const [paymentState, setPaymentState] = useState('pending');
+  const [paymentError, setPaymentError] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadOrders = useCallback(async () => {
@@ -41,10 +45,9 @@ export default function OrdersPage({ pendingOrder, onPendingHandled }: Props) {
         return;
       }
       try {
-        const resp = await fetch(`/api/order/status?order_id=${orderId}`);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const status = typeof data.status === 'string' ? parseInt(data.status, 10) : data.status;
+        const result = await authed<{ status: number }>(`/api/orders/detail?order_id=${encodeURIComponent(orderId)}`);
+        if (!result.ok) return;
+        const status = result.data.status;
         setBanner({ orderId, status });
         if (status !== 0) {
           if (pollRef.current) clearInterval(pollRef.current);
@@ -68,35 +71,44 @@ export default function OrdersPage({ pendingOrder, onPendingHandled }: Props) {
 
   const handlePay = async (orderId: string) => {
     setBanner({ orderId, status: 0 });
-    await authed<ActionResp>('/api/order/pay', { method: 'POST', jsonBody: { order_id: orderId } });
-    // Start polling after pay attempt
+    setPaymentError('');
+    const intentResponse = await authed<PaymentIntentResp>('/api/order/pay', { method: 'POST', jsonBody: { order_id: orderId } });
+    if (!intentResponse.ok) {
+      setPaymentError('支付单拉起失败，请稍后重试');
+      return;
+    }
+    const intent = intentResponse.data;
+    if (intent.status === 'paid') {
+      setBanner({ orderId, status: 1 });
+      await loadOrders();
+      return;
+    }
+    setPaymentIntent(intent);
+    setPaymentState(intent.status || 'pending');
+
     let attempts = 0;
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       attempts++;
-      if (attempts > 10) {
+      if (attempts > 900) {
         if (pollRef.current) clearInterval(pollRef.current);
-        await loadOrders();
         return;
       }
       try {
-        const resp = await fetch(`/api/order/status?order_id=${orderId}`);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const status = typeof data.status === 'string' ? parseInt(data.status, 10) : data.status;
-        setBanner({ orderId, status });
-        if (status !== 0) {
+        const result = await authed<PaymentStatusResp>(`/api/payment/status?payment_order_id=${encodeURIComponent(intent.payment_order_id)}`);
+        if (!result.ok) return;
+        const status = result.data.status;
+        setPaymentState(status);
+        if (status === 'paid') {
+          setBanner({ orderId, status: 1 });
           if (pollRef.current) clearInterval(pollRef.current);
           await loadOrders();
-          if (status === 1) setTimeout(() => setBanner(null), 3000);
+          setTimeout(() => setBanner(null), 3000);
+        } else if (status === 'expired' || status === 'closed' || status === 'failed') {
+          if (pollRef.current) clearInterval(pollRef.current);
         }
       } catch (_) { /* ignore */ }
     }, 1000);
-  };
-
-  const handleShip = async (orderId: string) => {
-    await authed<ActionResp>('/api/order/ship', { method: 'POST', jsonBody: { order_id: orderId } });
-    loadOrders();
   };
 
   const handleConfirm = async (orderId: string) => {
@@ -145,14 +157,17 @@ export default function OrdersPage({ pendingOrder, onPendingHandled }: Props) {
                 key={order.order_id}
                 order={order}
                 onPay={handlePay}
-                onShip={handleShip}
                 onConfirm={handleConfirm}
                 onRefund={handleRefund}
               />
             ))}
           </div>
         )}
+        {paymentError && <div className="payer-error">{paymentError}</div>}
       </section>
+      {paymentIntent && (
+        <PaymentModal intent={paymentIntent} status={paymentState} onClose={() => setPaymentIntent(null)} />
+      )}
     </div>
   );
 }

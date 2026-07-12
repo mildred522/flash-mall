@@ -49,7 +49,7 @@ function promotionStatusTag(promotion: Pick<AdminPromotionItem, 'status'>) {
 }
 
 export default function PromotionsPage() {
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | undefined>(undefined);
   const [form] = Form.useForm<PromotionFormValues>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPromotion, setEditingPromotion] = useState<AdminPromotionItem | null>(null);

@@ -12,4 +12,5 @@ export {
 } from './auth';
 export { STATUS_MAP, formatPriceFen, PRODUCT_META } from './constants';
 export { resolveProductImage } from './product-image';
-export type { ProductMeta, TokenPayload } from './auth';
+export type { TokenPayload } from './auth';
+export type { ProductMeta } from './constants';

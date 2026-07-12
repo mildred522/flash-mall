@@ -30,7 +30,7 @@ function supplierStatusTag(supplier: Pick<AdminSupplierItem, 'status'>) {
 }
 
 export default function SuppliersPage() {
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | undefined>(undefined);
   const [form] = Form.useForm<SupplierFormValues>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<AdminSupplierItem | null>(null);

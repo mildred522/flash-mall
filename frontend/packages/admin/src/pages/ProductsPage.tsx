@@ -46,7 +46,7 @@ function productStatusTag(product: Pick<AdminProductItem, 'status'>) {
 }
 
 export default function ProductsPage() {
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | undefined>(undefined);
   const [productForm] = Form.useForm<ProductFormValues>();
   const [stockForm] = Form.useForm<StockFormValues>();
   const [productModalOpen, setProductModalOpen] = useState(false);
