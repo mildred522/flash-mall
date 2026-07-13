@@ -11,16 +11,24 @@ vi.mock('./pages/SecurityEventsPage', () => ({ default: () => <div>安全页</di
 vi.mock('./pages/SuppliersPage', () => ({ default: () => <div>供应商页</div> }));
 vi.mock('./pages/UsersPage', () => ({ default: () => <div>用户页</div> }));
 vi.mock('./pages/MerchantApplicationsPage', () => ({ default: () => <div>商家入驻审核页</div> }));
+vi.mock('./pages/ShowcasePage', () => ({ default: () => <div>首页橱窗工作台</div> }));
 
 describe('Admin App', () => {
   it('provides the merchant onboarding review route', async () => {
     render(<App />);
     expect(await screen.findByText('管理员数据概览')).toBeInTheDocument();
     expect(screen.getByText('商家入驻')).toBeInTheDocument();
+    expect(screen.getByText('首页橱窗')).toBeInTheDocument();
 
     act(() => window.dispatchEvent(new CustomEvent('flash-admin:navigate', {
       detail: { path: '/admin/merchant-applications' },
     })));
     expect(await screen.findByText('商家入驻审核页')).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new CustomEvent('flash-admin:navigate', {
+      detail: { path: '/admin/showcase' },
+    })));
+    expect(await screen.findByText('首页橱窗工作台')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/admin/showcase');
   });
 });

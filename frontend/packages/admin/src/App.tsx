@@ -4,6 +4,7 @@ import { ProLayout } from '@ant-design/pro-components';
 import {
   AuditOutlined,
   DashboardOutlined,
+  LayoutOutlined,
   OrderedListOutlined,
   SafetyCertificateOutlined,
   ShopOutlined,
@@ -18,6 +19,7 @@ import OrdersPage from './pages/OrdersPage';
 import ProductsPage from './pages/ProductsPage';
 import PromotionsPage from './pages/PromotionsPage';
 import SecurityEventsPage from './pages/SecurityEventsPage';
+import ShowcasePage from './pages/ShowcasePage';
 import SuppliersPage from './pages/SuppliersPage';
 import UsersPage from './pages/UsersPage';
 
@@ -49,6 +51,7 @@ const routeMap: Record<string, ComponentType> = {
   '/admin/promotions': PromotionsPage,
   '/admin/users': UsersPage,
   '/admin/security': SecurityEventsPage,
+  '/admin/showcase': ShowcasePage,
 };
 
 const menuRoutes = {
@@ -61,12 +64,20 @@ const menuRoutes = {
     { path: '/admin/promotions', name: '促销管理', icon: <TagsOutlined /> },
     { path: '/admin/users', name: '用户管理', icon: <UserOutlined /> },
     { path: '/admin/security', name: '安全日志', icon: <SafetyCertificateOutlined /> },
+    { path: '/admin/showcase', name: '首页橱窗', icon: <LayoutOutlined /> },
   ],
 };
 
 export default function App() {
-  const [pathname, setPathname] = useState('/admin');
+  const initialPath = routeMap[window.location.pathname] ? window.location.pathname : '/admin';
+  const [pathname, setPathname] = useState(initialPath);
   const PageComponent = routeMap[pathname] || DashboardPage;
+
+  const navigate = (path: string) => {
+    const next = routeMap[path] ? path : '/admin';
+    window.history.pushState({}, '', next);
+    setPathname(next);
+  };
 
   useEffect(() => {
     const handleNavigate = (event: Event) => {
@@ -105,10 +116,15 @@ export default function App() {
           window.__flashAdminPromotionEffectStatus = detail.effectStatus;
         }
       }
-      if (detail?.path) setPathname(detail.path);
+      if (detail?.path) navigate(detail.path);
     };
+    const handlePopState = () => setPathname(routeMap[window.location.pathname] ? window.location.pathname : '/admin');
     window.addEventListener('flash-admin:navigate', handleNavigate);
-    return () => window.removeEventListener('flash-admin:navigate', handleNavigate);
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('flash-admin:navigate', handleNavigate);
+      window.removeEventListener('popstate', handlePopState);
+    };
   }, []);
 
   return (
@@ -119,7 +135,7 @@ export default function App() {
         route={menuRoutes}
         location={{ pathname }}
         menuItemRender={(item, dom) => (
-          <a onClick={() => setPathname(item.path || '/admin')}>{dom}</a>
+          <a onClick={() => navigate(item.path || '/admin')}>{dom}</a>
         )}
         fixSiderbar
         layout="mix"
