@@ -20,6 +20,7 @@ func newAuthTestSvc() *svc.ServiceContext {
 		DemoPassword:           "pwd",
 		RefreshTokenTTLSeconds: 3600,
 		CodeTTLSeconds:         300,
+		ExposeDebugCode:        true,
 		RefreshCookieName:      "fm_refresh_token",
 	})
 }
