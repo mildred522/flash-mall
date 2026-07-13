@@ -13,7 +13,9 @@ import (
 // Client is designed to provide IDL-compatible methods with call-option parameter for kitex framework.
 type Client interface {
 	GetStock(ctx context.Context, req *inventory.GetStockRequest, callOptions ...callopt.Option) (r *inventory.GetStockResponse, err error)
+	BatchGetStock(ctx context.Context, req *inventory.BatchGetStockRequest, callOptions ...callopt.Option) (r *inventory.BatchGetStockResponse, err error)
 	SeedStock(ctx context.Context, req *inventory.SeedStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
+	AdjustStock(ctx context.Context, req *inventory.AdjustStockRequest, callOptions ...callopt.Option) (r *inventory.AdjustStockResponse, err error)
 	ReserveStock(ctx context.Context, req *inventory.ReserveStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
 	ConfirmDeduct(ctx context.Context, req *inventory.ConfirmDeductRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
 	ReleaseStock(ctx context.Context, req *inventory.ReleaseStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
@@ -54,9 +56,19 @@ func (p *kInventoryServiceClient) GetStock(ctx context.Context, req *inventory.G
 	return p.kClient.GetStock(ctx, req)
 }
 
+func (p *kInventoryServiceClient) BatchGetStock(ctx context.Context, req *inventory.BatchGetStockRequest, callOptions ...callopt.Option) (r *inventory.BatchGetStockResponse, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.BatchGetStock(ctx, req)
+}
+
 func (p *kInventoryServiceClient) SeedStock(ctx context.Context, req *inventory.SeedStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.SeedStock(ctx, req)
+}
+
+func (p *kInventoryServiceClient) AdjustStock(ctx context.Context, req *inventory.AdjustStockRequest, callOptions ...callopt.Option) (r *inventory.AdjustStockResponse, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.AdjustStock(ctx, req)
 }
 
 func (p *kInventoryServiceClient) ReserveStock(ctx context.Context, req *inventory.ReserveStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error) {

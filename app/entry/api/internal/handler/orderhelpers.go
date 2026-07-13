@@ -86,6 +86,14 @@ func seedRedisStockShards(ctx context.Context, svcCtx *svc.ServiceContext, produ
 	return err
 }
 
+func syncRuntimeProductStock(ctx context.Context, svcCtx *svc.ServiceContext, productID, total int64) error {
+	if err := seedRedisStockShards(ctx, svcCtx, productID, total); err != nil {
+		return err
+	}
+	seedInventoryServiceStock(ctx, svcCtx, productID, total)
+	return nil
+}
+
 func splitStockAcrossShards(total int64, shardCount int) []int64 {
 	if total < 0 {
 		total = 0

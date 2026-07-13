@@ -18,11 +18,33 @@ struct GetStockResponse {
   1: StockDTO stock,
 }
 
+struct BatchGetStockRequest {
+  1: common.RequestMeta meta,
+  2: list<i64> product_ids,
+}
+
+struct BatchGetStockResponse {
+  1: list<StockDTO> stocks,
+}
+
 struct SeedStockRequest {
   1: common.RequestMeta meta,
   2: i64 product_id,
   3: i64 total,
   4: optional i32 shard_count,
+}
+
+struct AdjustStockRequest {
+  1: common.RequestMeta meta,
+  2: i64 product_id,
+  3: i64 delta,
+  4: optional i32 bucket_idx,
+  5: optional string reason,
+}
+
+struct AdjustStockResponse {
+  1: StockDTO before,
+  2: StockDTO after,
 }
 
 struct ReserveStockRequest {
@@ -56,7 +78,9 @@ struct ReconcileStockResponse {
 
 service InventoryService {
   GetStockResponse GetStock(1: GetStockRequest req) throws (1: common.BizException biz),
+  BatchGetStockResponse BatchGetStock(1: BatchGetStockRequest req) throws (1: common.BizException biz),
   common.Empty SeedStock(1: SeedStockRequest req) throws (1: common.BizException biz),
+  AdjustStockResponse AdjustStock(1: AdjustStockRequest req) throws (1: common.BizException biz),
   common.Empty ReserveStock(1: ReserveStockRequest req) throws (1: common.BizException biz),
   common.Empty ConfirmDeduct(1: ConfirmDeductRequest req) throws (1: common.BizException biz),
   common.Empty ReleaseStock(1: ReleaseStockRequest req) throws (1: common.BizException biz),

@@ -23,6 +23,18 @@ func (s *Service) GetStock(ctx context.Context, productID int64) (domain.Stock, 
 	return s.repo.GetStock(ctx, productID)
 }
 
+func (s *Service) BatchGetStock(ctx context.Context, productIDs []int64) ([]domain.Stock, error) {
+	if len(productIDs) == 0 {
+		return []domain.Stock{}, nil
+	}
+	for _, productID := range productIDs {
+		if productID <= 0 {
+			return nil, domain.ErrProductIDRequired
+		}
+	}
+	return s.repo.BatchGetStock(ctx, productIDs)
+}
+
 func (s *Service) SeedStock(ctx context.Context, productID int64, total int64, shardCount int) error {
 	if productID <= 0 {
 		return domain.ErrProductIDRequired
@@ -36,7 +48,20 @@ func (s *Service) SeedStock(ctx context.Context, productID int64, total int64, s
 	return s.repo.SeedStock(ctx, productID, total, shardCount)
 }
 
-func (s *Service) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64) error {
+func (s *Service) AdjustStock(ctx context.Context, productID int64, delta int64, bucketIdx int, meta domain.StockChangeMeta) (before domain.Stock, after domain.Stock, err error) {
+	if productID <= 0 {
+		return domain.Stock{}, domain.Stock{}, domain.ErrProductIDRequired
+	}
+	if delta == 0 {
+		return domain.Stock{}, domain.Stock{}, domain.ErrQuantityInvalid
+	}
+	if bucketIdx < 0 {
+		return domain.Stock{}, domain.Stock{}, domain.ErrQuantityInvalid
+	}
+	return s.repo.AdjustStock(ctx, productID, delta, bucketIdx, meta)
+}
+
+func (s *Service) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64, meta domain.StockChangeMeta) error {
 	if orderID == "" {
 		return domain.ErrOrderIDRequired
 	}
@@ -46,26 +71,32 @@ func (s *Service) ReserveStock(ctx context.Context, orderID string, productID in
 	if quantity <= 0 {
 		return domain.ErrQuantityInvalid
 	}
-	return s.repo.ReserveStock(ctx, orderID, productID, quantity)
+	meta.OrderID = orderID
+	return s.repo.ReserveStock(ctx, orderID, productID, quantity, meta)
 }
 
-func (s *Service) ConfirmDeduct(ctx context.Context, orderID string) error {
+func (s *Service) ConfirmDeduct(ctx context.Context, orderID string, meta domain.StockChangeMeta) error {
 	if orderID == "" {
 		return domain.ErrOrderIDRequired
 	}
-	return s.repo.ConfirmDeduct(ctx, orderID)
+	meta.OrderID = orderID
+	return s.repo.ConfirmDeduct(ctx, orderID, meta)
 }
 
-func (s *Service) ReleaseStock(ctx context.Context, orderID string, reason string) error {
+func (s *Service) ReleaseStock(ctx context.Context, orderID string, reason string, meta domain.StockChangeMeta) error {
 	if orderID == "" {
 		return domain.ErrOrderIDRequired
 	}
-	return s.repo.ReleaseStock(ctx, orderID, reason)
+	meta.OrderID = orderID
+	if meta.Reason == "" {
+		meta.Reason = reason
+	}
+	return s.repo.ReleaseStock(ctx, orderID, meta)
 }
 
-func (s *Service) ReconcileStock(ctx context.Context, productID int64) (before domain.Stock, after domain.Stock, changed bool, err error) {
+func (s *Service) ReconcileStock(ctx context.Context, productID int64, meta domain.StockChangeMeta) (before domain.Stock, after domain.Stock, changed bool, err error) {
 	if productID <= 0 {
 		return domain.Stock{}, domain.Stock{}, false, domain.ErrProductIDRequired
 	}
-	return s.repo.ReconcileStock(ctx, productID)
+	return s.repo.ReconcileStock(ctx, productID, meta)
 }

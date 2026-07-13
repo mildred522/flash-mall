@@ -1,0 +1,43 @@
+Name: hertz-gateway
+ListenOn: 0.0.0.0:8889
+DataSource: ${FLASH_MALL_PRODUCT_DATASOURCE}
+OrderDataSource: ${FLASH_MALL_ORDER_DATASOURCE}
+AuthDataSource: ${FLASH_MALL_AUTH_DATASOURCE}
+JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
+AuthServiceBaseURL: ${FLASH_MALL_AUTH_SERVICE_BASE_URL}
+PaymentCallbackSecret: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET}
+PaymentCallbackMaxSkewSeconds: 300
+SandboxPaymentTokenTTLSeconds: 900
+InventoryKitexEndpoint: ${FLASH_MALL_INVENTORY_KITEX_ENDPOINT}
+DtmServer: dtm:36790
+OrderRpcTarget: order-rpc:8090
+DtmTimeoutToFailSeconds: 120
+DtmRequestTimeoutSeconds: 6
+DtmWaitResult: true
+EnableLiveStockOverlay: false
+UploadDir: /data/flash-mall/uploads
+
+ProductRpcConf:
+  Endpoints:
+    - product-rpc:8080
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: product.rpc
+  Timeout: 3000
+
+OrderRpcConf:
+  Endpoints:
+    - order-rpc:8090
+  Etcd:
+    Hosts:
+      - etcd:2379
+    Key: order.rpc
+  Timeout: 3000
+
+CatalogProductIDs:
+  - 100
+  - 101
+  - 102
+  - 103
+  - 104

@@ -42,6 +42,10 @@ data:
     RabbitMQPrefetch: 20
     OrderEventConsumerEnabled: true
     EventDedupTTLSeconds: 86400
+    ProductCardSnapshotRefreshEnabled: true
+    ProductCardSnapshotRefreshIntervalSeconds: 60
+    ProductCardSnapshotRefreshWindowMinutes: 120
+    ProductCardSnapshotRefreshLimit: 1000
 
     ProductRpcConf:
       Etcd:
@@ -81,6 +85,56 @@ data:
         Exporter: stdout
         Endpoint: http://jaeger:4318/v1/traces
         SampleRatio: 1.0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hertz-gateway-config
+  namespace: flash-mall
+  labels:
+    app.kubernetes.io/name: hertz-gateway
+    app.kubernetes.io/part-of: flash-mall
+data:
+  gateway.yaml: |
+    Name: hertz-gateway
+    ListenOn: 0.0.0.0:8889
+    DataSource: ${FLASH_MALL_PRODUCT_DATASOURCE}
+    OrderDataSource: ${FLASH_MALL_ORDER_DATASOURCE}
+    AuthDataSource: ${FLASH_MALL_AUTH_DATASOURCE}
+    JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
+    AuthServiceBaseURL: http://auth-api:8890
+    PaymentCallbackSecret: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET}
+    PaymentCallbackMaxSkewSeconds: 300
+    SandboxPaymentTokenTTLSeconds: 900
+    InventoryKitexEndpoint: inventory-kitex:8093
+    DtmServer: dtm:36790
+    OrderRpcTarget: order-rpc:8090
+    DtmTimeoutToFailSeconds: 120
+    DtmRequestTimeoutSeconds: 6
+    DtmWaitResult: true
+    EnableLiveStockOverlay: false
+    UploadDir: /data/flash-mall/uploads
+
+    ProductRpcConf:
+      Etcd:
+        Hosts:
+          - etcd:2379
+        Key: product.rpc
+      Timeout: 3000
+
+    OrderRpcConf:
+      Etcd:
+        Hosts:
+          - etcd:2379
+        Key: order.rpc
+      Timeout: 3000
+
+    CatalogProductIDs:
+      - 100
+      - 101
+      - 102
+      - 103
+      - 104
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -155,6 +209,7 @@ data:
       Timeout: 2000
 
     InventoryKitexEndpoint: inventory-kitex:8093
+    RequireInventoryReserve: true
 
     PprofAddr: 0.0.0.0:6061
     MetricsAddr: 0.0.0.0:9091

@@ -17,6 +17,6 @@ describe('LoginPage', () => {
 
     await waitFor(() => expect(onLogin).toHaveBeenCalledOnce());
     const init = fetchMock.mock.calls[0][1] as RequestInit;
-    expect(JSON.parse(String(init.body))).toEqual({ phone: '13800000002', password: 'flashmall123' });
+    expect(JSON.parse(String(init.body))).toEqual({ phone: '13800000002', password: 'admin123' });
   });
 });

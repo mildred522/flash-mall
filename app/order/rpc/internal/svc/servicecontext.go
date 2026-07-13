@@ -1,6 +1,7 @@
 package svc
 
 import (
+	"errors"
 	"strings"
 
 	"flash-mall/app/order/rpc/internal/config"
@@ -22,6 +23,7 @@ type ServiceContext struct {
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
+	validateInventoryReserveConfig(c)
 	svcCtx := &ServiceContext{
 		Config:  c,
 		SqlConn: sqlx.NewMysql(c.DataSource),
@@ -35,10 +37,41 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		client, err := inventoryclient.NewKitexClient(endpoint)
 		if err != nil {
 			logx.Errorf("inventory kitex client init failed: endpoint=%s err=%v", endpoint, err)
+			if c.RequireInventoryReserve {
+				logx.Must(err)
+			}
 		} else {
 			svcCtx.InventoryClient = client
 		}
 	}
+	if c.RequireInventoryReserve && svcCtx.InventoryClient == nil {
+		logx.Must(errors.New("RequireInventoryReserve=true requires a ready inventory kitex client"))
+	}
+	logInventoryReserveMode(c, svcCtx.InventoryClient != nil)
 
 	return svcCtx
+}
+
+func validateInventoryReserveConfig(c config.Config) {
+	if !c.RequireInventoryReserve {
+		return
+	}
+	if strings.TrimSpace(c.InventoryKitexEndpoint) == "" {
+		logx.Must(errors.New("RequireInventoryReserve=true requires InventoryKitexEndpoint"))
+	}
+}
+
+func logInventoryReserveMode(c config.Config, inventoryClientReady bool) {
+	endpoint := strings.TrimSpace(c.InventoryKitexEndpoint)
+	reserveWriter := "order-rpc-redis"
+	if endpoint != "" && inventoryClientReady {
+		reserveWriter = "inventory-kitex"
+	}
+	logx.Infof(
+		"order inventory reserve mode: reserve_writer=%s inventory_endpoint=%q require_inventory_reserve=%t inventory_client_ready=%t",
+		reserveWriter,
+		endpoint,
+		c.RequireInventoryReserve,
+		inventoryClientReady,
+	)
 }

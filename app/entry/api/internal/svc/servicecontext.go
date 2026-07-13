@@ -1,6 +1,11 @@
 package svc
 
 import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"flash-mall/app/entry/api/internal/cache"
@@ -36,6 +41,7 @@ type ServiceContext struct {
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
+	validateInventoryMigrationConfig(c)
 	sqlConn := sqlx.NewMysql(c.DataSource)
 	orderIDGen, err := idgen.NewSnowflakeGenerator(c.OrderIdNode)
 	logx.Must(err)
@@ -50,6 +56,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		limiter = rate.NewLimiter(rate.Limit(c.OrderRateLimitQps), burst)
 	}
 	rds := redis.MustNewRedis(c.RedisConf)
+	go repairRuntimeStockShards(context.Background(), sqlConn, rds, c.StockShardCount)
 	var validator sessionstate.Validator
 	validator = sessionstate.NewHTTPValidator(nil, c.AuthServiceBaseURL)
 	if c.JwtAuthSecret != "" {
@@ -60,9 +67,15 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		client, err := inventoryclient.NewKitexClient(c.InventoryKitexEndpoint)
 		if err != nil {
 			logx.Errorf("inventory kitex client disabled: endpoint=%s err=%v", c.InventoryKitexEndpoint, err)
+			if c.InventoryOwnsFinalDeduct {
+				logx.Must(err)
+			}
 		} else {
 			inventoryClient = client
 		}
+	}
+	if c.InventoryOwnsFinalDeduct && inventoryClient == nil {
+		logx.Must(errors.New("InventoryOwnsFinalDeduct=true requires a ready inventory kitex client"))
 	}
 	return &ServiceContext{
 		Config:           c,
@@ -78,4 +91,85 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		CatalogCache:     cache.NewCatalogCache(rds),
 		StartTime:        time.Now(),
 	}
+}
+
+func validateInventoryMigrationConfig(c config.Config) {
+	if !c.InventoryOwnsFinalDeduct {
+		return
+	}
+	if strings.TrimSpace(c.InventoryKitexEndpoint) == "" {
+		logx.Must(errors.New("InventoryOwnsFinalDeduct=true requires InventoryKitexEndpoint"))
+	}
+}
+
+func repairRuntimeStockShards(ctx context.Context, sqlConn sqlx.SqlConn, rds *redis.Redis, shardCount int) {
+	if rds == nil {
+		return
+	}
+	db, err := sqlConn.RawDB()
+	if err != nil {
+		logx.Errorf("repair runtime stock shards skipped: raw db failed: %v", err)
+		return
+	}
+	rows, err := db.QueryContext(ctx, `
+SELECT p.id, COALESCE(bucket.stock_total, p.stock, 0) AS stock_total
+FROM mall_product.product p
+LEFT JOIN (
+  SELECT product_id, COALESCE(SUM(stock), 0) AS stock_total
+  FROM mall_product.product_stock_bucket
+  GROUP BY product_id
+) bucket ON bucket.product_id = p.id
+WHERE p.status = 1`)
+	if err != nil {
+		logx.Errorf("repair runtime stock shards query failed: %v", err)
+		return
+	}
+	defer func() { _ = rows.Close() }()
+
+	repaired := 0
+	for rows.Next() {
+		var productID int64
+		var total sql.NullInt64
+		if err := rows.Scan(&productID, &total); err != nil {
+			logx.Errorf("repair runtime stock shards scan failed: %v", err)
+			return
+		}
+		stockTotal := int64(0)
+		if total.Valid {
+			stockTotal = total.Int64
+		}
+		if err := writeRuntimeStockShards(ctx, rds, productID, stockTotal, shardCount); err != nil {
+			logx.Errorf("repair runtime stock shards failed: product_id=%d err=%v", productID, err)
+			continue
+		}
+		repaired++
+	}
+	if err := rows.Err(); err != nil {
+		logx.Errorf("repair runtime stock shards rows failed: %v", err)
+		return
+	}
+	if repaired > 0 {
+		logx.Infof("repair runtime stock shards completed: products=%d", repaired)
+	}
+}
+
+func writeRuntimeStockShards(ctx context.Context, rds *redis.Redis, productID int64, total int64, shardCount int) error {
+	if total < 0 {
+		total = 0
+	}
+	if shardCount <= 0 {
+		shardCount = 1
+	}
+	perShard := total / int64(shardCount)
+	remain := total % int64(shardCount)
+	for shardIdx := 0; shardIdx < shardCount; shardIdx++ {
+		value := perShard
+		if shardIdx == 0 {
+			value += remain
+		}
+		if err := rds.SetCtx(ctx, fmt.Sprintf("stock:%d:%d", productID, shardIdx), fmt.Sprintf("%d", value)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

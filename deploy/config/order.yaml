@@ -30,6 +30,7 @@ ProductRpcConf:
   Timeout: 8000
 
 InventoryKitexEndpoint: ${FLASH_MALL_INVENTORY_KITEX_ENDPOINT}
+RequireInventoryReserve: true
 
 PprofAddr: 0.0.0.0:6061
 MetricsAddr: 0.0.0.0:9091

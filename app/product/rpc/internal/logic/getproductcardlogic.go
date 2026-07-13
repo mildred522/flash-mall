@@ -34,6 +34,21 @@ type productStockBucketRow struct {
 	Stock int64 `db:"stock"`
 }
 
+type productStockSnapshotRow struct {
+	Available int64 `db:"available"`
+}
+
+type productCardSnapshotRow struct {
+	ProductID      int64  `db:"product_id"`
+	Name           string `db:"name"`
+	OriginPriceFen int64  `db:"origin_price_fen"`
+	FinalPriceFen  int64  `db:"final_price_fen"`
+	PromotionType  string `db:"promotion_type"`
+	PromotionTag   string `db:"promotion_tag"`
+	StockAvailable int64  `db:"stock_available"`
+	SupplierID     int64  `db:"supplier_id"`
+}
+
 func NewGetProductCardLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetProductCardLogic {
 	return &GetProductCardLogic{
 		ctx:    ctx,
@@ -43,6 +58,11 @@ func NewGetProductCardLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ge
 }
 
 func (l *GetProductCardLogic) GetProductCard(in *product.GetProductCardReq) (*product.GetProductCardResp, error) {
+	var snapshot productCardSnapshotRow
+	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &snapshot, `SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id FROM product_card_snapshot WHERE product_id = ? AND status = 1 LIMIT 1`, in.ProductId); err == nil {
+		return productCardSnapshotToResp(snapshot), nil
+	}
+
 	var row productCardRow
 	query := `
 SELECT p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id,
@@ -63,14 +83,18 @@ GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`
 		return nil, err
 	}
 
-	var bucketRows []productStockBucketRow
-	if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &bucketRows, "SELECT stock FROM product_stock_bucket WHERE product_id = ?", row.ID); err != nil {
-		return nil, err
-	}
-
 	var stockAvailable int64
-	for _, bucketRow := range bucketRows {
-		stockAvailable += bucketRow.Stock
+	var stockSnapshot productStockSnapshotRow
+	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &stockSnapshot, "SELECT available FROM product_stock_snapshot WHERE product_id = ? LIMIT 1", row.ID); err == nil {
+		stockAvailable = stockSnapshot.Available
+	} else {
+		var bucketRows []productStockBucketRow
+		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &bucketRows, "SELECT stock FROM product_stock_bucket WHERE product_id = ?", row.ID); err != nil {
+			return nil, err
+		}
+		for _, bucketRow := range bucketRows {
+			stockAvailable += bucketRow.Stock
+		}
 	}
 
 	finalPrice := row.SalePriceFen
@@ -92,4 +116,17 @@ GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`
 		StockAvailable: stockAvailable,
 		SupplierId:     row.SupplierID,
 	}, nil
+}
+
+func productCardSnapshotToResp(row productCardSnapshotRow) *product.GetProductCardResp {
+	return &product.GetProductCardResp{
+		ProductId:      row.ProductID,
+		Name:           row.Name,
+		OriginPriceFen: row.OriginPriceFen,
+		FinalPriceFen:  row.FinalPriceFen,
+		PromotionType:  row.PromotionType,
+		PromotionTag:   row.PromotionTag,
+		StockAvailable: row.StockAvailable,
+		SupplierId:     row.SupplierID,
+	}
 }

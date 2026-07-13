@@ -3,7 +3,7 @@ import type { ApiResponse, LoginResp } from '@flash-mall/shared';
 
 export const DEMO_ADMIN_CREDENTIALS = Object.freeze({
   phone: '13800000002',
-  password: 'flashmall123',
+  password: 'admin123',
 });
 
 type Request = (path: string, options: RequestInit & { jsonBody?: unknown }) => Promise<ApiResponse<LoginResp>>;

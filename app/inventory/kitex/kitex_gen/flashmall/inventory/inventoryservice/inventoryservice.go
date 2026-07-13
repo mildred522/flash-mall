@@ -21,10 +21,24 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingNone),
 	),
+	"BatchGetStock": kitex.NewMethodInfo(
+		batchGetStockHandler,
+		newInventoryServiceBatchGetStockArgs,
+		newInventoryServiceBatchGetStockResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
 	"SeedStock": kitex.NewMethodInfo(
 		seedStockHandler,
 		newInventoryServiceSeedStockArgs,
 		newInventoryServiceSeedStockResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
+	"AdjustStock": kitex.NewMethodInfo(
+		adjustStockHandler,
+		newInventoryServiceAdjustStockArgs,
+		newInventoryServiceAdjustStockResult,
 		false,
 		kitex.WithStreamingMode(kitex.StreamingNone),
 	),
@@ -146,6 +160,30 @@ func newInventoryServiceGetStockResult() interface{} {
 	return inventory.NewInventoryServiceGetStockResult()
 }
 
+func batchGetStockHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*inventory.InventoryServiceBatchGetStockArgs)
+	realResult := result.(*inventory.InventoryServiceBatchGetStockResult)
+	success, err := handler.(inventory.InventoryService).BatchGetStock(ctx, realArg.Req)
+	if err != nil {
+		switch v := err.(type) {
+		case *common.BizException:
+			realResult.Biz = v
+		default:
+			return err
+		}
+	} else {
+		realResult.Success = success
+	}
+	return nil
+}
+func newInventoryServiceBatchGetStockArgs() interface{} {
+	return inventory.NewInventoryServiceBatchGetStockArgs()
+}
+
+func newInventoryServiceBatchGetStockResult() interface{} {
+	return inventory.NewInventoryServiceBatchGetStockResult()
+}
+
 func seedStockHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
 	realArg := arg.(*inventory.InventoryServiceSeedStockArgs)
 	realResult := result.(*inventory.InventoryServiceSeedStockResult)
@@ -168,6 +206,30 @@ func newInventoryServiceSeedStockArgs() interface{} {
 
 func newInventoryServiceSeedStockResult() interface{} {
 	return inventory.NewInventoryServiceSeedStockResult()
+}
+
+func adjustStockHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*inventory.InventoryServiceAdjustStockArgs)
+	realResult := result.(*inventory.InventoryServiceAdjustStockResult)
+	success, err := handler.(inventory.InventoryService).AdjustStock(ctx, realArg.Req)
+	if err != nil {
+		switch v := err.(type) {
+		case *common.BizException:
+			realResult.Biz = v
+		default:
+			return err
+		}
+	} else {
+		realResult.Success = success
+	}
+	return nil
+}
+func newInventoryServiceAdjustStockArgs() interface{} {
+	return inventory.NewInventoryServiceAdjustStockArgs()
+}
+
+func newInventoryServiceAdjustStockResult() interface{} {
+	return inventory.NewInventoryServiceAdjustStockResult()
 }
 
 func reserveStockHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
@@ -290,11 +352,39 @@ func (p *kClient) GetStock(ctx context.Context, req *inventory.GetStockRequest) 
 	return _result.GetSuccess(), nil
 }
 
+func (p *kClient) BatchGetStock(ctx context.Context, req *inventory.BatchGetStockRequest) (r *inventory.BatchGetStockResponse, err error) {
+	var _args inventory.InventoryServiceBatchGetStockArgs
+	_args.Req = req
+	var _result inventory.InventoryServiceBatchGetStockResult
+	if err = p.c.Call(ctx, "BatchGetStock", &_args, &_result); err != nil {
+		return
+	}
+	switch {
+	case _result.Biz != nil:
+		return r, _result.Biz
+	}
+	return _result.GetSuccess(), nil
+}
+
 func (p *kClient) SeedStock(ctx context.Context, req *inventory.SeedStockRequest) (r *common.Empty, err error) {
 	var _args inventory.InventoryServiceSeedStockArgs
 	_args.Req = req
 	var _result inventory.InventoryServiceSeedStockResult
 	if err = p.c.Call(ctx, "SeedStock", &_args, &_result); err != nil {
+		return
+	}
+	switch {
+	case _result.Biz != nil:
+		return r, _result.Biz
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) AdjustStock(ctx context.Context, req *inventory.AdjustStockRequest) (r *inventory.AdjustStockResponse, err error) {
+	var _args inventory.InventoryServiceAdjustStockArgs
+	_args.Req = req
+	var _result inventory.InventoryServiceAdjustStockResult
+	if err = p.c.Call(ctx, "AdjustStock", &_args, &_result); err != nil {
 		return
 	}
 	switch {

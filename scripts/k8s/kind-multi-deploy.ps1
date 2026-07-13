@@ -54,6 +54,7 @@ $images = @(
   "flash-mall/order-rpc:dev",
   "flash-mall/product-rpc:dev",
   "flash-mall/inventory-kitex:dev",
+  "flash-mall/hertz-gateway:dev",
   "mysql:8.0",
   "redis:7",
   "bitnamilegacy/etcd:3.5",

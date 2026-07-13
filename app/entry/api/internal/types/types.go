@@ -148,6 +148,16 @@ type DependencyStatus struct {
 	Detail string `json:"detail"`
 }
 
+type ArchitectureStatus struct {
+	InventoryKitexEnabled    bool   `json:"inventory_kitex_enabled"`
+	InventoryKitexEndpoint   string `json:"inventory_kitex_endpoint"`
+	InventoryOwnsFinalDeduct bool   `json:"inventory_owns_final_deduct"`
+	FinalStockWriter         string `json:"final_stock_writer"`
+	MigrationStage           string `json:"migration_stage"`
+	RequiredReserveWriter    string `json:"required_reserve_writer"`
+	MigrationNote            string `json:"migration_note"`
+}
+
 type SystemHealthResp struct {
 	Overall      bool               `json:"overall"`
 	Version      string             `json:"version"`
@@ -155,6 +165,7 @@ type SystemHealthResp struct {
 	Goroutines   int                `json:"goroutines"`
 	ServerTime   int64              `json:"server_time"`
 	Dependencies []DependencyStatus `json:"dependencies"`
+	Architecture ArchitectureStatus `json:"architecture"`
 }
 
 // Admin API types
@@ -341,6 +352,67 @@ type AdminProductStockAdjustReq struct {
 type AdminProductStockAdjustResp struct {
 	ProductId      int64 `json:"product_id"`
 	StockAvailable int64 `json:"stock_available"`
+}
+
+type AdminStockChangeLogReq struct {
+	ProductId          int64  `form:"product_id,optional"`           //nolint:staticcheck // go-zero httpx.Parse uses optional in form tags.
+	OrderId            string `form:"order_id,optional"`             //nolint:staticcheck // go-zero httpx.Parse uses optional in form tags.
+	ChangeType         string `form:"change_type,optional"`          //nolint:staticcheck // go-zero httpx.Parse uses optional in form tags.
+	OperatorMerchantId int64  `form:"operator_merchant_id,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in form tags.
+	Page               int64  `form:"page,optional,default=1"`
+	PageSize           int64  `form:"page_size,optional,default=20"`
+}
+
+type AdminStockChangeLogItem struct {
+	Id                 int64  `json:"id"`
+	ProductId          int64  `json:"product_id"`
+	OrderId            string `json:"order_id"`
+	ChangeType         string `json:"change_type"`
+	Delta              int64  `json:"delta"`
+	BucketIdx          int64  `json:"bucket_idx"`
+	BeforeAvailable    int64  `json:"before_available"`
+	BeforeReserved     int64  `json:"before_reserved"`
+	BeforeTotal        int64  `json:"before_total"`
+	AfterAvailable     int64  `json:"after_available"`
+	AfterReserved      int64  `json:"after_reserved"`
+	AfterTotal         int64  `json:"after_total"`
+	Reason             string `json:"reason"`
+	RequestId          string `json:"request_id"`
+	TraceId            string `json:"trace_id"`
+	OperatorUserId     int64  `json:"operator_user_id"`
+	OperatorMerchantId int64  `json:"operator_merchant_id"`
+	OperatorRole       string `json:"operator_role"`
+	CreateTime         string `json:"create_time"`
+}
+
+type AdminStockChangeLogResp struct {
+	Items    []AdminStockChangeLogItem `json:"items"`
+	Total    int64                     `json:"total"`
+	Page     int64                     `json:"page"`
+	PageSize int64                     `json:"page_size"`
+}
+
+type AdminStockSnapshotRebuildReq struct {
+	ProductId int64 `json:"product_id,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+	Limit     int64 `json:"limit,optional"`      //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+}
+
+type AdminStockSnapshotRebuildResp struct {
+	Affected int64 `json:"affected"`
+	Limit    int64 `json:"limit"`
+}
+
+type AdminProductCardSnapshotRefreshReq struct {
+	ProductId     int64 `json:"product_id,optional"`     //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+	Limit         int64 `json:"limit,optional"`          //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+	WindowMinutes int64 `json:"window_minutes,optional"` //nolint:staticcheck // go-zero httpx.Parse uses optional in json tags.
+}
+
+type AdminProductCardSnapshotRefreshResp struct {
+	ProductCount  int64 `json:"product_count"`
+	Affected      int64 `json:"affected"`
+	Limit         int64 `json:"limit"`
+	WindowMinutes int64 `json:"window_minutes"`
 }
 
 type AdminSupplierListReq struct {

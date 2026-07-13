@@ -16,10 +16,11 @@ services='auth-api:build/docker/auth-api.Dockerfile
 entry-api:build/docker/entry-api.Dockerfile
 order-rpc:build/docker/order-rpc.Dockerfile
 product-rpc:build/docker/product-rpc.Dockerfile
-inventory-kitex:build/docker/inventory-kitex.Dockerfile'
+inventory-kitex:build/docker/inventory-kitex.Dockerfile
+hertz-gateway:build/docker/hertz-gateway.Dockerfile'
 
 idx=1
-total=5
+total=6
 printf '%s\n' "$services" | while IFS=: read -r name dockerfile; do
   echo "[$idx/$total] build flash-mall/$name:$tag"
   docker build -f "$dockerfile" -t "flash-mall/$name:$tag" .

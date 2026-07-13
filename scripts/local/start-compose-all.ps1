@@ -30,7 +30,7 @@ Set-DefaultEnv -Name "FLASH_MALL_IMAGE_TAG" -Value "dev"
 
 if (-not $NoBuild) {
   if ($ComposeBuild) {
-    & docker compose -f $composeFile build auth-api product-rpc order-rpc inventory-kitex entry-api
+    & docker compose -f $composeFile build auth-api product-rpc order-rpc inventory-kitex entry-api hertz-gateway
     if ($LASTEXITCODE -ne 0) {
       throw "docker compose image build failed"
     }
@@ -55,5 +55,6 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "entry-api: http://127.0.0.1:8888"
+Write-Host "hertz-gateway: http://127.0.0.1:8889"
 Write-Host "auth-api:  http://127.0.0.1:8890"
 Write-Host "rabbitmq:  http://127.0.0.1:15672"

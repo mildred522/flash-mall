@@ -31,6 +31,24 @@ func (r *MemoryStockRepository) GetStock(ctx context.Context, productID int64) (
 	return stock, nil
 }
 
+func (r *MemoryStockRepository) BatchGetStock(ctx context.Context, productIDs []int64) ([]domain.Stock, error) {
+	_ = ctx
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stocks := make([]domain.Stock, 0, len(productIDs))
+	seen := make(map[int64]struct{}, len(productIDs))
+	for _, productID := range productIDs {
+		if _, ok := seen[productID]; ok {
+			continue
+		}
+		seen[productID] = struct{}{}
+		if stock, ok := r.stocks[productID]; ok {
+			stocks = append(stocks, stock)
+		}
+	}
+	return stocks, nil
+}
+
 func (r *MemoryStockRepository) SeedStock(ctx context.Context, productID int64, total int64, shardCount int) error {
 	_ = ctx
 	_ = shardCount
@@ -40,8 +58,32 @@ func (r *MemoryStockRepository) SeedStock(ctx context.Context, productID int64, 
 	return nil
 }
 
-func (r *MemoryStockRepository) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64) error {
+func (r *MemoryStockRepository) AdjustStock(ctx context.Context, productID int64, delta int64, bucketIdx int, meta domain.StockChangeMeta) (domain.Stock, domain.Stock, error) {
 	_ = ctx
+	_ = bucketIdx
+	_ = meta
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	before, ok := r.stocks[productID]
+	if !ok {
+		return domain.Stock{}, domain.Stock{}, domain.ErrStockNotFound
+	}
+	if before.Available+delta < 0 {
+		return before, before, domain.ErrStockInsufficient
+	}
+	after := before
+	after.Available += delta
+	after.Total += delta
+	if after.Total < after.Available+after.Reserved {
+		after.Total = after.Available + after.Reserved
+	}
+	r.stocks[productID] = after
+	return before, after, nil
+}
+
+func (r *MemoryStockRepository) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64, meta domain.StockChangeMeta) error {
+	_ = ctx
+	_ = meta
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if existing, ok := r.reservations[orderID]; ok {
@@ -64,8 +106,9 @@ func (r *MemoryStockRepository) ReserveStock(ctx context.Context, orderID string
 	return nil
 }
 
-func (r *MemoryStockRepository) ConfirmDeduct(ctx context.Context, orderID string) error {
+func (r *MemoryStockRepository) ConfirmDeduct(ctx context.Context, orderID string, meta domain.StockChangeMeta) error {
 	_ = ctx
+	_ = meta
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	reservation, ok := r.reservations[orderID]
@@ -90,9 +133,9 @@ func (r *MemoryStockRepository) ConfirmDeduct(ctx context.Context, orderID strin
 	return nil
 }
 
-func (r *MemoryStockRepository) ReleaseStock(ctx context.Context, orderID string, reason string) error {
+func (r *MemoryStockRepository) ReleaseStock(ctx context.Context, orderID string, meta domain.StockChangeMeta) error {
 	_ = ctx
-	_ = reason
+	_ = meta
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	reservation, ok := r.reservations[orderID]
@@ -114,7 +157,8 @@ func (r *MemoryStockRepository) ReleaseStock(ctx context.Context, orderID string
 	return nil
 }
 
-func (r *MemoryStockRepository) ReconcileStock(ctx context.Context, productID int64) (domain.Stock, domain.Stock, bool, error) {
+func (r *MemoryStockRepository) ReconcileStock(ctx context.Context, productID int64, meta domain.StockChangeMeta) (domain.Stock, domain.Stock, bool, error) {
+	_ = meta
 	stock, err := r.GetStock(ctx, productID)
 	if err != nil {
 		return domain.Stock{}, domain.Stock{}, false, err

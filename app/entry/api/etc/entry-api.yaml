@@ -91,6 +91,10 @@ RabbitMQConsumerTag: entry-api-consumer
 RabbitMQPrefetch: 20
 OrderEventConsumerEnabled: true
 EventDedupTTLSeconds: 86400
+ProductCardSnapshotRefreshEnabled: true
+ProductCardSnapshotRefreshIntervalSeconds: 60
+ProductCardSnapshotRefreshWindowMinutes: 120
+ProductCardSnapshotRefreshLimit: 1000
 
 JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
 JwtExpireSeconds: 7200
