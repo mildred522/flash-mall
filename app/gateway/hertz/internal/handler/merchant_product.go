@@ -23,13 +23,7 @@ func MerchantProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product query failed", err))
-			return
-		}
-
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err := selectedMerchantIDFromService(ctx, svcCtx, identity)
 		if err != nil {
 			statusCode := consts.StatusForbidden
 			var appErr *apperror.Error
@@ -73,7 +67,7 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err := selectedMerchantIDFromService(ctx, svcCtx, identity)
 		if err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
@@ -167,7 +161,7 @@ func MerchantProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err := selectedMerchantIDFromService(ctx, svcCtx, identity)
 		if err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
@@ -217,7 +211,7 @@ func MerchantProductStockAdjustHandler(svcCtx *svc.ServiceContext) app.HandlerFu
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err := selectedMerchantIDFromService(ctx, svcCtx, identity)
 		if err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
@@ -272,6 +266,14 @@ func productMutationStatusCode(err error) int {
 	default:
 		return consts.StatusBadGateway
 	}
+}
+
+func selectedMerchantIDFromService(ctx context.Context, svcCtx *svc.ServiceContext, identity authctx.Identity) (int64, error) {
+	db, err := orderDB(svcCtx)
+	if err != nil {
+		return 0, err
+	}
+	return selectedMerchantID(ctx, db, identity)
 }
 
 func selectedMerchantID(ctx context.Context, db *sql.DB, identity authctx.Identity) (int64, error) {

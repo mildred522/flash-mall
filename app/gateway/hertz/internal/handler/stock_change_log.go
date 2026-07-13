@@ -25,12 +25,7 @@ func MerchantStockChangeLogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, err)
-			return
-		}
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err := selectedMerchantIDFromService(ctx, svcCtx, identity)
 		if err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return

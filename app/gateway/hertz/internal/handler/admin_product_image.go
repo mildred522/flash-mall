@@ -31,12 +31,7 @@ func MerchantProductImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFu
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant identity query failed", err))
-			return
-		}
-		if _, err = selectedMerchantID(ctx, db, identity); err != nil {
+		if _, err := selectedMerchantIDFromService(ctx, svcCtx, identity); err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
 		}
