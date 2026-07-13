@@ -61,6 +61,17 @@ CREATE TABLE IF NOT EXISTS merchant_apply (
   KEY ix_status_time (status, create_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS merchant_store_profile (
+  merchant_id bigint NOT NULL,
+  logo_url varchar(512) NOT NULL DEFAULT '',
+  banner_url varchar(512) NOT NULL DEFAULT '',
+  description varchar(1000) NOT NULL DEFAULT '',
+  version bigint NOT NULL DEFAULT 1,
+  create_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (merchant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS orders (
   id varchar(64) NOT NULL COMMENT '订单id',
   request_id varchar(64) DEFAULT NULL COMMENT '幂等请求id',
@@ -342,6 +353,7 @@ CREATE TABLE IF NOT EXISTS product (
   name varchar(128) NOT NULL DEFAULT '',
   stock int NOT NULL DEFAULT 0,
   version bigint NOT NULL DEFAULT 0,
+  create_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -456,6 +468,45 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @has_col = (
+  SELECT COUNT(1)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'product'
+    AND COLUMN_NAME = 'create_time'
+);
+SET @sql = IF(
+  @has_col = 0,
+  'ALTER TABLE product ADD COLUMN create_time datetime NULL',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+UPDATE product
+SET create_time = DATE_SUB(NOW(), INTERVAL 31 DAY)
+WHERE create_time IS NULL;
+
+ALTER TABLE product
+  MODIFY COLUMN create_time datetime NOT NULL DEFAULT CURRENT_TIMESTAMP;
+
+SET @has_idx = (
+  SELECT COUNT(1)
+  FROM information_schema.STATISTICS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME = 'product'
+    AND INDEX_NAME = 'ix_product_create_time'
+);
+SET @sql = IF(
+  @has_idx = 0,
+  'ALTER TABLE product ADD KEY ix_product_create_time (create_time)',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- CHG 2026-02-24: 变更=新增库存分桶表; 之前=单行 product 表扣减; 原因=降低热点行冲突。
 CREATE TABLE IF NOT EXISTS product_stock_bucket (
   product_id bigint NOT NULL,
@@ -492,6 +543,26 @@ CREATE TABLE IF NOT EXISTS product_card_snapshot (
   PRIMARY KEY (product_id),
   KEY ix_status_product (status, product_id),
   KEY ix_update_time (update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS homepage_showcase (
+  id bigint NOT NULL,
+  version bigint NOT NULL DEFAULT 1,
+  operator_id bigint NOT NULL DEFAULT 0,
+  publish_time timestamp NULL DEFAULT NULL,
+  update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS homepage_showcase_item (
+  showcase_id bigint NOT NULL,
+  slot_no tinyint NOT NULL,
+  product_id bigint NOT NULL,
+  create_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (showcase_id, slot_no),
+  UNIQUE KEY uk_showcase_product (showcase_id, product_id),
+  KEY ix_showcase_product (product_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS inventory_stock_change_log (
@@ -636,6 +707,23 @@ ON DUPLICATE KEY UPDATE
   name = VALUES(name), image_url = VALUES(image_url), stock = VALUES(stock),
   origin_price_fen = VALUES(origin_price_fen), sale_price_fen = VALUES(sale_price_fen),
   status = VALUES(status), supplier_id = VALUES(supplier_id);
+
+INSERT INTO homepage_showcase (id, version, operator_id)
+VALUES (1, 1, 0)
+ON DUPLICATE KEY UPDATE id = VALUES(id);
+
+INSERT INTO homepage_showcase_item (showcase_id, slot_no, product_id)
+SELECT seed.showcase_id, seed.slot_no, seed.product_id
+FROM (
+  SELECT 1 AS showcase_id, 1 AS slot_no, 100 AS product_id
+  UNION ALL SELECT 1, 2, 101
+  UNION ALL SELECT 1, 3, 102
+  UNION ALL SELECT 1, 4, 103
+  UNION ALL SELECT 1, 5, 104
+) AS seed
+WHERE NOT EXISTS (
+  SELECT 1 FROM homepage_showcase_item existing WHERE existing.showcase_id = 1
+);
 
 INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES
   (101, 0, 2500, 0), (101, 1, 2500, 0), (101, 2, 2500, 0), (101, 3, 2500, 0),
