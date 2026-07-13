@@ -126,22 +126,24 @@ func productUploadDir(svcCtx *svc.ServiceContext) string {
 }
 
 func productImageExt(contentType, originalExt string) string {
+	originalExt = strings.ToLower(originalExt)
 	switch contentType {
 	case "image/jpeg":
-		return ".jpg"
+		if originalExt == ".jpg" || originalExt == ".jpeg" {
+			return ".jpg"
+		}
 	case "image/png":
-		return ".png"
+		if originalExt == ".png" {
+			return ".png"
+		}
 	case "image/webp":
-		return ".webp"
+		if originalExt == ".webp" {
+			return ".webp"
+		}
 	case "image/gif":
-		return ".gif"
+		if originalExt == ".gif" {
+			return ".gif"
+		}
 	}
-	switch strings.ToLower(originalExt) {
-	case ".jpg", ".jpeg":
-		return ".jpg"
-	case ".png", ".webp", ".gif":
-		return strings.ToLower(originalExt)
-	default:
-		return ""
-	}
+	return ""
 }

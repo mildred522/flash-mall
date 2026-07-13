@@ -38,6 +38,7 @@ func registerSystemRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt
 func registerShopRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 	h.GET("/products/*any", StaticAssetHandler("products"))
 	h.GET("/uploads/products/*any", ProductUploadStaticHandler(svcCtx))
+	h.GET("/uploads/stores/*any", StoreUploadStaticHandler(svcCtx))
 	h.GET("/api/shop/catalog", CatalogHandler(svcCtx))
 	h.GET("/api/shop/products", ProductListHandler(svcCtx, true))
 	h.GET("/api/shop/products/detail", ProductDetailHandler(svcCtx))
@@ -123,6 +124,9 @@ func registerMerchantRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 	h.GET("/api/merchant/me", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
 	h.GET("/api/merchant/application", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplicationHandler(svcCtx))
 	h.POST("/api/merchant/apply", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplyCreateHandler(svcCtx))
+	h.GET("/api/merchant/store/profile", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreProfileHandler(svcCtx))
+	h.POST("/api/merchant/store/profile", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreUpdateHandler(svcCtx))
+	h.POST("/api/merchant/store/assets", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreAssetUploadHandler(svcCtx))
 	h.GET("/api/merchant/dashboard/stats", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantDashboardStatsHandler(svcCtx))
 	h.GET("/api/merchant/products", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductListHandler(svcCtx))
 	h.POST("/api/merchant/products/create", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductCreateHandler(svcCtx))
