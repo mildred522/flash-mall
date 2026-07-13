@@ -125,12 +125,15 @@ wait_for_order_in_db() {
 start_go_service() {
   local name="$1"
   local entry="$2"
-  local config="$3"
+  local config="${3:-}"
   local log_file="${LOG_DIR}/${name}.log"
 
   (
     cd "${REPO_ROOT}"
-    exec go run "${entry}" -f "${config}"
+    if [[ -n "${config}" ]]; then
+      exec go run "${entry}" -f "${config}"
+    fi
+    exec go run "${entry}"
   ) >"${log_file}" 2>&1 &
 
   local pid=$!
@@ -147,6 +150,10 @@ export FLASH_MALL_RABBITMQ_URL="amqp://flashmall:flashmall-local@127.0.0.1:5672/
 export FLASH_MALL_JWT_AUTH_SECRET="flash-mall-ci-jwt-secret"
 export FLASH_MALL_PAYMENT_CALLBACK_SECRET="flash-mall-ci-payment-secret"
 export FLASH_MALL_DEMO_PASSWORD="flashmall123"
+export INVENTORY_REDIS_HOST="127.0.0.1:6379"
+export INVENTORY_DATASOURCE="${FLASH_MALL_PRODUCT_DATASOURCE}"
+export INVENTORY_STOCK_SHARD_COUNT="4"
+export INVENTORY_FINAL_DEDUCT_ENABLED="false"
 
 if [[ "${CI:-}" == "true" ]]; then
   for image in \
@@ -172,10 +179,19 @@ docker exec -i mysql mysql --force --default-character-set=utf8mb4 -uroot -p6494
 
 go run ./app/entry/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4
 
+start_go_service "inventory-kitex" "./app/inventory/kitex/main.go"
+wait_for_port "inventory-kitex" "127.0.0.1" "8093" 90
+
 start_go_service "product-rpc" "./app/product/rpc/product.go" "./app/product/rpc/etc/product.yaml"
 wait_for_port "product-rpc" "127.0.0.1" "8080" 90
 
-start_go_service "order-rpc" "./app/order/rpc/order.go" "./app/order/rpc/etc/order.yaml"
+order_rpc_smoke_config="${LOG_DIR}/order-rpc-smoke.yaml"
+sed \
+  -e "s|InventoryKitexEndpoint: ''|InventoryKitexEndpoint: '127.0.0.1:8093'|" \
+  -e 's/RequireInventoryReserve: false/RequireInventoryReserve: true/' \
+  ./app/order/rpc/etc/order.yaml > "${order_rpc_smoke_config}"
+
+start_go_service "order-rpc" "./app/order/rpc/order.go" "${order_rpc_smoke_config}"
 wait_for_port "order-rpc" "127.0.0.1" "8090" 90
 
 start_go_service "auth-api" "./app/auth/api/auth.go" "./app/auth/api/etc/auth-api.yaml"

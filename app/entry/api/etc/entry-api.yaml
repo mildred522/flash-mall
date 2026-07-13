@@ -76,6 +76,7 @@ RequestIdTTLSeconds: 86400
 DtmTimeoutToFailSeconds: 120
 DtmRequestTimeoutSeconds: 6
 DtmWaitResult: false
+InventoryKitexEndpoint: 127.0.0.1:8093
 InventoryOwnsFinalDeduct: false
 
 OrderRateLimitQps: 200
