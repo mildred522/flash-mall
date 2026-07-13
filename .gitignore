@@ -10,6 +10,7 @@ tmp/
 *.exe
 *.out
 bin/
+obj/
 
 # Frontend
 frontend/node_modules/
