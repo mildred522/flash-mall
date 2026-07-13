@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setToken } from './auth';
-import { uploadProductImage } from './product-image-upload';
+import { uploadImageAsset, uploadProductImage } from './product-image-upload';
 
 describe('uploadProductImage', () => {
   afterEach(() => {
@@ -40,5 +40,30 @@ describe('uploadProductImage', () => {
     await expect(uploadProductImage(file, '/api/admin/products/image'))
       .rejects.toThrow('图片不能超过 5 MB');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('uploads a store asset with custom multipart fields', async () => {
+    setToken('merchant-token');
+    const file = new File(['png'], 'logo.png', { type: 'image/png' });
+    let requestURL = '';
+    let requestBody: FormData | undefined;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      requestURL = String(input);
+      requestBody = init?.body as FormData;
+      return new Response(JSON.stringify({ data: { image_url: '/uploads/stores/1000/logo.png' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }));
+
+    const imageURL = await uploadImageAsset(file, {
+      endpoint: '/api/merchant/store/assets',
+      fields: { asset_type: 'logo' },
+    });
+
+    expect(imageURL).toBe('/uploads/stores/1000/logo.png');
+    expect(requestURL).toBe('/api/merchant/store/assets');
+    expect(requestBody?.get('image')).toBe(file);
+    expect(requestBody?.get('asset_type')).toBe('logo');
   });
 });
