@@ -3,6 +3,7 @@ import { api, authed } from '@flash-mall/shared';
 import type { ProductCard as ProductCardType, CatalogResp, CreateOrderResp } from '@flash-mall/shared';
 import ProductCard from '../components/ProductCard';
 import { useAuth } from '../contexts/AuthContext';
+import { navigateShop } from '../navigation';
 
 interface Props {
   onLogin: () => void;
@@ -70,7 +71,13 @@ export default function HomePage({ onLogin, onOrderCreated }: Props) {
         ) : (
           <div className="product-grid">
             {products.map((p) => (
-              <ProductCard key={p.product_id} product={p} onBuy={handleBuy} />
+              <ProductCard
+                key={p.product_id}
+                product={p}
+                onView={(productId) => navigateShop(`/product/${productId}`)}
+                onStore={(merchantId) => navigateShop(`/store/${merchantId}`)}
+                onBuy={handleBuy}
+              />
             ))}
           </div>
         )}

@@ -6,7 +6,7 @@ import {
   resolveProductImage,
 } from '@flash-mall/shared';
 import type { ProductDetailResp } from '@flash-mall/shared';
-import { navigateShop } from '../App';
+import { navigateShop } from '../navigation';
 
 interface Props {
   productId: number;
