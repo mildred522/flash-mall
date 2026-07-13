@@ -52,6 +52,38 @@ message GetOrderDetailResp {
   int64 discount_amount_fen = 7;
 }
 
+message RequestRefundReq {
+  string order_id = 1;
+  int64 requester_id = 2;
+  string requester_role = 3;
+  string reason = 4;
+  string request_id = 5;
+}
+
+message RequestRefundResp {
+  string refund_id = 1;
+  string order_id = 2;
+  int64 order_status = 3;
+  int64 refund_status = 4;
+  bool repeated = 5;
+}
+
+message AuditRefundReq {
+  string refund_id = 1;
+  int64 operator_id = 2;
+  bool approve = 3;
+  string remark = 4;
+  string request_id = 5;
+}
+
+message AuditRefundResp {
+  string refund_id = 1;
+  string order_id = 2;
+  int64 order_status = 3;
+  int64 refund_status = 4;
+  bool repeated = 5;
+}
+
 message Empty {}
 
 service Order {
@@ -65,4 +97,6 @@ service Order {
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
   rpc MarkOrderPaid(MarkOrderPaidReq) returns (MarkOrderPaidResp);
   rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailResp);
+  rpc RequestRefund(RequestRefundReq) returns (RequestRefundResp);
+  rpc AuditRefund(AuditRefundReq) returns (AuditRefundResp);
 }

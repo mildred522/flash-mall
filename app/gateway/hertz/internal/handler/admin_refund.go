@@ -3,12 +3,12 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 
 	"flash-mall/app/common/apperror"
-	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
+	orderpb "flash-mall/app/order/rpc/order"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -48,13 +48,8 @@ func AdminRefundAuditHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "refund_id is required"))
 			return
 		}
-		db, err := orderDB(svcCtx)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
-			return
-		}
 		operatorID := gatewayOperatorID(ctx)
-		statusText, err := auditAdminRefund(ctx, svcCtx, db, req, operatorID)
+		statusText, err := auditAdminRefund(ctx, svcCtx, nil, req, operatorID)
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -158,122 +153,17 @@ LIMIT ? OFFSET ?`, queryArgs...)
 	return AdminRefundListResp{Items: items, Total: total}, nil
 }
 
-func auditAdminRefund(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.DB, req AdminRefundAuditReq, operatorID int64) (string, error) {
-	tx, err := db.BeginTx(ctx, nil)
+func auditAdminRefund(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB, req AdminRefundAuditReq, operatorID int64) (string, error) {
+	requestID := tracectx.RequestIDFrom(ctx)
+	if requestID == "" {
+		requestID = req.RefundID + ":audit"
+	}
+	resp, err := svcCtx.OrderRpc.AuditRefund(ctx, &orderpb.AuditRefundReq{
+		RefundId: req.RefundID, OperatorId: operatorID, Approve: req.Approve,
+		Remark: req.Remark, RequestId: requestID,
+	})
 	if err != nil {
 		return "", err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	var orderID string
-	var refundStatus int64
-	err = tx.QueryRowContext(ctx, `
-SELECT r.order_id, r.status
-FROM refund_order r
-JOIN orders o ON o.id = r.order_id
-WHERE r.id = ?
-FOR UPDATE`, req.RefundID).Scan(&orderID, &refundStatus)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", apperror.New(apperror.CodeRefundNotFound, "refund order not found")
-		}
-		return "", err
-	}
-	if refundStatus != 0 && refundStatus != 1 {
-		return "", apperror.New(apperror.CodeRefundStatusInvalid, "refund order already audited")
-	}
-
-	newRefundStatus := int64(3)
-	finishExpr := "NULL"
-	if req.Approve {
-		newRefundStatus = 2
-		finishExpr = "NOW()"
-	}
-	if _, err = tx.ExecContext(ctx,
-		"UPDATE refund_order SET status = ?, audit_remark = ?, operator_id = ?, audit_time = NOW(), finish_time = "+finishExpr+" WHERE id = ?",
-		newRefundStatus, req.Remark, operatorID, req.RefundID,
-	); err != nil {
-		return "", err
-	}
-
-	if req.Approve {
-		result, err := tx.ExecContext(ctx,
-			"UPDATE orders SET status = ?, refunded_at = NOW() WHERE id = ? AND status = ?",
-			orderstatus.Refunded, orderID, orderstatus.RefundRequested,
-		)
-		if err != nil {
-			return "", err
-		}
-		if rows, err := result.RowsAffected(); err != nil {
-			return "", err
-		} else if rows == 0 {
-			return "", apperror.New(apperror.CodeOrderStatusInvalid, "order status changed concurrently")
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
-			orderID, orderstatus.RefundRequested, orderstatus.Refunded, operatorID, "refund approved: "+req.Remark,
-		); err != nil {
-			return "", err
-		}
-		if err = releaseInventoryStock(ctx, svcCtx, InventoryReleaseReq{OrderID: orderID, Reason: "refund approved"}); err != nil {
-			return "", apperror.Wrap(apperror.CodeStockReconcileFailed, "release order stock failed", err)
-		}
-	} else {
-		restoreStatus, err := restoreStatusBeforeRefund(ctx, tx, orderID)
-		if err != nil {
-			return "", err
-		}
-		result, err := tx.ExecContext(ctx,
-			"UPDATE orders SET status = ?, refund_requested_at = NULL WHERE id = ? AND status = ?",
-			restoreStatus, orderID, orderstatus.RefundRequested,
-		)
-		if err != nil {
-			return "", err
-		}
-		if rows, err := result.RowsAffected(); err != nil {
-			return "", err
-		} else if rows == 0 {
-			return "", apperror.New(apperror.CodeOrderStatusInvalid, "order status changed concurrently")
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
-			orderID, orderstatus.RefundRequested, restoreStatus, operatorID, "refund rejected: "+req.Remark,
-		); err != nil {
-			return "", err
-		}
-	}
-
-	eventType := "refund.rejected"
-	if req.Approve {
-		eventType = "refund.succeeded"
-	}
-	if _, err = tx.ExecContext(ctx,
-		`INSERT INTO order_outbox (event_id, event_type, aggregate_id, payload, status)
-		 VALUES (?, ?, ?, JSON_OBJECT('refund_id', ?, 'order_id', ?, 'operator_id', ?), 0)
-		 ON DUPLICATE KEY UPDATE status = 0, next_retry_at = NOW(), last_error = ''`,
-		"evt_"+req.RefundID+"_"+eventType, eventType, orderID, req.RefundID, orderID, operatorID,
-	); err != nil {
-		return "", err
-	}
-	if err = tx.Commit(); err != nil {
-		return "", err
-	}
-	return refundStatusText(newRefundStatus), nil
-}
-
-func restoreStatusBeforeRefund(ctx context.Context, tx *sql.Tx, orderID string) (int64, error) {
-	restoreStatus := orderstatus.Paid
-	err := tx.QueryRowContext(ctx, `
-SELECT from_status
-FROM order_status_log
-WHERE order_id = ? AND to_status = ?
-ORDER BY id DESC
-LIMIT 1`, orderID, orderstatus.RefundRequested).Scan(&restoreStatus)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
-	}
-	if restoreStatus != orderstatus.Paid && restoreStatus != orderstatus.Shipped {
-		return orderstatus.Paid, nil
-	}
-	return restoreStatus, nil
+	return refundStatusText(resp.GetRefundStatus()), nil
 }

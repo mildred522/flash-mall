@@ -55,3 +55,13 @@ func (s *OrderServer) GetOrderDetail(ctx context.Context, in *order.GetOrderDeta
 	l := logic.NewGetOrderDetailLogic(ctx, s.svcCtx)
 	return l.GetOrderDetail(in)
 }
+
+func (s *OrderServer) RequestRefund(ctx context.Context, in *order.RequestRefundReq) (*order.RequestRefundResp, error) {
+	l := logic.NewRequestRefundLogic(ctx, s.svcCtx)
+	return l.RequestRefund(in)
+}
+
+func (s *OrderServer) AuditRefund(ctx context.Context, in *order.AuditRefundReq) (*order.AuditRefundResp, error) {
+	l := logic.NewAuditRefundLogic(ctx, s.svcCtx)
+	return l.AuditRefund(in)
+}

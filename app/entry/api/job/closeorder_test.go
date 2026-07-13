@@ -97,6 +97,14 @@ func (o *closeOrderOrderRPC) GetOrderDetail(context.Context, *orderclient.GetOrd
 	panic("unexpected GetOrderDetail call")
 }
 
+func (o *closeOrderOrderRPC) RequestRefund(context.Context, *orderclient.RequestRefundReq, ...grpc.CallOption) (*orderclient.RequestRefundResp, error) {
+	panic("unexpected RequestRefund call")
+}
+
+func (o *closeOrderOrderRPC) AuditRefund(context.Context, *orderclient.AuditRefundReq, ...grpc.CallOption) (*orderclient.AuditRefundResp, error) {
+	panic("unexpected AuditRefund call")
+}
+
 func TestCloseOrderJob_HandleCloseOrder_SkipsWhenPaymentWinsRace(t *testing.T) {
 	sqlConn := sqlx.NewMysql(closeOrderTestDSN)
 	orderID := "o-close-race"
