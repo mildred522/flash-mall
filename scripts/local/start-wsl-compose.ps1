@@ -6,7 +6,6 @@ param(
   [switch]$ComposeBuild,
   [switch]$Foreground,
   [switch]$PullDeps,
-  [switch]$NoKeepAlive,
   [switch]$NoWait,
   [int]$WaitTimeout = 180,
   [switch]$Help
@@ -25,7 +24,6 @@ Options:
   -ComposeBuild      Build service images through docker compose build.
   -Foreground        Run docker compose up in the foreground.
   -PullDeps          Pull dependency images before startup.
-  -NoKeepAlive       Do not keep the WSL distro alive after this script exits.
   -NoWait            Do not wait for entry-api health after detached startup.
   -WaitTimeout N     Wait up to N seconds for health. Default: 180.
 "@ | Write-Host
@@ -51,10 +49,6 @@ if ($WaitTimeout -gt 0) {
 $quotedWorkspace = ConvertTo-BashSingleQuoted $Workspace
 $quotedArgs = $scriptArgs | ForEach-Object { ConvertTo-BashSingleQuoted $_ }
 $bashCommand = "cd $quotedWorkspace && scripts/local/start-compose-all.sh $($quotedArgs -join ' ')"
-
-if (-not $NoKeepAlive) {
-  & (Join-Path $PSScriptRoot "start-wsl-keepalive.ps1") -Distro $Distro -Workspace $Workspace
-}
 
 Write-Host "[WSL] $Distro $bashCommand"
 & wsl.exe -d $Distro -- bash -lc $bashCommand

@@ -53,16 +53,6 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 	if orderUserID != userID {
 		return nil, status.Error(codes.PermissionDenied, "order does not belong to user")
 	}
-	if currentStatus == orderstatus.Paid {
-		if err := l.confirmInventoryDeduct(req.OrderId); err != nil {
-			return nil, err
-		}
-		if _, err := l.svcCtx.Redis.ZremCtx(l.ctx, OrderDelayQueueKey, req.OrderId); err != nil {
-			l.Errorf("remove paid order from delay queue failed: order_id=%s err=%v", req.OrderId, err)
-		}
-		metricResult = "ok"
-		return &types.PayOrderResp{OrderId: req.OrderId, Status: "paid"}, nil
-	}
 	if currentStatus != orderstatus.PendingPayment {
 		return nil, status.Error(codes.FailedPrecondition, "order is not pending payment")
 	}
@@ -106,9 +96,6 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 	if err = tx.Commit(); err != nil {
 		return nil, status.Error(codes.Internal, "commit failed")
 	}
-	if err := l.confirmInventoryDeduct(req.OrderId); err != nil {
-		return nil, err
-	}
 
 	// Remove from delay queue so CloseOrderJob won't close it
 	if _, err := l.svcCtx.Redis.ZremCtx(l.ctx, OrderDelayQueueKey, req.OrderId); err != nil {
@@ -123,20 +110,4 @@ func (l *PayOrderLogic) PayOrder(req *types.PayOrderReq, userID int64) (*types.P
 		OrderId: req.OrderId,
 		Status:  "paid",
 	}, nil
-}
-
-func (l *PayOrderLogic) confirmInventoryDeduct(orderID string) error {
-	if l.svcCtx.InventoryClient != nil {
-		if err := l.svcCtx.InventoryClient.ConfirmDeduct(l.ctx, orderID); err != nil {
-			l.Errorf("inventory confirm deduct failed: order_id=%s err=%v", orderID, err)
-			if l.svcCtx.Config.InventoryOwnsFinalDeduct {
-				return status.Error(codes.Internal, "inventory confirm deduct failed")
-			}
-		}
-		return nil
-	}
-	if l.svcCtx.Config.InventoryOwnsFinalDeduct {
-		return status.Error(codes.Internal, "inventory client not configured")
-	}
-	return nil
 }

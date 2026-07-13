@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { copyFileSync, cpSync, mkdirSync, existsSync } from 'fs';
+import { copyFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -16,12 +16,6 @@ if (!existsSync(webDir)) mkdirSync(webDir, { recursive: true });
 
 copyFileSync(resolve(__dirname, 'packages/shop/dist/index.html'), resolve(webDir, 'shop.html'));
 console.log('[build] Copied shop.html');
-
-const productAssets = resolve(__dirname, 'packages/shop/dist/products');
-if (existsSync(productAssets)) {
-  cpSync(productAssets, resolve(webDir, 'products'), { recursive: true, force: true });
-  console.log('[build] Copied bundled product images');
-}
 
 copyFileSync(resolve(__dirname, 'packages/admin/dist/index.html'), resolve(webDir, 'admin.html'));
 console.log('[build] Copied admin.html');

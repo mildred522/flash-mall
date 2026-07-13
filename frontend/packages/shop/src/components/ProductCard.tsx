@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { PRODUCT_META, formatPriceFen, resolveProductImage } from '@flash-mall/shared';
+import { PRODUCT_META, formatPriceFen } from '@flash-mall/shared';
 import type { ProductCard as ProductCardType } from '@flash-mall/shared';
 
 interface Props {
@@ -10,8 +9,6 @@ interface Props {
 export default function ProductCard({ product, onBuy }: Props) {
   const meta = PRODUCT_META[product.product_id];
   const icon = meta?.icon || '📦';
-  const imageURL = resolveProductImage(product.product_id, product.image_url);
-  const [imageFailed, setImageFailed] = useState(false);
   const hasDiscount = product.final_price_fen < product.origin_price_fen;
 
   return (
@@ -20,11 +17,7 @@ export default function ProductCard({ product, onBuy }: Props) {
         <div className="badge">
           {product.promotion_tag && <span className="pill orange">{product.promotion_tag}</span>}
         </div>
-        {imageURL && !imageFailed ? (
-          <img className="thumb-img" src={imageURL} alt={product.name || '商品图片'} loading="lazy" onError={() => setImageFailed(true)} />
-        ) : (
-          <span className="thumb-icon">{icon}</span>
-        )}
+        <span className="thumb-icon">{icon}</span>
       </div>
       <div className="product-info">
         <div className="product-name">{product.name}</div>

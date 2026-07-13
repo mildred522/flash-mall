@@ -3,25 +3,6 @@ import type { ApiResponse } from './types';
 
 const BASE = '';
 
-type GatewayEnvelope<T> = {
-  code: string;
-  message: string;
-  request_id?: string;
-  data: T;
-};
-
-function unwrapGatewayEnvelope<T>(payload: unknown): T {
-  if (
-    payload !== null &&
-    typeof payload === 'object' &&
-    'code' in payload &&
-    'data' in payload
-  ) {
-    return (payload as GatewayEnvelope<T>).data;
-  }
-  return payload as T;
-}
-
 async function refreshToken(): Promise<string | null> {
   const token = getToken();
   if (!token) return null;
@@ -63,7 +44,7 @@ export async function api<T>(
   const status = res.status;
   let data: T;
   try {
-    data = unwrapGatewayEnvelope<T>(await res.json());
+    data = await res.json();
   } catch {
     data = {} as T;
   }

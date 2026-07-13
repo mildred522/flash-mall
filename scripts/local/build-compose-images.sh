@@ -3,63 +3,14 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-tag="${FLASH_MALL_IMAGE_TAG:-dev}"
+tag="${1:-${FLASH_MALL_IMAGE_TAG:-dev}}"
 context_root="$repo_root/.runtime/docker-context"
 dockerfile="$repo_root/build/docker/local-binary.Dockerfile"
-all_services="auth-api product-rpc order-rpc inventory-kitex entry-api hertz-gateway"
-requested_services=""
 
-usage() {
-  cat <<'EOF'
-Usage: scripts/local/build-compose-images.sh [--tag TAG] [SERVICE...]
-
-Build all services when SERVICE is omitted. Supported services:
-  auth-api product-rpc order-rpc inventory-kitex entry-api hertz-gateway
-EOF
-}
-
-is_service() {
-  case "$1" in
-    auth-api|product-rpc|order-rpc|inventory-kitex|entry-api|hertz-gateway) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --tag)
-      shift
-      if [ "$#" -eq 0 ] || [ -z "$1" ]; then
-        echo "--tag requires a value" >&2
-        exit 2
-      fi
-      tag="$1"
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    --*)
-      echo "unknown option: $1" >&2
-      usage >&2
-      exit 2
-      ;;
-    *)
-      if ! is_service "$1"; then
-        echo "unknown service: $1" >&2
-        usage >&2
-        exit 2
-      fi
-      requested_services="$requested_services $1"
-      ;;
-  esac
-  shift
-done
-
-services="${requested_services# }"
-if [ -z "$services" ]; then
-  services="$all_services"
-fi
+services='auth-api:./app/auth/api
+product-rpc:./app/product/rpc
+order-rpc:./app/order/rpc
+entry-api:./app/entry/api'
 
 command -v go >/dev/null 2>&1 || {
   echo "go not found in PATH" >&2
@@ -86,27 +37,9 @@ restore_env() {
 }
 trap restore_env EXIT INT TERM
 
-for name in $services; do
-  case "$name" in
-    auth-api) package_path="./app/auth/api" ;;
-    product-rpc) package_path="./app/product/rpc" ;;
-    order-rpc) package_path="./app/order/rpc" ;;
-    inventory-kitex) package_path="./app/inventory/kitex" ;;
-    entry-api) package_path="./app/entry/api" ;;
-    hertz-gateway) package_path="./app/gateway/hertz" ;;
-  esac
-
+printf '%s\n' "$services" | while IFS=: read -r name package_path; do
   svc_context="$context_root/$name"
-  case "$svc_context" in
-    "$context_root"/*) ;;
-    *) echo "unsafe service context: $svc_context" >&2; exit 1 ;;
-  esac
-  rm -rf "$svc_context"
-  mkdir -p "$svc_context/web"
-
-  if [ "$name" = "hertz-gateway" ]; then
-    cp -R "$repo_root/app/entry/api/internal/handler/web/." "$svc_context/web/"
-  fi
+  mkdir -p "$svc_context"
 
   echo "[GO BUILD] $name"
   go build -trimpath -tags timetzdata -o "$svc_context/app" "$package_path"

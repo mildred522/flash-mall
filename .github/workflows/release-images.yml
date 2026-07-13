@@ -32,8 +32,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - image: hertz-gateway
-            dockerfile: build/docker/hertz-gateway.Dockerfile
           - image: entry-api
             dockerfile: build/docker/entry-api.Dockerfile
           - image: auth-api
@@ -42,8 +40,6 @@ jobs:
             dockerfile: build/docker/order-rpc.Dockerfile
           - image: product-rpc
             dockerfile: build/docker/product-rpc.Dockerfile
-          - image: inventory-kitex
-            dockerfile: build/docker/inventory-kitex.Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@v4

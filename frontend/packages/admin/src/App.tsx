@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { ComponentType } from 'react';
 import { ProLayout } from '@ant-design/pro-components';
 import {
   DashboardOutlined,
@@ -38,7 +37,7 @@ declare global {
   }
 }
 
-const routeMap: Record<string, ComponentType> = {
+const routeMap: Record<string, () => JSX.Element> = {
   '/admin': DashboardPage,
   '/admin/orders': OrdersPage,
   '/admin/products': ProductsPage,

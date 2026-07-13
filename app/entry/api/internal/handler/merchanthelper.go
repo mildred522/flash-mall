@@ -62,13 +62,7 @@ func ensureProductMerchantSchema(ctx context.Context, db *sql.DB) error {
 	if err := ensureMerchantBaseSchema(ctx, db); err != nil {
 		return err
 	}
-	if err := ensureProductMerchantColumn(ctx, db); err != nil {
-		return err
-	}
-	if err := ensureProductStockSnapshotTable(ctx, db); err != nil {
-		return err
-	}
-	return ensureProductCardSnapshotTable(ctx, db)
+	return ensureProductMerchantColumn(ctx, db)
 }
 
 func ensureOrderMerchantSchema(ctx context.Context, db *sql.DB) error {
@@ -102,41 +96,6 @@ WHERE TABLE_SCHEMA = 'mall_product'
 		}
 	}
 	return nil
-}
-
-func ensureProductStockSnapshotTable(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS mall_product.product_stock_snapshot (
-  product_id bigint NOT NULL,
-  available bigint NOT NULL DEFAULT 0,
-  reserved bigint NOT NULL DEFAULT 0,
-  total bigint NOT NULL DEFAULT 0,
-  source varchar(32) NOT NULL DEFAULT 'inventory-kitex',
-  version bigint NOT NULL DEFAULT 0,
-  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (product_id),
-  KEY ix_update_time (update_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
-	return err
-}
-
-func ensureProductCardSnapshotTable(ctx context.Context, db *sql.DB) error {
-	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS mall_product.product_card_snapshot (
-  product_id bigint NOT NULL,
-  name varchar(255) NOT NULL DEFAULT '',
-  origin_price_fen bigint NOT NULL DEFAULT 0,
-  final_price_fen bigint NOT NULL DEFAULT 0,
-  promotion_type varchar(32) NOT NULL DEFAULT '',
-  promotion_tag varchar(32) NOT NULL DEFAULT '',
-  stock_available bigint NOT NULL DEFAULT 0,
-  supplier_id bigint NOT NULL DEFAULT 0,
-  status tinyint NOT NULL DEFAULT 1,
-  version bigint NOT NULL DEFAULT 0,
-  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (product_id),
-  KEY ix_status_product (status, product_id),
-  KEY ix_update_time (update_time)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
-	return err
 }
 
 func ensureOrderMerchantColumns(ctx context.Context, db *sql.DB) error {

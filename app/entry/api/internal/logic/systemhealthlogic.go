@@ -37,7 +37,6 @@ func (l *SystemHealthLogic) SystemHealth() (*types.SystemHealthResp, error) {
 		{name: "dtm", fn: func() (bool, string) { return l.checkTCP(strings.TrimSpace(l.svcCtx.Config.DtmServer)) }},
 		{name: "order-rpc", fn: func() (bool, string) { return l.checkTCP(strings.TrimSpace(l.svcCtx.Config.OrderRpcTarget)) }},
 		{name: "product-rpc", fn: func() (bool, string) { return l.checkTCP(strings.TrimSpace(l.svcCtx.Config.ProductRpcTarget)) }},
-		{name: "inventory-kitex", fn: l.checkInventoryKitex},
 		{name: "rabbitmq", fn: l.checkRabbit},
 	}
 
@@ -90,35 +89,7 @@ func (l *SystemHealthLogic) SystemHealth() (*types.SystemHealthResp, error) {
 		Goroutines:   runtime.NumGoroutine(),
 		ServerTime:   time.Now().Unix(),
 		Dependencies: deps,
-		Architecture: l.architectureStatus(),
 	}, nil
-}
-
-func (l *SystemHealthLogic) architectureStatus() types.ArchitectureStatus {
-	endpoint := strings.TrimSpace(l.svcCtx.Config.InventoryKitexEndpoint)
-	finalWriter := "product-rpc"
-	stage := "inventory-reserve-product-final"
-	requiredReserveWriter := "inventory-kitex"
-	note := "inventory-kitex reserves stock; product-rpc owns final mysql stock deduction"
-	if l.svcCtx.Config.InventoryOwnsFinalDeduct {
-		finalWriter = "inventory-kitex"
-		stage = "inventory-owned-final-deduct"
-		note = "inventory-kitex must own both reserve and final mysql stock deduction"
-	}
-	if endpoint == "" {
-		stage = "legacy-product-rpc"
-		requiredReserveWriter = "order-rpc-redis"
-		note = "inventory-kitex disabled; legacy product-rpc final deduction remains active"
-	}
-	return types.ArchitectureStatus{
-		InventoryKitexEnabled:    endpoint != "",
-		InventoryKitexEndpoint:   endpoint,
-		InventoryOwnsFinalDeduct: l.svcCtx.Config.InventoryOwnsFinalDeduct,
-		FinalStockWriter:         finalWriter,
-		MigrationStage:           stage,
-		RequiredReserveWriter:    requiredReserveWriter,
-		MigrationNote:            note,
-	}
 }
 
 func (l *SystemHealthLogic) checkMySQL() (bool, string) {
@@ -131,14 +102,6 @@ func (l *SystemHealthLogic) checkMySQL() (bool, string) {
 
 func (l *SystemHealthLogic) checkRedis() (bool, string) {
 	return l.checkTCP(strings.TrimSpace(l.svcCtx.Config.RedisConf.Host))
-}
-
-func (l *SystemHealthLogic) checkInventoryKitex() (bool, string) {
-	endpoint := strings.TrimSpace(l.svcCtx.Config.InventoryKitexEndpoint)
-	if endpoint == "" {
-		return true, "disabled"
-	}
-	return l.checkTCP(endpoint)
 }
 
 func (l *SystemHealthLogic) checkTCP(addr string) (bool, string) {
