@@ -47,6 +47,25 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("running", status.State);
     }
 
+    [Fact]
+    public async Task OpeningLocalEntryWritesAnOperationLog()
+    {
+        var logs = new MemoryLogStore();
+        var urls = new FakeUrlService();
+        var vm = new MainWindowViewModel(
+            new FakeRunner(new LauncherEvent("state", "ready", "info", "ready"), 0),
+            new MemorySettingsStore(),
+            urls,
+            logs,
+            new ImmediateDispatcher(),
+            LauncherSettings.Default);
+
+        await vm.OpenUrlCommand.ExecuteAsync("http://127.0.0.1:8889/shop");
+
+        Assert.Equal("http://127.0.0.1:8889/shop", urls.Opened);
+        Assert.Contains(logs.Lines, line => line.Contains("打开本地入口", StringComparison.Ordinal));
+    }
+
     private static MainWindowViewModel CreateViewModel(IControlRunner runner) =>
         new(
             runner,

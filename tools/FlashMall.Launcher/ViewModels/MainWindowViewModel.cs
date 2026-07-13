@@ -251,6 +251,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         {
             if (string.IsNullOrWhiteSpace(url)) throw new ArgumentException("Missing URL.");
             _urls.Open(url);
+            AppendLog($"打开本地入口：{url}");
         }
         catch (Exception exception)
         {
