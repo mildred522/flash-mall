@@ -190,7 +190,7 @@ docker exec -i mysql mysql --force --default-character-set=utf8mb4 -uroot -p6494
 
 go run ./app/entry/api/scripts/seed/seed_stock.go -product 100 -stock 10000 -shards 4
 
-start_go_service "inventory-kitex" "./app/inventory/kitex/main.go"
+start_go_service "inventory-kitex" "./app/inventory/kitex"
 wait_for_port "inventory-kitex" "127.0.0.1" "8093" 90
 
 start_go_service "product-rpc" "./app/product/rpc/product.go" "./app/product/rpc/etc/product.yaml"

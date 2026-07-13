@@ -21,13 +21,13 @@ This makes routine commits pay the cost of release-level validation. It also tre
 
 `CI` remains the stable pull-request gate. It detects changed paths and runs only relevant jobs:
 
-- Go vet, tests, and binary builds for Go or workflow changes;
+- Go vet, tests, and binary builds for Go or workflow changes, backed by one ephemeral MySQL service required by the existing repository tests;
 - shop/admin frontend builds only for `frontend/**` changes;
 - embedded web build only for `web/**` changes;
 - API contract parsing only when the corresponding contract changes;
 - shell and workflow syntax validation for CI changes.
 
-An always-present aggregate job exposes one stable `Fast CI` result for branch protection. It accepts successful or intentionally skipped component jobs and rejects cancellations or failures.
+An always-present aggregate job exposes one stable `Fast CI` result for branch protection. It accepts successful or intentionally skipped component jobs and rejects cancellations or failures. Fast CI does not start the full Etcd, DTM, Redis, RabbitMQ, or application-service stack.
 
 ### Full Integration CI
 

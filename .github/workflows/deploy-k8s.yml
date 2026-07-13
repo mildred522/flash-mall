@@ -61,13 +61,17 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            echo "image_tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
-            echo "include_dependencies=${{ inputs.include_dependencies }}" >> "$GITHUB_OUTPUT"
-            echo "run_init_jobs=${{ inputs.run_init_jobs }}" >> "$GITHUB_OUTPUT"
+            {
+              echo "image_tag=${{ inputs.image_tag }}"
+              echo "include_dependencies=${{ inputs.include_dependencies }}"
+              echo "run_init_jobs=${{ inputs.run_init_jobs }}"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
-            echo "include_dependencies=false" >> "$GITHUB_OUTPUT"
-            echo "run_init_jobs=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}"
+              echo "include_dependencies=false"
+              echo "run_init_jobs=false"
+            } >> "$GITHUB_OUTPUT"
           fi
 
       - name: Write kubeconfig
