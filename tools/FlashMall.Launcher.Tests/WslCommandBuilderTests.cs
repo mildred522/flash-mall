@@ -1,5 +1,6 @@
 using FlashMall.Launcher.Models;
 using FlashMall.Launcher.Services;
+using System.Text;
 
 namespace FlashMall.Launcher.Tests;
 
@@ -23,6 +24,8 @@ public sealed class WslCommandBuilderTests
         Assert.True(psi.RedirectStandardError);
         Assert.False(psi.UseShellExecute);
         Assert.True(psi.CreateNoWindow);
+        Assert.Equal(Encoding.UTF8, psi.StandardOutputEncoding);
+        Assert.Equal(Encoding.UTF8, psi.StandardErrorEncoding);
     }
 
     [Theory]

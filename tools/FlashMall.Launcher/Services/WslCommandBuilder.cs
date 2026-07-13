@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using FlashMall.Launcher.Models;
 
 namespace FlashMall.Launcher.Services;
@@ -49,6 +50,8 @@ public static class WslCommandBuilder
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true,
         };
 
