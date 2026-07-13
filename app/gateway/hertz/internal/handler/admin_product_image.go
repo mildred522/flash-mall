@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/common/authctx"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -20,6 +21,30 @@ import (
 const maxGatewayProductImageBytes = 5 << 20
 
 func AdminProductImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
+	return productImageUploadHandler(svcCtx)
+}
+
+func MerchantProductImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		identity, ok := authctx.IdentityFrom(ctx)
+		if !ok || identity.UserID <= 0 {
+			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
+			return
+		}
+		db, err := svcCtx.SqlConn.RawDB()
+		if err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant identity query failed", err))
+			return
+		}
+		if _, err = selectedMerchantID(ctx, db, identity); err != nil {
+			fail(ctx, c, consts.StatusForbidden, err)
+			return
+		}
+		productImageUploadHandler(svcCtx)(ctx, c)
+	}
+}
+
+func productImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		fileHeader, err := c.FormFile("image")
 		if err != nil {

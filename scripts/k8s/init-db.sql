@@ -79,8 +79,16 @@ CREATE TABLE IF NOT EXISTS orders (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO merchant (id, name, owner_user_id, status, contact_phone)
-VALUES (1000, 'Flash Mall 自营店', 0, 1, '')
-ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
+VALUES (1000, 'Flash Mall 自营店', 1001, 1, '13800000001')
+ON DUPLICATE KEY UPDATE
+  name = VALUES(name),
+  owner_user_id = VALUES(owner_user_id),
+  status = VALUES(status),
+  contact_phone = VALUES(contact_phone);
+
+INSERT INTO merchant_user (merchant_id, user_id, role, status)
+VALUES (1000, 1001, 'owner', 1)
+ON DUPLICATE KEY UPDATE role = VALUES(role), status = VALUES(status);
 
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'orders' AND COLUMN_NAME = 'merchant_id');
 SET @sql = IF(@has_col = 0, 'ALTER TABLE orders ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id', 'SELECT 1');

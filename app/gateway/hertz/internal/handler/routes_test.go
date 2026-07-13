@@ -52,3 +52,27 @@ func TestPaymentRoutesExposeIntentStatusAndSandboxConfirmation(t *testing.T) {
 		t.Errorf("payment route is missing: %s", route)
 	}
 }
+
+func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
+	h := server.Default()
+	svcCtx := &svc.ServiceContext{}
+	registerSystemRoutes(h, svcCtx, time.Now())
+	registerMerchantRoutes(h, svcCtx)
+
+	want := map[string]bool{
+		"GET /merchant":                     false,
+		"GET /merchant/*any":                false,
+		"POST /api/merchant/products/image": false,
+	}
+	for _, route := range h.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for route, found := range want {
+		if !found {
+			t.Errorf("merchant route is missing: %s", route)
+		}
+	}
+}
