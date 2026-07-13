@@ -120,7 +120,8 @@ func registerAdminRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 }
 
 func registerMerchantRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
-	h.GET("/api/merchant/me", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
+	h.GET("/api/merchant/me", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
+	h.GET("/api/merchant/application", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplicationHandler(svcCtx))
 	h.POST("/api/merchant/apply", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplyCreateHandler(svcCtx))
 	h.GET("/api/merchant/dashboard/stats", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantDashboardStatsHandler(svcCtx))
 	h.GET("/api/merchant/products", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductListHandler(svcCtx))
@@ -180,7 +181,8 @@ func registerCompatibilityRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, st
 	h.GET("/api/gateway/admin/users/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/users/detail"))
 	h.POST("/api/gateway/admin/users/status", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/users/status"))
 	h.GET("/api/gateway/admin/security/events/recent", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/security/events/recent"))
-	h.GET("/api/gateway/merchant/me", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
+	h.GET("/api/gateway/merchant/me", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
+	h.GET("/api/gateway/merchant/application", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplicationHandler(svcCtx))
 	h.POST("/api/gateway/merchant/apply", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplyCreateHandler(svcCtx))
 	h.GET("/api/gateway/merchant/dashboard/stats", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantDashboardStatsHandler(svcCtx))
 	h.GET("/api/gateway/merchant/products", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductListHandler(svcCtx))

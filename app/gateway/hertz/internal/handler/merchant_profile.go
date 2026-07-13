@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"regexp"
 	"strings"
 
 	"flash-mall/app/common/apperror"
@@ -13,6 +14,11 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+)
+
+var (
+	merchantContactPhonePattern = regexp.MustCompile(`^1[3-9][0-9]{9}$`)
+	errMerchantAlreadyActive    = errors.New("active merchant already exists")
 )
 
 func MerchantMeHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
@@ -30,6 +36,27 @@ func MerchantMeHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		resp, err := loadMerchantMe(ctx, db, identity.UserID)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant profile query failed", err))
+			return
+		}
+		ok(ctx, c, resp)
+	}
+}
+
+func MerchantApplicationHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		identity, hasIdentity := authctx.IdentityFrom(ctx)
+		if !hasIdentity || identity.UserID <= 0 {
+			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
+			return
+		}
+		db, err := orderDB(svcCtx)
+		if err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
+			return
+		}
+		resp, err := loadLatestMerchantApplication(ctx, db, identity.UserID)
+		if err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant application query failed", err))
 			return
 		}
 		ok(ctx, c, resp)
@@ -54,6 +81,10 @@ func MerchantApplyCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "merchant_name is required"))
 			return
 		}
+		if req.ContactPhone != "" && !merchantContactPhonePattern.MatchString(req.ContactPhone) {
+			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "contact_phone is invalid"))
+			return
+		}
 		db, err := orderDB(svcCtx)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
@@ -61,11 +92,50 @@ func MerchantApplyCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 		resp, err := createMerchantApply(ctx, db, identity.UserID, req)
 		if err != nil {
+			if errors.Is(err, errMerchantAlreadyActive) {
+				fail(ctx, c, consts.StatusConflict, apperror.New(apperror.CodeConflict, err.Error()))
+				return
+			}
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant apply failed", err))
 			return
 		}
 		ok(ctx, c, resp)
 	}
+}
+
+func merchantApplicationStatusText(status int64) string {
+	switch status {
+	case 0:
+		return "pending"
+	case 1:
+		return "approved"
+	case 2:
+		return "rejected"
+	default:
+		return "unknown"
+	}
+}
+
+func loadLatestMerchantApplication(ctx context.Context, db *sql.DB, userID int64) (MerchantApplicationResp, error) {
+	row := db.QueryRowContext(ctx, `
+SELECT id, merchant_name, contact_phone, status, merchant_id, audit_remark,
+       COALESCE(DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s'), ''),
+       COALESCE(DATE_FORMAT(audit_time, '%Y-%m-%d %H:%i:%s'), '')
+FROM merchant_apply
+WHERE user_id = ?
+ORDER BY id DESC
+LIMIT 1`, userID)
+
+	item := MerchantApplicationItem{}
+	if err := row.Scan(&item.ApplyID, &item.MerchantName, &item.ContactPhone, &item.Status,
+		&item.MerchantID, &item.AuditRemark, &item.CreateTime, &item.AuditTime); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return MerchantApplicationResp{Application: nil}, nil
+		}
+		return MerchantApplicationResp{}, err
+	}
+	item.StatusText = merchantApplicationStatusText(item.Status)
+	return MerchantApplicationResp{Application: &item}, nil
 }
 
 func MerchantDashboardStatsHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
@@ -114,24 +184,49 @@ ORDER BY mu.id ASC`, userID)
 }
 
 func createMerchantApply(ctx context.Context, db *sql.DB, userID int64, req MerchantApplyReq) (MerchantApplyResp, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return MerchantApplyResp{}, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var activeMerchantCount int64
+	if err = tx.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM merchant_user mu
+JOIN merchant m ON m.id = mu.merchant_id
+WHERE mu.user_id = ? AND mu.status = 1 AND m.status = 1`, userID).Scan(&activeMerchantCount); err != nil {
+		return MerchantApplyResp{}, err
+	}
+	if activeMerchantCount > 0 {
+		return MerchantApplyResp{}, errMerchantAlreadyActive
+	}
+
 	var applyID int64
-	err := db.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
 SELECT id
 FROM merchant_apply
 WHERE user_id = ? AND status = 0
 ORDER BY id DESC
-LIMIT 1`, userID).Scan(&applyID)
+LIMIT 1
+FOR UPDATE`, userID).Scan(&applyID)
 	if err == nil {
+		if err = tx.Commit(); err != nil {
+			return MerchantApplyResp{}, err
+		}
 		return MerchantApplyResp{ApplyID: applyID, Status: "pending"}, nil
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return MerchantApplyResp{}, err
 	}
-	result, err := db.ExecContext(ctx, "INSERT INTO merchant_apply (user_id, merchant_name, contact_phone, status) VALUES (?, ?, ?, 0)", userID, req.MerchantName, req.ContactPhone)
+	result, err := tx.ExecContext(ctx, "INSERT INTO merchant_apply (user_id, merchant_name, contact_phone, status) VALUES (?, ?, ?, 0)", userID, req.MerchantName, req.ContactPhone)
 	if err != nil {
 		return MerchantApplyResp{}, err
 	}
 	applyID, _ = result.LastInsertId()
+	if err = tx.Commit(); err != nil {
+		return MerchantApplyResp{}, err
+	}
 	return MerchantApplyResp{ApplyID: applyID, Status: "pending"}, nil
 }
 

@@ -62,6 +62,7 @@ func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
 	want := map[string]bool{
 		"GET /merchant":                     false,
 		"GET /merchant/*any":                false,
+		"GET /api/merchant/application":     false,
 		"POST /api/merchant/products/image": false,
 	}
 	for _, route := range h.Routes() {

@@ -348,6 +348,22 @@ type MerchantApplyResp struct {
 	Status  string `json:"status"`
 }
 
+type MerchantApplicationItem struct {
+	ApplyID      int64  `json:"apply_id"`
+	MerchantName string `json:"merchant_name"`
+	ContactPhone string `json:"contact_phone"`
+	Status       int64  `json:"status"`
+	StatusText   string `json:"status_text"`
+	MerchantID   int64  `json:"merchant_id"`
+	AuditRemark  string `json:"audit_remark"`
+	CreateTime   string `json:"create_time"`
+	AuditTime    string `json:"audit_time"`
+}
+
+type MerchantApplicationResp struct {
+	Application *MerchantApplicationItem `json:"application"`
+}
+
 type MerchantDashboardStatsResp struct {
 	MerchantID       int64 `json:"merchant_id"`
 	OrderCount       int64 `json:"order_count"`
