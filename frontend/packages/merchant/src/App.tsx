@@ -3,17 +3,17 @@ import { ProLayout } from '@ant-design/pro-components';
 import { DashboardOutlined, OrderedListOutlined, ShoppingOutlined, SwapOutlined, UndoOutlined } from '@ant-design/icons';
 import MerchantGuard from './components/MerchantGuard';
 import DashboardPage from './pages/DashboardPage';
-
-function PendingPage() {
-  return <div>页面正在接入商家 API</div>;
-}
+import InventoryPage from './pages/InventoryPage';
+import OrdersPage from './pages/OrdersPage';
+import ProductsPage from './pages/ProductsPage';
+import RefundsPage from './pages/RefundsPage';
 
 const routeMap: Record<string, ComponentType> = {
   '/merchant': DashboardPage,
-  '/merchant/products': PendingPage,
-  '/merchant/inventory': PendingPage,
-  '/merchant/orders': PendingPage,
-  '/merchant/refunds': PendingPage,
+  '/merchant/products': ProductsPage,
+  '/merchant/inventory': InventoryPage,
+  '/merchant/orders': OrdersPage,
+  '/merchant/refunds': RefundsPage,
 };
 
 const menuRoutes = {

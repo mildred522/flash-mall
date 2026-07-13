@@ -117,6 +117,52 @@ export interface MerchantDashboardStats {
   sales_amount_fen: number;
 }
 
+export interface MerchantStockChangeItem {
+  id: number;
+  product_id: number;
+  order_id: string;
+  change_type: string;
+  delta: number;
+  before_available: number;
+  after_available: number;
+  reason: string;
+  request_id: string;
+  trace_id: string;
+  operator_user_id: number;
+  operator_merchant_id: number;
+  operator_role: string;
+  create_time: string;
+}
+
+export interface MerchantStockChangeListResp {
+  items: MerchantStockChangeItem[];
+  total: number;
+}
+
+export interface MerchantRefundItem {
+  refund_id: string;
+  order_id: string;
+  payment_order_id: string;
+  user_id: number;
+  merchant_id: number;
+  merchant_name: string;
+  product_id: number;
+  refund_amount_fen: number;
+  status: number;
+  status_text: string;
+  reason: string;
+  audit_remark: string;
+  operator_id: number;
+  request_time: string;
+  audit_time: string;
+  finish_time: string;
+}
+
+export interface MerchantRefundListResp {
+  items: MerchantRefundItem[];
+  total: number;
+}
+
 export interface SystemHealthResp {
   overall: boolean;
   version: string;
