@@ -90,6 +90,12 @@ export interface LoginResp {
   phone: string;
 }
 
+export interface SendCodeResp {
+  sent: boolean;
+  expires_at: number;
+  debug_code?: string;
+}
+
 export interface MeResp {
   user_id: number;
   display_name: string;
@@ -106,6 +112,48 @@ export interface MerchantMeItem {
 
 export interface MerchantMeResp {
   items: MerchantMeItem[];
+}
+
+export type MerchantApplicationStatus = 0 | 1 | 2;
+export type MerchantApplicationStatusText = 'pending' | 'approved' | 'rejected';
+
+export interface MerchantApplicationItem {
+  apply_id: number;
+  merchant_name: string;
+  contact_phone: string;
+  status: MerchantApplicationStatus;
+  status_text: MerchantApplicationStatusText;
+  merchant_id: number;
+  audit_remark: string;
+  create_time: string;
+  audit_time: string;
+}
+
+export interface MerchantApplicationResp {
+  application: MerchantApplicationItem | null;
+}
+
+export interface MerchantApplyResp {
+  apply_id: number;
+  status: 'pending';
+}
+
+export interface AdminMerchantApplicationItem extends MerchantApplicationItem {
+  user_id: number;
+  operator_id: number;
+}
+
+export interface AdminMerchantApplicationListResp {
+  items: AdminMerchantApplicationItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface AdminMerchantAuditResp {
+  apply_id: number;
+  merchant_id: number;
+  status: MerchantApplicationStatus;
 }
 
 export interface MerchantDashboardStats {
