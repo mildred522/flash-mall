@@ -16,6 +16,11 @@ error_emitted=0
 command_name=""
 service_name=""
 
+if [ -n "${HOME:-}" ]; then
+  PATH="$HOME/.local/go/bin:$HOME/go/bin:/usr/local/go/bin:$HOME/.local/bin:$PATH"
+  export PATH
+fi
+
 . "$script_dir/compose-env.sh"
 
 json_escape() {

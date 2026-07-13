@@ -25,4 +25,7 @@ events=$(FLASH_MALL_CONTROL_SOURCE_ONLY=1 sh -c '. "$1"; emit progress preflight
 printf '%s' "$events" | grep -q '"type":"progress"'
 printf '%s' "$events" | grep -q 'quote: \\"safe\\"'
 
+tool_path=$(env PATH=/usr/bin:/bin FLASH_MALL_CONTROL_SOURCE_ONLY=1 sh -c '. "$1"; printf "%s" "$PATH"' sh "$control")
+printf '%s' "$tool_path" | grep -Fq "$HOME/.local/go/bin"
+
 echo "flash-mall-control protocol tests passed"
