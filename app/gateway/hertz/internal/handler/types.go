@@ -338,6 +338,22 @@ type MerchantMeResp struct {
 	Items []MerchantMeItem `json:"items"`
 }
 
+type MerchantStoreProfile struct {
+	MerchantID   int64  `json:"merchant_id"`
+	MerchantName string `json:"merchant_name"`
+	LogoURL      string `json:"logo_url"`
+	BannerURL    string `json:"banner_url"`
+	Description  string `json:"description"`
+	Version      int64  `json:"version"`
+}
+
+type merchantStoreUpdateReq struct {
+	LogoURL         string `json:"logo_url"`
+	BannerURL       string `json:"banner_url"`
+	Description     string `json:"description"`
+	ExpectedVersion int64  `json:"expected_version"`
+}
+
 type MerchantApplyReq struct {
 	MerchantName string `json:"merchant_name"`
 	ContactPhone string `json:"contact_phone,omitempty"`
