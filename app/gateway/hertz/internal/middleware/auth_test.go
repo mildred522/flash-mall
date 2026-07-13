@@ -46,7 +46,7 @@ func TestOptionalIdentityInjectsValidBearer(t *testing.T) {
 		c.String(consts.StatusOK, fmt.Sprint(identity.UserID))
 	})
 
-	resp := ut.PerformRequest(h.Engine, "GET", "/optional", nil, ut.Header{"Authorization", "Bearer " + signed}).Result()
+	resp := ut.PerformRequest(h.Engine, "GET", "/optional", nil, ut.Header{Key: "Authorization", Value: "Bearer " + signed}).Result()
 	if resp.StatusCode() != consts.StatusOK || string(resp.Body()) != "42" {
 		t.Fatalf("status=%d body=%s", resp.StatusCode(), resp.Body())
 	}
@@ -58,7 +58,7 @@ func TestOptionalIdentityRejectsInvalidSuppliedBearer(t *testing.T) {
 		c.Status(consts.StatusNoContent)
 	})
 
-	resp := ut.PerformRequest(h.Engine, "GET", "/optional", nil, ut.Header{"Authorization", "Bearer invalid"}).Result()
+	resp := ut.PerformRequest(h.Engine, "GET", "/optional", nil, ut.Header{Key: "Authorization", Value: "Bearer invalid"}).Result()
 	if resp.StatusCode() != consts.StatusUnauthorized {
 		t.Fatalf("status=%d body=%s", resp.StatusCode(), resp.Body())
 	}
