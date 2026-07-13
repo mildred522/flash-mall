@@ -1,0 +1,66 @@
+import { useEffect, useState, type ComponentType } from 'react';
+import { ProLayout } from '@ant-design/pro-components';
+import { DashboardOutlined, OrderedListOutlined, ShoppingOutlined, SwapOutlined, UndoOutlined } from '@ant-design/icons';
+import MerchantGuard from './components/MerchantGuard';
+import DashboardPage from './pages/DashboardPage';
+
+function PendingPage() {
+  return <div>页面正在接入商家 API</div>;
+}
+
+const routeMap: Record<string, ComponentType> = {
+  '/merchant': DashboardPage,
+  '/merchant/products': PendingPage,
+  '/merchant/inventory': PendingPage,
+  '/merchant/orders': PendingPage,
+  '/merchant/refunds': PendingPage,
+};
+
+const menuRoutes = {
+  routes: [
+    { path: '/merchant', name: '数据概览', icon: <DashboardOutlined /> },
+    { path: '/merchant/products', name: '商品管理', icon: <ShoppingOutlined /> },
+    { path: '/merchant/inventory', name: '库存流水', icon: <SwapOutlined /> },
+    { path: '/merchant/orders', name: '订单发货', icon: <OrderedListOutlined /> },
+    { path: '/merchant/refunds', name: '退款查看', icon: <UndoOutlined /> },
+  ],
+};
+
+export default function App() {
+  const initialPath = routeMap[window.location.pathname] ? window.location.pathname : '/merchant';
+  const [pathname, setPathname] = useState(initialPath);
+  const Page = routeMap[pathname] || DashboardPage;
+
+  const navigate = (path: string) => {
+    const next = routeMap[path] ? path : '/merchant';
+    window.history.pushState({}, '', next);
+    setPathname(next);
+  };
+
+  useEffect(() => {
+    const onNavigate = (event: Event) => navigate((event as CustomEvent<{ path?: string }>).detail?.path || '/merchant');
+    const onPopState = () => setPathname(routeMap[window.location.pathname] ? window.location.pathname : '/merchant');
+    window.addEventListener('flash-merchant:navigate', onNavigate);
+    window.addEventListener('popstate', onPopState);
+    return () => {
+      window.removeEventListener('flash-merchant:navigate', onNavigate);
+      window.removeEventListener('popstate', onPopState);
+    };
+  }, []);
+
+  return (
+    <MerchantGuard>
+      <ProLayout
+        title="Flash Mall Merchant"
+        logo={<span style={{ fontSize: 20, fontWeight: 800 }}>M</span>}
+        route={menuRoutes}
+        location={{ pathname }}
+        menuItemRender={(item, dom) => <a onClick={() => navigate(item.path || '/merchant')}>{dom}</a>}
+        fixSiderbar
+        layout="mix"
+      >
+        <Page />
+      </ProLayout>
+    </MerchantGuard>
+  );
+}

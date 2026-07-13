@@ -5,13 +5,16 @@
   "workspaces": [
     "packages/shared",
     "packages/shop",
-    "packages/admin"
+    "packages/admin",
+    "packages/merchant"
   ],
   "scripts": {
     "dev:shop": "npm run dev -w packages/shop",
     "dev:admin": "npm run dev -w packages/admin",
+    "dev:merchant": "npm run dev -w packages/merchant",
     "build:shop": "npm run build -w packages/shop",
     "build:admin": "npm run build -w packages/admin",
+    "build:merchant": "npm run build -w packages/merchant",
     "build": "node build.js",
     "test": "npm run test --workspaces --if-present"
   },

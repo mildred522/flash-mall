@@ -1,0 +1,17 @@
+import { defineConfig } from 'vitest/config';
+import react from '@vitejs/plugin-react';
+import { viteSingleFile } from 'vite-plugin-singlefile';
+import path from 'path';
+
+const sharedSrc = path.resolve(__dirname, '../shared/src');
+
+export default defineConfig({
+  plugins: [react(), viteSingleFile()],
+  resolve: { alias: { '@flash-mall/shared': sharedSrc } },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'antd', '@ant-design/pro-components', '@ant-design/icons'],
+  },
+  server: { port: 3002, proxy: { '/api': 'http://localhost:8889' } },
+  build: { outDir: 'dist' },
+  test: { environment: 'jsdom', setupFiles: '../../vitest.setup.ts' },
+});

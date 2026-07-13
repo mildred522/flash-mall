@@ -97,6 +97,26 @@ export interface MeResp {
   role: string;
 }
 
+export interface MerchantMeItem {
+  merchant_id: number;
+  name: string;
+  role: string;
+  status: number;
+}
+
+export interface MerchantMeResp {
+  items: MerchantMeItem[];
+}
+
+export interface MerchantDashboardStats {
+  merchant_id: number;
+  order_count: number;
+  paid_order_count: number;
+  ship_pending_count: number;
+  refund_pending_count: number;
+  sales_amount_fen: number;
+}
+
 export interface SystemHealthResp {
   overall: boolean;
   version: string;
