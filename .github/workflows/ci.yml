@@ -90,10 +90,10 @@ jobs:
         run: go mod download
 
       - name: Prepare test databases
-        run: |
-          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_auth DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_order DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          docker exec "${{ job.services.mysql.id }}" mysql -uroot -p6494kj06 -e "CREATE DATABASE IF NOT EXISTS mall_product DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+        run: >-
+          docker exec -i "${{ job.services.mysql.id }}"
+          mysql --force --default-character-set=utf8mb4 -uroot -p6494kj06
+          < scripts/k8s/init-db.sql
 
       - name: Vet
         run: go vet ./...
