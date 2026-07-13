@@ -393,6 +393,7 @@ func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase publish failed", err))
 			return
 		}
+		defaultShowcaseCandidateCache.invalidate()
 		productIDs := make([]string, 0, len(req.Items))
 		for _, item := range req.Items {
 			productIDs = append(productIDs, fmt.Sprintf("%d", item.ProductID))

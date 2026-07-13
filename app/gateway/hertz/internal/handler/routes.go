@@ -85,6 +85,7 @@ func registerOrderRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 
 func registerAdminRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 	h.GET("/api/admin/showcase", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcaseHandler(svcCtx))
+	h.GET("/api/admin/showcase/candidates", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcaseCandidatesHandler(svcCtx))
 	h.POST("/api/admin/showcase/publish", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcasePublishHandler(svcCtx))
 	h.GET("/api/admin/merchants/applications", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminMerchantApplyListHandler(svcCtx))
 	h.POST("/api/admin/merchants/applications/audit", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminMerchantApplyAuditHandler(svcCtx))

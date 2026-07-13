@@ -66,6 +66,25 @@ type ShowcaseResp struct {
 	Items       []ShowcaseSlot `json:"items"`
 }
 
+type ShowcaseCandidate struct {
+	Product        ProductCard `json:"product"`
+	Score          int         `json:"score"`
+	Sales7d        int64       `json:"sales_7d"`
+	SalesScore     int         `json:"sales_score"`
+	StockScore     int         `json:"stock_score"`
+	PromotionScore int         `json:"promotion_score"`
+	FreshnessScore int         `json:"freshness_score"`
+	DiversityScore int         `json:"diversity_score"`
+	Reasons        []string    `json:"reasons"`
+}
+
+type ShowcaseCandidatesResp struct {
+	Items    []ShowcaseCandidate `json:"items"`
+	Total    int64               `json:"total"`
+	Page     int64               `json:"page"`
+	PageSize int64               `json:"page_size"`
+}
+
 type AdminProductItem struct {
 	ProductID         int64  `json:"product_id"`
 	MerchantID        int64  `json:"merchant_id"`
