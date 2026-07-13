@@ -22,8 +22,7 @@ type Config struct {
 	EnableLiveStockOverlay        bool  `json:",default=false"` //nolint:staticcheck // go-zero config uses default in json tags.
 	ProductRpcConf                zrpc.RpcClientConf
 	OrderRpcConf                  zrpc.RpcClientConf
-	CatalogProductIDs             []int64 `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	UploadDir                     string  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	UploadDir                     string `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 }
 
 func (c Config) NormalizedListenOn() string {

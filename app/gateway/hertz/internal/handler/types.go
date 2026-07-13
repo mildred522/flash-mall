@@ -50,6 +50,22 @@ type ProductDetailResp struct {
 	StoreProducts []ProductCard `json:"store_products"`
 }
 
+type ShowcaseSlot struct {
+	SlotNo        int64        `json:"slot_no"`
+	ProductID     int64        `json:"product_id"`
+	Empty         bool         `json:"empty"`
+	Valid         bool         `json:"valid"`
+	InvalidReason string       `json:"invalid_reason,omitempty"`
+	Product       *ProductCard `json:"product,omitempty"`
+}
+
+type ShowcaseResp struct {
+	Version     int64          `json:"version"`
+	OperatorID  int64          `json:"operator_id"`
+	PublishTime string         `json:"publish_time"`
+	Items       []ShowcaseSlot `json:"items"`
+}
+
 type AdminProductItem struct {
 	ProductID         int64  `json:"product_id"`
 	MerchantID        int64  `json:"merchant_id"`

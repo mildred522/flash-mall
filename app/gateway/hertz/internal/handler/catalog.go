@@ -36,14 +36,14 @@ type productListQuery struct {
 }
 
 func CatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
-	return productListHandler(svcCtx, true, true)
+	return ShowcaseCatalogHandler(svcCtx)
 }
 
 func ProductListHandler(svcCtx *svc.ServiceContext, activeOnly bool) app.HandlerFunc {
-	return productListHandler(svcCtx, activeOnly, false)
+	return productListHandler(svcCtx, activeOnly)
 }
 
-func productListHandler(svcCtx *svc.ServiceContext, activeOnly bool, preferConfiguredCatalog bool) app.HandlerFunc {
+func productListHandler(svcCtx *svc.ServiceContext, activeOnly bool) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		req, appErr := parseProductListQuery(c, activeOnly)
 		if appErr != nil {
@@ -51,7 +51,7 @@ func productListHandler(svcCtx *svc.ServiceContext, activeOnly bool, preferConfi
 			return
 		}
 
-		productIDs, total, err := productIDsForList(ctx, svcCtx, req, preferConfiguredCatalog)
+		productIDs, total, err := loadProductIDs(ctx, svcCtx, req)
 		if err != nil {
 			var appErr *apperror.Error
 			if errors.As(err, &appErr) && appErr.Code == apperror.CodeInvalidArgument {
@@ -75,14 +75,6 @@ func productListHandler(svcCtx *svc.ServiceContext, activeOnly bool, preferConfi
 		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, productIDs), loadCatalogInventoryStocks(ctx, svcCtx, productIDs))
 		ok(ctx, c, ProductListResp{Items: orderProductCards(productIDs, cards), Total: total, Page: req.Page, PageSize: req.PageSize})
 	}
-}
-
-func productIDsForList(ctx context.Context, svcCtx *svc.ServiceContext, req productListQuery, preferConfiguredCatalog bool) ([]int64, int64, error) {
-	if preferConfiguredCatalog && req.hasNoFilters() && len(svcCtx.Config.CatalogProductIDs) > 0 {
-		productIDs := append([]int64{}, svcCtx.Config.CatalogProductIDs...)
-		return productIDs, int64(len(productIDs)), nil
-	}
-	return loadProductIDs(ctx, svcCtx, req)
 }
 
 func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {

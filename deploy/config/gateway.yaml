@@ -34,10 +34,3 @@ OrderRpcConf:
       - etcd:2379
     Key: order.rpc
   Timeout: 3000
-
-CatalogProductIDs:
-  - 100
-  - 101
-  - 102
-  - 103
-  - 104
