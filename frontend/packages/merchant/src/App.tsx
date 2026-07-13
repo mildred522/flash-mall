@@ -1,12 +1,13 @@
 import { useEffect, useState, type ComponentType } from 'react';
 import { ProLayout } from '@ant-design/pro-components';
-import { DashboardOutlined, OrderedListOutlined, ShoppingOutlined, SwapOutlined, UndoOutlined } from '@ant-design/icons';
+import { DashboardOutlined, OrderedListOutlined, ShopOutlined, ShoppingOutlined, SwapOutlined, UndoOutlined } from '@ant-design/icons';
 import MerchantGuard from './components/MerchantGuard';
 import DashboardPage from './pages/DashboardPage';
 import InventoryPage from './pages/InventoryPage';
 import OrdersPage from './pages/OrdersPage';
 import ProductsPage from './pages/ProductsPage';
 import RefundsPage from './pages/RefundsPage';
+import StoreSettingsPage from './pages/StoreSettingsPage';
 
 const routeMap: Record<string, ComponentType> = {
   '/merchant': DashboardPage,
@@ -14,6 +15,7 @@ const routeMap: Record<string, ComponentType> = {
   '/merchant/inventory': InventoryPage,
   '/merchant/orders': OrdersPage,
   '/merchant/refunds': RefundsPage,
+  '/merchant/store': StoreSettingsPage,
 };
 
 const menuRoutes = {
@@ -23,6 +25,7 @@ const menuRoutes = {
     { path: '/merchant/inventory', name: '库存流水', icon: <SwapOutlined /> },
     { path: '/merchant/orders', name: '订单发货', icon: <OrderedListOutlined /> },
     { path: '/merchant/refunds', name: '退款查看', icon: <UndoOutlined /> },
+    { path: '/merchant/store', name: '店铺设置', icon: <ShopOutlined /> },
   ],
 };
 
