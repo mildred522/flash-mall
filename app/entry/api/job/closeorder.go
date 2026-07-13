@@ -195,14 +195,16 @@ func (j *CloseOrderJob) handleCloseOrder(orderId string) error {
 		}
 	}
 
-	// 3) 通过 RPC 归还库存。
-	_, err = j.svcCtx.ProductRpc.RevertStock(j.ctx, &product.RevertStockReq{
-		Id:      order.ProductId,
-		Num:     order.Amount,
-		OrderId: orderId,
-	})
-	if err != nil {
-		return err
+	// 3) 通过库存 owner 归还库存。
+	if !j.svcCtx.Config.InventoryOwnsFinalDeduct {
+		_, err = j.svcCtx.ProductRpc.RevertStock(j.ctx, &product.RevertStockReq{
+			Id:      order.ProductId,
+			Num:     order.Amount,
+			OrderId: orderId,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// CHG 2026-02-24: 变更=关单时回滚 Redis 预扣库存; 之前=仅回补 DB; 原因=避免 Redis/DB 库存漂移。

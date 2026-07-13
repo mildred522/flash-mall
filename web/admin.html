@@ -119,16 +119,7 @@
         </div>
       </div>
       <div class="row product-create-row">
-        <input id="product-name" placeholder="名称" />
-        <input id="product-image-url" placeholder="图片地址或先上传文件" />
-        <input id="product-image-file" type="file" accept="image/*" />
-        <input id="product-origin-price" type="number" min="0" placeholder="原价(分)" />
-        <input id="product-sale-price" type="number" min="0" placeholder="售价(分)" />
-        <input id="product-stock" type="number" min="0" placeholder="初始库存" />
-        <select id="product-supplier">
-          <option value="">请选择供应商</option>
-        </select>
-        <button id="product-create" class="button primary">新增</button>
+        <button id="product-create" class="button primary">新增商品</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>图片</th><th>名称</th><th>供应商</th><th>原价</th><th>售价</th><th>当前价</th><th>活动</th><th>库存</th><th>状态</th><th>操作</th></tr></thead>
@@ -159,8 +150,7 @@
         </div>
       </div>
       <div class="row product-create-row">
-        <input id="supplier-name" placeholder="供应商名称" />
-        <button id="supplier-create" class="button primary">新增</button>
+        <button id="supplier-create" class="button primary">新增供应商</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>名称</th><th>商品数</th><th>启用商品</th><th>状态</th><th>操作</th></tr></thead>
@@ -199,13 +189,7 @@
         </div>
       </div>
       <div class="row product-create-row">
-        <select id="promotion-product">
-          <option value="">请选择商品</option>
-        </select>
-        <input id="promotion-price" type="number" min="1" placeholder="限时价(分)" />
-        <input id="promotion-starts" placeholder="开始时间 YYYY-MM-DD HH:mm:ss" />
-        <input id="promotion-ends" placeholder="结束时间 YYYY-MM-DD HH:mm:ss" />
-        <button id="promotion-create" class="button primary">新增</button>
+        <button id="promotion-create" class="button primary">新增促销</button>
       </div>
       <table class="admin-table">
         <thead><tr><th>ID</th><th>商品</th><th>类型</th><th>价格</th><th>开始</th><th>结束</th><th>时间态</th><th>状态</th><th>操作</th></tr></thead>

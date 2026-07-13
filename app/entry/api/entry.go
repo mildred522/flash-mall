@@ -40,6 +40,7 @@ func main() {
 	ctx := svc.NewServiceContext(c)
 	job.NewCloseOrderJob(ctx).Start()
 	job.NewOrderEventConsumer(ctx).Start()
+	job.NewProductCardSnapshotJob(ctx).Start()
 	handler.RegisterHandlers(server, ctx)
 
 	fmt.Printf("Starting server at %s:%d...\n", c.Host, c.Port)

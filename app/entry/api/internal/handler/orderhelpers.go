@@ -13,6 +13,8 @@ import (
 	"flash-mall/app/entry/api/internal/svc"
 	orderrpc "flash-mall/app/order/rpc/orderclient"
 	"flash-mall/app/product/rpc/productclient"
+
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 func orderStatusText(statusCode int64) string {
@@ -84,6 +86,14 @@ func seedRedisStockShards(ctx context.Context, svcCtx *svc.ServiceContext, produ
 	return err
 }
 
+func syncRuntimeProductStock(ctx context.Context, svcCtx *svc.ServiceContext, productID, total int64) error {
+	if err := seedRedisStockShards(ctx, svcCtx, productID, total); err != nil {
+		return err
+	}
+	seedInventoryServiceStock(ctx, svcCtx, productID, total)
+	return nil
+}
+
 func splitStockAcrossShards(total int64, shardCount int) []int64 {
 	if total < 0 {
 		total = 0
@@ -104,12 +114,14 @@ func splitStockAcrossShards(total int64, shardCount int) []int64 {
 }
 
 func compensateClosedOrderInventory(ctx context.Context, svcCtx *svc.ServiceContext, productID, amount int64, orderID string) error {
-	if _, err := svcCtx.ProductRpc.RevertStock(ctx, &productclient.RevertStockReq{
-		Id:      productID,
-		Num:     amount,
-		OrderId: orderID,
-	}); err != nil {
-		return err
+	if !svcCtx.Config.InventoryOwnsFinalDeduct {
+		if _, err := svcCtx.ProductRpc.RevertStock(ctx, &productclient.RevertStockReq{
+			Id:      productID,
+			Num:     amount,
+			OrderId: orderID,
+		}); err != nil {
+			return err
+		}
 	}
 	if _, err := svcCtx.OrderRpc.PreDeductRollback(ctx, &orderrpc.PreDeductReq{
 		ProductId: productID,
@@ -120,4 +132,22 @@ func compensateClosedOrderInventory(ctx context.Context, svcCtx *svc.ServiceCont
 	}
 	invalidateAdminCatalogCache(ctx, svcCtx)
 	return nil
+}
+
+func seedInventoryServiceStock(ctx context.Context, svcCtx *svc.ServiceContext, productID, total int64) {
+	if svcCtx.InventoryClient == nil {
+		return
+	}
+	if err := svcCtx.InventoryClient.SeedStock(ctx, productID, total, svcCtx.Config.StockShardCount); err != nil {
+		logx.WithContext(ctx).Errorf("inventory seed stock failed: product_id=%d total=%d err=%v", productID, total, err)
+	}
+}
+
+func reconcileInventoryServiceStock(ctx context.Context, svcCtx *svc.ServiceContext, productID int64) {
+	if svcCtx.InventoryClient == nil {
+		return
+	}
+	if _, err := svcCtx.InventoryClient.ReconcileStock(ctx, productID); err != nil {
+		logx.WithContext(ctx).Errorf("inventory reconcile stock failed: product_id=%d err=%v", productID, err)
+	}
 }

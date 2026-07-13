@@ -35,7 +35,7 @@ spec:
                 sleep 2
               done
               echo "init schema..."
-              mysql -h mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+              mysql --default-character-set=utf8mb4 -h mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
               echo "done"
           volumeMounts:
             - name: init-sql

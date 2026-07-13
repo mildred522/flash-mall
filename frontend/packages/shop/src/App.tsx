@@ -4,6 +4,7 @@ import Header from './components/Header';
 import AuthModal from './components/AuthModal';
 import HomePage from './pages/HomePage';
 import OrdersPage from './pages/OrdersPage';
+import PaymentPage from './pages/PaymentPage';
 import './styles/shop.css';
 
 function AppInner() {
@@ -39,6 +40,9 @@ function AppInner() {
 }
 
 export default function App() {
+  if (window.location.pathname === '/pay') {
+    return <PaymentPage />;
+  }
   return (
     <AuthProvider>
       <AppInner />

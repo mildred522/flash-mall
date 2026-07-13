@@ -30,7 +30,7 @@ function supplierStatusTag(supplier: Pick<AdminSupplierItem, 'status'>) {
 }
 
 export default function SuppliersPage() {
-  const actionRef = useRef<ActionType>();
+  const actionRef = useRef<ActionType | undefined>(undefined);
   const [form] = Form.useForm<SupplierFormValues>();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<AdminSupplierItem | null>(null);
@@ -54,8 +54,15 @@ export default function SuppliersPage() {
 
   const openCreate = () => {
     setEditingSupplier(null);
+    form.resetFields();
     form.setFieldsValue({ name: '', status: 1 });
     setModalOpen(true);
+  };
+
+  const closeSupplierModal = () => {
+    setModalOpen(false);
+    setEditingSupplier(null);
+    form.resetFields();
   };
 
   const openEdit = (supplier: AdminSupplierItem) => {
@@ -103,7 +110,7 @@ export default function SuppliersPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success('供应商已更新');
-          setModalOpen(false);
+          closeSupplierModal();
           if (detail?.supplier_id === editingSupplier.supplier_id) {
             void openDetail(editingSupplier.supplier_id);
           }
@@ -117,7 +124,7 @@ export default function SuppliersPage() {
         const error = mutationError(res.data);
         if (res.ok && !error) {
           message.success(`供应商已创建：${res.data.supplier_id}`);
-          setModalOpen(false);
+          closeSupplierModal();
           reload();
         } else {
           message.error(error || '供应商创建失败');
@@ -234,7 +241,7 @@ export default function SuppliersPage() {
       <Modal
         title={editingSupplier ? '编辑供应商' : '新增供应商'}
         open={modalOpen}
-        onCancel={() => setModalOpen(false)}
+        onCancel={closeSupplierModal}
         onOk={saveSupplier}
         confirmLoading={submitting}
         destroyOnClose

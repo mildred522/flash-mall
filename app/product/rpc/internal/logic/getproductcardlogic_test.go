@@ -77,8 +77,9 @@ func newTestServiceContext(t *testing.T) *svc.ServiceContext {
 	t.Helper()
 
 	return svc.NewServiceContext(config.Config{
-		DataSource:       productCardTestDSN,
-		StockBucketCount: 4,
+		DataSource:         productCardTestDSN,
+		StockBucketCount:   4,
+		DisableStockRepair: true,
 	})
 }
 
@@ -88,6 +89,8 @@ func seedProductCardData(t *testing.T, svcCtx *svc.ServiceContext, productID, su
 	ensureProductCardSchema(t, svcCtx)
 
 	statements := []string{
+		fmt.Sprintf("DELETE FROM product_card_snapshot WHERE product_id = %d", productID),
+		fmt.Sprintf("DELETE FROM product_stock_snapshot WHERE product_id = %d", productID),
 		fmt.Sprintf("DELETE FROM promotion_rule WHERE product_id = %d", productID),
 		fmt.Sprintf("DELETE FROM product_stock_bucket WHERE product_id = %d", productID),
 		fmt.Sprintf("DELETE FROM product WHERE id = %d", productID),
@@ -106,6 +109,8 @@ func seedProductCardData(t *testing.T, svcCtx *svc.ServiceContext, productID, su
 
 	t.Cleanup(func() {
 		cleanupStatements := []string{
+			fmt.Sprintf("DELETE FROM product_card_snapshot WHERE product_id = %d", productID),
+			fmt.Sprintf("DELETE FROM product_stock_snapshot WHERE product_id = %d", productID),
 			fmt.Sprintf("DELETE FROM promotion_rule WHERE product_id = %d", productID),
 			fmt.Sprintf("DELETE FROM product_stock_bucket WHERE product_id = %d", productID),
 			fmt.Sprintf("DELETE FROM product WHERE id = %d", productID),
@@ -145,6 +150,30 @@ func ensureProductCardSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			stock INT NOT NULL DEFAULT 0,
 			version BIGINT NOT NULL DEFAULT 0,
 			PRIMARY KEY (product_id, bucket_idx)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS product_stock_snapshot (
+			product_id BIGINT NOT NULL,
+			available BIGINT NOT NULL DEFAULT 0,
+			reserved BIGINT NOT NULL DEFAULT 0,
+			total BIGINT NOT NULL DEFAULT 0,
+			source VARCHAR(32) NOT NULL DEFAULT 'inventory-kitex',
+			version BIGINT NOT NULL DEFAULT 0,
+			update_time TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (product_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS product_card_snapshot (
+			product_id BIGINT NOT NULL,
+			name VARCHAR(255) NOT NULL DEFAULT '',
+			origin_price_fen BIGINT NOT NULL DEFAULT 0,
+			final_price_fen BIGINT NOT NULL DEFAULT 0,
+			promotion_type VARCHAR(32) NOT NULL DEFAULT '',
+			promotion_tag VARCHAR(32) NOT NULL DEFAULT '',
+			stock_available BIGINT NOT NULL DEFAULT 0,
+			supplier_id BIGINT NOT NULL DEFAULT 0,
+			status TINYINT NOT NULL DEFAULT 1,
+			version BIGINT NOT NULL DEFAULT 0,
+			update_time TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY (product_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 

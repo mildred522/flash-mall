@@ -1,12 +1,20 @@
 ﻿-- 初始化数据库与表结构（K8s MySQL）
 
 SET NAMES utf8mb4;
-SET CHARACTER SET utf8mb4;
+SET character_set_client = utf8mb4;
+SET character_set_connection = utf8mb4;
+SET character_set_results = utf8mb4;
+SET collation_connection = utf8mb4_general_ci;
 
 CREATE DATABASE IF NOT EXISTS mall_order DEFAULT CHARSET utf8mb4;
 CREATE DATABASE IF NOT EXISTS mall_product DEFAULT CHARSET utf8mb4;
 CREATE DATABASE IF NOT EXISTS mall_auth DEFAULT CHARSET utf8mb4;
 CREATE DATABASE IF NOT EXISTS dtm DEFAULT CHARSET utf8mb4;
+
+ALTER DATABASE mall_order CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER DATABASE mall_product CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER DATABASE mall_auth CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+ALTER DATABASE dtm CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
 USE mall_order;
 
@@ -435,6 +443,62 @@ CREATE TABLE IF NOT EXISTS product_stock_bucket (
   PRIMARY KEY (product_id, bucket_idx)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS product_stock_snapshot (
+  product_id bigint NOT NULL,
+  available bigint NOT NULL DEFAULT 0,
+  reserved bigint NOT NULL DEFAULT 0,
+  total bigint NOT NULL DEFAULT 0,
+  source varchar(32) NOT NULL DEFAULT 'inventory-kitex',
+  version bigint NOT NULL DEFAULT 0,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (product_id),
+  KEY ix_update_time (update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS product_card_snapshot (
+  product_id bigint NOT NULL,
+  name varchar(255) NOT NULL DEFAULT '',
+  origin_price_fen bigint NOT NULL DEFAULT 0,
+  final_price_fen bigint NOT NULL DEFAULT 0,
+  promotion_type varchar(32) NOT NULL DEFAULT '',
+  promotion_tag varchar(32) NOT NULL DEFAULT '',
+  stock_available bigint NOT NULL DEFAULT 0,
+  supplier_id bigint NOT NULL DEFAULT 0,
+  status tinyint NOT NULL DEFAULT 1,
+  version bigint NOT NULL DEFAULT 0,
+  update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (product_id),
+  KEY ix_status_product (status, product_id),
+  KEY ix_update_time (update_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS inventory_stock_change_log (
+  id bigint NOT NULL AUTO_INCREMENT,
+  product_id bigint NOT NULL,
+  order_id varchar(64) NOT NULL DEFAULT '',
+  change_type varchar(32) NOT NULL,
+  delta bigint NOT NULL DEFAULT 0,
+  bucket_idx int NOT NULL DEFAULT 0,
+  before_available bigint NOT NULL DEFAULT 0,
+  before_reserved bigint NOT NULL DEFAULT 0,
+  before_total bigint NOT NULL DEFAULT 0,
+  after_available bigint NOT NULL DEFAULT 0,
+  after_reserved bigint NOT NULL DEFAULT 0,
+  after_total bigint NOT NULL DEFAULT 0,
+  reason varchar(255) NOT NULL DEFAULT '',
+  request_id varchar(64) NOT NULL DEFAULT '',
+  trace_id varchar(64) NOT NULL DEFAULT '',
+  operator_user_id bigint NOT NULL DEFAULT 0,
+  operator_merchant_id bigint NOT NULL DEFAULT 0,
+  operator_role varchar(32) NOT NULL DEFAULT '',
+  create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY ix_product_time (product_id, create_time),
+  KEY ix_order_id (order_id),
+  KEY ix_request_id (request_id),
+  KEY ix_operator (operator_user_id, operator_merchant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS seckill_campaign (
   id bigint NOT NULL AUTO_INCREMENT,
   product_id bigint NOT NULL,
@@ -510,11 +574,12 @@ VALUES (200, 'Flash Supplier', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
 
 -- 初始化示例商品
-INSERT INTO product (id, merchant_id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
-VALUES (100, 1000, '首发风衣', 10000, 0, 12900, 11900, 1, 200)
+INSERT INTO product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+VALUES (100, 1000, '首发风衣', '/products/100.svg', 10000, 0, 12900, 11900, 1, 200)
 ON DUPLICATE KEY UPDATE
   merchant_id = VALUES(merchant_id),
   name = VALUES(name),
+  image_url = VALUES(image_url),
   stock = VALUES(stock),
   origin_price_fen = VALUES(origin_price_fen),
   sale_price_fen = VALUES(sale_price_fen),
@@ -538,15 +603,15 @@ INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, 
 VALUES (100, 'LIMITED_PRICE', 9900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 30 DAY), 1);
 
 -- 新增商品 101-104
-INSERT INTO product (id, merchant_id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
+INSERT INTO product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
 VALUES
-  (101, 1000, '轻薄羽绒服', 10000, 0, 39900, 25900, 1, 200),
-  (102, 1000, '纯棉T恤三件套', 10000, 0, 15900, 9900, 1, 200),
-  (103, 1000, '运动休闲鞋', 10000, 0, 49900, 32900, 1, 200),
-  (104, 1000, '便携充电宝', 10000, 0, 12900, 7900, 1, 200)
+  (101, 1000, '轻薄羽绒服', '/products/101.svg', 10000, 0, 39900, 25900, 1, 200),
+  (102, 1000, '纯棉T恤三件套', '/products/102.svg', 10000, 0, 15900, 9900, 1, 200),
+  (103, 1000, '运动休闲鞋', '/products/103.svg', 10000, 0, 49900, 32900, 1, 200),
+  (104, 1000, '便携充电宝', '/products/104.svg', 10000, 0, 12900, 7900, 1, 200)
 ON DUPLICATE KEY UPDATE
   merchant_id = VALUES(merchant_id),
-  name = VALUES(name), stock = VALUES(stock),
+  name = VALUES(name), image_url = VALUES(image_url), stock = VALUES(stock),
   origin_price_fen = VALUES(origin_price_fen), sale_price_fen = VALUES(sale_price_fen),
   status = VALUES(status), supplier_id = VALUES(supplier_id);
 

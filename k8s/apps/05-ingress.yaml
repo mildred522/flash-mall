@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: entry-api
+  name: hertz-gateway
   namespace: flash-mall
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /$1
@@ -15,6 +15,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: entry-api
+                name: hertz-gateway
                 port:
-                  number: 8888
+                  number: 8889

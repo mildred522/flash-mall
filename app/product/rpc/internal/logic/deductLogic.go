@@ -70,6 +70,10 @@ func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
 			logx.Field("bucket_idx", bucketIdx),
 		)
 
+		if err := ensureProductStockBucketsFromSnapshotTx(tx, in.Id, bucketCount); err != nil {
+			return err
+		}
+
 		// CHG 2026-02-24: 变更=扣减落到分桶表; 之前=单行 product 表扣减; 原因=降低热点行冲突。
 		actualBucketIdx, err := lockDeductibleStockBucket(tx, in.Id, in.Num, bucketIdx)
 		if err != nil {
@@ -82,7 +86,10 @@ func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
 			return err
 		}
 		_, err = tx.Exec("INSERT IGNORE INTO stock_log (order_id, type) VALUES (?, ?)", orderId, stockDeductBucketLogType(actualBucketIdx))
-		return err
+		if err != nil {
+			return err
+		}
+		return syncProductStockSnapshotTx(tx, in.Id)
 	})
 	if err != nil {
 		return nil, err

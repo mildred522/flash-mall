@@ -12,6 +12,14 @@
     "dev:admin": "npm run dev -w packages/admin",
     "build:shop": "npm run build -w packages/shop",
     "build:admin": "npm run build -w packages/admin",
-    "build": "node build.js"
+    "build": "node build.js",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "jsdom": "^29.1.1",
+    "vitest": "^4.1.10"
   }
 }

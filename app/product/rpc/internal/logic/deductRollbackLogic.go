@@ -69,7 +69,10 @@ func (l *DeductRollbackLogic) DeductRollback(in *product.DeductReq) (*product.Em
 				"ON DUPLICATE KEY UPDATE stock = stock + VALUES(stock), version = version + 1",
 			in.Id, actualBucketIdx, in.Num,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		return syncProductStockSnapshotTx(tx, in.Id)
 	})
 	if err != nil {
 		return nil, err

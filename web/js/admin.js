@@ -59,6 +59,8 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
       }).join("")}</select>`;
     } else if (field.type === "textarea") {
       control = `<textarea ${common} ${field.required ? "required" : ""}>${value}</textarea>`;
+    } else if (field.type === "file") {
+      control = `<input ${common} type="file" ${field.accept ? `accept="${escapeHtml(field.accept)}"` : ""} ${field.required ? "required" : ""} />`;
     } else {
       control = `<input ${common} type="${escapeHtml(field.type || "text")}" value="${value}" ${field.min !== undefined ? `min="${escapeHtml(field.min)}"` : ""} ${field.required ? "required" : ""} />`;
     }
@@ -94,7 +96,7 @@ function openAdminFormModal({ title, fields, submitText = "确定", validate }) 
       const data = {};
       for (const field of fields) {
         const input = form.elements[field.name];
-        data[field.name] = input ? input.value : "";
+        data[field.name] = field.type === "file" ? input?.files?.[0] || null : input ? input.value : "";
       }
       const error = validate ? validate(data) : "";
       if (error) {
@@ -825,12 +827,11 @@ async function uploadProductImage(file) {
 
 async function loadProductSupplierOptions(selectedSupplierId = 0) {
   const select = $("product-supplier");
-  if (!select) return [];
-  const targetSupplierId = Number(selectedSupplierId || select.value || 0);
-  select.innerHTML = '<option value="">供应商加载中...</option>';
+  const targetSupplierId = Number(selectedSupplierId || select?.value || 0);
+  if (select) select.innerHTML = '<option value="">供应商加载中...</option>';
   const resp = await authed("/api/admin/suppliers?status=1&page=1&page_size=100");
   if (!resp.ok || resp.data.error) {
-    select.innerHTML = '<option value="">供应商加载失败</option>';
+    if (select) select.innerHTML = '<option value="">供应商加载失败</option>';
     log(`供应商选项加载失败: ${resp.data.error || resp.status}`);
     return [];
   }
@@ -839,11 +840,13 @@ async function loadProductSupplierOptions(selectedSupplierId = 0) {
   if (targetSupplierId > 0 && !state.supplierOptions.some((s) => Number(s.supplier_id) === Number(targetSupplierId))) {
     state.supplierOptions.push({ supplier_id: Number(targetSupplierId), name: `供应商 ${targetSupplierId}`, status: 1 });
   }
-  select.innerHTML = '<option value="">请选择供应商</option>' + state.supplierOptions
-    .map((s) => `<option value="${s.supplier_id}">${escapeHtml(s.name)} (${s.supplier_id})</option>`)
-    .join("");
-  if (targetSupplierId > 0) select.value = String(targetSupplierId);
-  else if (items.length === 1) select.value = String(items[0].supplier_id);
+  if (select) {
+    select.innerHTML = '<option value="">请选择供应商</option>' + state.supplierOptions
+      .map((s) => `<option value="${s.supplier_id}">${escapeHtml(s.name)} (${s.supplier_id})</option>`)
+      .join("");
+    if (targetSupplierId > 0) select.value = String(targetSupplierId);
+    else if (items.length === 1) select.value = String(items[0].supplier_id);
+  }
   return state.supplierOptions;
 }
 
@@ -924,27 +927,47 @@ function updateProductPager(total) {
 }
 
 async function createProduct() {
-  const supplierId = Number($("product-supplier").value || 0);
-  if (supplierId <= 0) {
-    log("新增商品失败: 请选择供应商");
-    return;
-  }
+  const suppliers = await loadProductSupplierOptions();
+  const values = await openAdminFormModal({
+    title: "新增商品",
+    submitText: "创建",
+    fields: [
+      { name: "name", label: "商品名称", required: true },
+      { name: "imageUrl", label: "图片地址" },
+      { name: "imageFile", label: "上传图片", type: "file", accept: "image/*" },
+      { name: "originPrice", label: "原价(分)", type: "number", min: 0, value: "0", required: true },
+      { name: "salePrice", label: "售价(分)", type: "number", min: 0, value: "0", required: true },
+      { name: "stock", label: "初始库存", type: "number", min: 0, value: "0" },
+      {
+        name: "supplierId",
+        label: "供应商",
+        type: "select",
+        value: suppliers.length === 1 ? String(suppliers[0].supplier_id) : "",
+        options: suppliers.map((supplier) => ({ value: supplier.supplier_id, label: `${supplier.name} (${supplier.supplier_id})` })),
+      },
+    ],
+    validate: (data) => {
+      if (!data.name.trim()) return "请输入商品名称";
+      const originPrice = Number(data.originPrice || 0);
+      const salePrice = Number(data.salePrice || 0);
+      if (originPrice < 0 || salePrice < 0) return "价格不能为负数";
+      if (salePrice > originPrice) return "现价不能高于原价";
+      if (Number(data.supplierId || 0) <= 0) return "请选择供应商";
+      return "";
+    },
+  });
+  if (!values) return;
   const payload = {
-    name: $("product-name").value.trim(),
-    image_url: $("product-image-url")?.value.trim() || "",
-    origin_price_fen: Number($("product-origin-price").value || 0),
-    sale_price_fen: Number($("product-sale-price").value || 0),
-    stock_available: Number($("product-stock").value || 0),
-    supplier_id: supplierId,
+    name: values.name.trim(),
+    image_url: values.imageUrl.trim(),
+    origin_price_fen: Number(values.originPrice || 0),
+    sale_price_fen: Number(values.salePrice || 0),
+    stock_available: Number(values.stock || 0),
+    supplier_id: Number(values.supplierId || 0),
     status: 1,
   };
-  if (payload.sale_price_fen > payload.origin_price_fen) {
-    log("新增商品失败: 现价不能高于原价");
-    return;
-  }
-  const imageFile = $("product-image-file")?.files?.[0];
-  if (imageFile) {
-    const imageUrl = await uploadProductImage(imageFile);
+  if (values.imageFile) {
+    const imageUrl = await uploadProductImage(values.imageFile);
     if (!imageUrl) return;
     payload.image_url = imageUrl;
   }
@@ -954,9 +977,6 @@ async function createProduct() {
     log(`新增商品失败: ${productErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  ["product-name", "product-image-url", "product-origin-price", "product-sale-price", "product-stock"].forEach((id) => { if ($(id)) $(id).value = ""; });
-  if ($("product-image-file")) $("product-image-file").value = "";
-  $("product-supplier").value = "";
   log(`新增商品成功 product_id=${resp.data.product_id}`);
   state.productFilters.page = 1;
   loadProducts();
@@ -1186,20 +1206,23 @@ function updateSupplierPager(total) {
 }
 
 async function createSupplier() {
-  const name = $("supplier-name").value.trim();
-  if (!name) {
-    log("新增供应商失败: 请输入供应商名称");
-    return;
-  }
+  const values = await openAdminFormModal({
+    title: "新增供应商",
+    submitText: "创建",
+    fields: [
+      { name: "name", label: "供应商名称", required: true },
+    ],
+    validate: (data) => data.name.trim() ? "" : "请输入供应商名称",
+  });
+  if (!values) return;
   const resp = await authed("/api/admin/suppliers/create", {
     method: "POST",
-    jsonBody: { name, status: 1 },
+    jsonBody: { name: values.name.trim(), status: 1 },
   });
   if (!resp.ok || resp.data.error) {
     log(`新增供应商失败: ${supplierErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  $("supplier-name").value = "";
   log(`新增供应商成功 supplier_id=${resp.data.supplier_id}`);
   state.supplierFilters.page = 1;
   loadProductSupplierOptions();
@@ -1320,12 +1343,11 @@ function promotionTypeText(type) {
 
 async function loadPromotionProductOptions(selectedProductId = 0) {
   const select = $("promotion-product");
-  if (!select) return [];
-  const targetProductId = Number(selectedProductId || select.value || 0);
-  select.innerHTML = '<option value="">商品加载中...</option>';
+  const targetProductId = Number(selectedProductId || select?.value || 0);
+  if (select) select.innerHTML = '<option value="">商品加载中...</option>';
   const resp = await authed("/api/admin/products?page=1&page_size=100");
   if (!resp.ok || resp.data.error) {
-    select.innerHTML = '<option value="">商品加载失败</option>';
+    if (select) select.innerHTML = '<option value="">商品加载失败</option>';
     log(`促销商品选项加载失败: ${resp.data.error || resp.status}`);
     return [];
   }
@@ -1334,11 +1356,13 @@ async function loadPromotionProductOptions(selectedProductId = 0) {
   if (targetProductId > 0 && !state.productOptions.some((p) => Number(p.product_id) === Number(targetProductId))) {
     state.productOptions.push({ product_id: Number(targetProductId), name: `商品 ${targetProductId}`, supplier_name: "" });
   }
-  select.innerHTML = '<option value="">请选择商品</option>' + state.productOptions
-    .map((p) => `<option value="${p.product_id}">${escapeHtml(p.name)} (${p.product_id})</option>`)
-    .join("");
-  if (targetProductId > 0) select.value = String(targetProductId);
-  else if (items.length === 1) select.value = String(items[0].product_id);
+  if (select) {
+    select.innerHTML = '<option value="">请选择商品</option>' + state.productOptions
+      .map((p) => `<option value="${p.product_id}">${escapeHtml(p.name)} (${p.product_id})</option>`)
+      .join("");
+    if (targetProductId > 0) select.value = String(targetProductId);
+    else if (items.length === 1) select.value = String(items[0].product_id);
+  }
   return state.productOptions;
 }
 
@@ -1409,17 +1433,40 @@ function updatePromotionPager(total) {
 }
 
 async function createPromotion() {
-  const productId = Number($("promotion-product").value || 0);
-  const discountValue = Number($("promotion-price").value || 0);
-  if (productId <= 0 || discountValue <= 0) {
-    log("新增促销失败: 请选择商品并填写限时价");
-    return;
-  }
-  const product = state.productOptions.find((item) => Number(item.product_id) === productId);
-  if (product && Number(product.sale_price_fen || 0) > 0 && discountValue > Number(product.sale_price_fen)) {
-    log("新增促销失败: 限时价不能高于商品现价");
-    return;
-  }
+  const products = await loadPromotionProductOptions(state.promotionFilters.productId);
+  const values = await openAdminFormModal({
+    title: "新增促销",
+    submitText: "创建",
+    fields: [
+      {
+        name: "productId",
+        label: "商品",
+        type: "select",
+        value: state.promotionFilters.productId || (products.length === 1 ? String(products[0].product_id) : ""),
+        options: products.map((product) => ({ value: product.product_id, label: `${product.name} (${product.product_id})` })),
+      },
+      { name: "discountValue", label: "限时价(分)", type: "number", min: 1, required: true },
+      { name: "startsAt", label: "开始时间，留空立即生效" },
+      { name: "endsAt", label: "结束时间，留空长期有效" },
+    ],
+    validate: (data) => {
+      const productId = Number(data.productId || 0);
+      const discountValue = Number(data.discountValue || 0);
+      if (productId <= 0) return "请选择商品";
+      if (discountValue <= 0) return "请输入有效的限时价";
+      const product = state.productOptions.find((item) => Number(item.product_id) === productId);
+      if (product && Number(product.sale_price_fen || 0) > 0 && discountValue > Number(product.sale_price_fen)) {
+        return `限时价不能高于商品现价 ¥${formatPriceFen(product.sale_price_fen)}`;
+      }
+      const startsAt = data.startsAt.trim();
+      const endsAt = data.endsAt.trim();
+      if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) return "结束时间必须晚于开始时间";
+      return "";
+    },
+  });
+  if (!values) return;
+  const productId = Number(values.productId || 0);
+  const discountValue = Number(values.discountValue || 0);
   const resp = await authed("/api/admin/promotions/create", {
     method: "POST",
     jsonBody: {
@@ -1427,8 +1474,8 @@ async function createPromotion() {
       type: "LIMITED_PRICE",
       discount_value: discountValue,
       threshold_amount: 0,
-      starts_at: $("promotion-starts").value.trim(),
-      ends_at: $("promotion-ends").value.trim(),
+      starts_at: values.startsAt.trim(),
+      ends_at: values.endsAt.trim(),
       status: 1,
     },
   });
@@ -1436,8 +1483,6 @@ async function createPromotion() {
     log(`新增促销失败: ${promotionErrorMessage(resp.data.error) || resp.status}`);
     return;
   }
-  ["promotion-price", "promotion-starts", "promotion-ends"].forEach((id) => { $(id).value = ""; });
-  $("promotion-product").value = "";
   log(`新增促销成功 promotion_id=${resp.data.promotion_id}`);
   state.promotionFilters.page = 1;
   loadPromotions();

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title">
+  <title id="title">首发风衣</title>
+  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f7e9dc"/><stop offset="1" stop-color="#d9b99b"/></linearGradient></defs>
+  <rect width="640" height="480" rx="36" fill="url(#bg)"/>
+  <ellipse cx="320" cy="423" rx="148" ry="20" fill="#7a4b2d" opacity=".18"/>
+  <path d="M244 96l76-30 76 30 74 91-55 49-34-41 31 220H228l31-220-34 41-55-49z" fill="#8b5e3c" stroke="#5b3824" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M320 68v347M244 98l76 92 76-92" fill="none" stroke="#e9c8aa" stroke-width="10"/>
+  <path d="M274 250h92v48h-92z" fill="#6f452d"/><circle cx="342" cy="224" r="7" fill="#f4dfcc"/><circle cx="342" cy="270" r="7" fill="#f4dfcc"/>
+</svg>

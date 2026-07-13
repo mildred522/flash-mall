@@ -234,6 +234,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?)`,
 			return
 		}
 		promotionID, _ := result.LastInsertId()
+		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminAuditPromotionCreated, fmt.Sprintf("promotion:%d product:%d", promotionID, req.ProductId))
 		httpx.OkJsonCtx(r.Context(), w, types.AdminPromotionCreateResp{PromotionId: promotionID})
@@ -265,6 +266,7 @@ func AdminPromotionUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
+		previousProductIDs := adminPromotionProductIDsBestEffort(r.Context(), db, req.PromotionId)
 
 		setClauses := ""
 		args := []any{}
@@ -438,10 +440,139 @@ func AdminPromotionUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 				return
 			}
 		}
+		updatedProductIDs := adminPromotionProductIDsBestEffort(r.Context(), db, req.PromotionId)
+		refreshPromotionProductCardSnapshotsBestEffort(r.Context(), svcCtx, append(previousProductIDs, updatedProductIDs...)...)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminPromotionUpdateAuditEvent(req.Status), fmt.Sprintf("promotion:%d", req.PromotionId))
 		httpx.OkJsonCtx(r.Context(), w, map[string]any{"ok": true})
 	}
+}
+
+func AdminProductCardSnapshotRefreshHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req types.AdminProductCardSnapshotRefreshReq
+		if err := httpx.Parse(r, &req); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+		if req.ProductId < 0 {
+			writeBadRequest(w, "product_id must be positive")
+			return
+		}
+		if req.Limit <= 0 || req.Limit > 10000 {
+			req.Limit = 1000
+		}
+		if req.WindowMinutes <= 0 || req.WindowMinutes > 24*60 {
+			req.WindowMinutes = 120
+		}
+
+		db, err := svcCtx.SqlConn.RawDB()
+		if err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+		if err := ensureProductMerchantSchema(r.Context(), db); err != nil {
+			httpx.ErrorCtx(r.Context(), w, err)
+			return
+		}
+
+		productIDs := []int64{req.ProductId}
+		if req.ProductId == 0 {
+			productIDs, err = promotionWindowAffectedProductIDs(r.Context(), db, req.WindowMinutes, req.Limit)
+			if err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
+		}
+		productIDs = uniquePositiveInt64s(productIDs)
+		var affected int64
+		for _, productID := range productIDs {
+			rows, err := rebuildProductCardSnapshots(r.Context(), db, types.AdminStockSnapshotRebuildReq{ProductId: productID, Limit: 1})
+			if err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
+			affected += rows
+		}
+		invalidateAdminCatalogCache(r.Context(), svcCtx)
+		recordAdminAuditEvent(r, svcCtx, adminAuditProductCardSnapshotRefreshed, fmt.Sprintf("product:%d window_minutes:%d limit:%d affected:%d", req.ProductId, req.WindowMinutes, req.Limit, affected))
+		httpx.OkJsonCtx(r.Context(), w, types.AdminProductCardSnapshotRefreshResp{
+			ProductCount:  int64(len(productIDs)),
+			Affected:      affected,
+			Limit:         req.Limit,
+			WindowMinutes: req.WindowMinutes,
+		})
+	}
+}
+
+func adminPromotionProductIDsBestEffort(ctx context.Context, db *sql.DB, promotionID int64) []int64 {
+	if promotionID <= 0 {
+		return nil
+	}
+	var productID int64
+	if err := db.QueryRowContext(ctx, "SELECT product_id FROM mall_product.promotion_rule WHERE id = ?", promotionID).Scan(&productID); err != nil {
+		return nil
+	}
+	if productID <= 0 {
+		return nil
+	}
+	return []int64{productID}
+}
+
+func refreshPromotionProductCardSnapshotsBestEffort(ctx context.Context, svcCtx *svc.ServiceContext, productIDs ...int64) {
+	for _, productID := range uniquePositiveInt64s(productIDs) {
+		refreshProductCardSnapshotBestEffort(ctx, svcCtx, productID)
+	}
+}
+
+func promotionWindowAffectedProductIDs(ctx context.Context, db *sql.DB, windowMinutes int64, limit int64) ([]int64, error) {
+	now := time.Now()
+	window := time.Duration(windowMinutes) * time.Minute
+	rows, err := db.QueryContext(ctx, `
+SELECT DISTINCT product_id
+FROM mall_product.promotion_rule
+WHERE status = 1
+  AND (
+    ((starts_at IS NULL OR starts_at <= NOW()) AND (ends_at IS NULL OR ends_at >= NOW()))
+    OR (starts_at IS NOT NULL AND starts_at BETWEEN ? AND ?)
+    OR (ends_at IS NOT NULL AND ends_at BETWEEN ? AND ?)
+  )
+ORDER BY product_id
+LIMIT ?`, now.Add(-window), now.Add(window), now.Add(-window), now.Add(window), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	productIDs := make([]int64, 0)
+	for rows.Next() {
+		var productID int64
+		if err := rows.Scan(&productID); err != nil {
+			return nil, err
+		}
+		if productID > 0 {
+			productIDs = append(productIDs, productID)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return productIDs, nil
+}
+
+func uniquePositiveInt64s(values []int64) []int64 {
+	seen := make(map[int64]struct{}, len(values))
+	result := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
 }
 
 func adminPromotionDetail(ctx context.Context, q adminQueryRower, promotionID int64) (types.AdminPromotionItem, error) {

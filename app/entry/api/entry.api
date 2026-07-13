@@ -48,10 +48,20 @@ type (
 		Ok     bool   `json:"ok"`
 		Detail string `json:"detail"`
 	}
+	ArchitectureStatus {
+		InventoryKitexEnabled   bool   `json:"inventory_kitex_enabled"`
+		InventoryKitexEndpoint  string `json:"inventory_kitex_endpoint"`
+		InventoryOwnsFinalDeduct bool   `json:"inventory_owns_final_deduct"`
+		FinalStockWriter        string `json:"final_stock_writer"`
+		MigrationStage          string `json:"migration_stage"`
+		RequiredReserveWriter   string `json:"required_reserve_writer"`
+		MigrationNote           string `json:"migration_note"`
+	}
 	SystemHealthResp {
 		Overall      bool               `json:"overall"`
 		ServerTime   int64              `json:"server_time"`
 		Dependencies []DependencyStatus `json:"dependencies"`
+		Architecture ArchitectureStatus `json:"architecture"`
 	}
 
 	AdminOrderListReq {
@@ -156,6 +166,60 @@ type (
 	AdminProductStockAdjustResp {
 		ProductId      int64 `json:"product_id"`
 		StockAvailable int64 `json:"stock_available"`
+	}
+	AdminStockChangeLogReq {
+		ProductId          int64  `form:"product_id,optional"`
+		OrderId            string `form:"order_id,optional"`
+		ChangeType         string `form:"change_type,optional"`
+		OperatorMerchantId int64  `form:"operator_merchant_id,optional"`
+		Page               int64  `form:"page,optional,default=1"`
+		PageSize           int64  `form:"page_size,optional,default=20"`
+	}
+	AdminStockChangeLogItem {
+		Id                 int64  `json:"id"`
+		ProductId          int64  `json:"product_id"`
+		OrderId            string `json:"order_id"`
+		ChangeType         string `json:"change_type"`
+		Delta              int64  `json:"delta"`
+		BucketIdx          int64  `json:"bucket_idx"`
+		BeforeAvailable    int64  `json:"before_available"`
+		BeforeReserved     int64  `json:"before_reserved"`
+		BeforeTotal        int64  `json:"before_total"`
+		AfterAvailable     int64  `json:"after_available"`
+		AfterReserved      int64  `json:"after_reserved"`
+		AfterTotal         int64  `json:"after_total"`
+		Reason             string `json:"reason"`
+		RequestId          string `json:"request_id"`
+		TraceId            string `json:"trace_id"`
+		OperatorUserId     int64  `json:"operator_user_id"`
+		OperatorMerchantId int64  `json:"operator_merchant_id"`
+		OperatorRole       string `json:"operator_role"`
+		CreateTime         string `json:"create_time"`
+	}
+	AdminStockChangeLogResp {
+		Items    []AdminStockChangeLogItem `json:"items"`
+		Total    int64                     `json:"total"`
+		Page     int64                     `json:"page"`
+		PageSize int64                     `json:"page_size"`
+	}
+	AdminStockSnapshotRebuildReq {
+		ProductId int64 `json:"product_id,optional"`
+		Limit     int64 `json:"limit,optional"`
+	}
+	AdminStockSnapshotRebuildResp {
+		Affected int64 `json:"affected"`
+		Limit    int64 `json:"limit"`
+	}
+	AdminProductCardSnapshotRefreshReq {
+		ProductId     int64 `json:"product_id,optional"`
+		Limit         int64 `json:"limit,optional"`
+		WindowMinutes int64 `json:"window_minutes,optional"`
+	}
+	AdminProductCardSnapshotRefreshResp {
+		ProductCount  int64 `json:"product_count"`
+		Affected      int64 `json:"affected"`
+		Limit         int64 `json:"limit"`
+		WindowMinutes int64 `json:"window_minutes"`
 	}
 	AdminSupplierListReq {
 		Page     int64  `form:"page,optional,default=1"`
@@ -358,6 +422,21 @@ service entry-api {
 
 	@handler AdminProductStockAdjust
 	post /api/admin/products/stock-adjust (AdminProductStockAdjustReq) returns (AdminProductStockAdjustResp)
+
+	@handler AdminStockChangeLog
+	get /api/admin/inventory/stock-changes (AdminStockChangeLogReq) returns (AdminStockChangeLogResp)
+
+	@handler AdminStockSnapshotRebuild
+	post /api/admin/inventory/stock-snapshots/rebuild (AdminStockSnapshotRebuildReq) returns (AdminStockSnapshotRebuildResp)
+
+	@handler AdminProductCardSnapshotRefresh
+	post /api/admin/products/card-snapshots/refresh (AdminProductCardSnapshotRefreshReq) returns (AdminProductCardSnapshotRefreshResp)
+
+	@handler MerchantProductStockAdjust
+	post /api/merchant/products/stock-adjust (AdminProductStockAdjustReq) returns (AdminProductStockAdjustResp)
+
+	@handler MerchantStockChangeLog
+	get /api/merchant/inventory/stock-changes (AdminStockChangeLogReq) returns (AdminStockChangeLogResp)
 
 	@handler AdminSupplierList
 	get /api/admin/suppliers (AdminSupplierListReq) returns (AdminSupplierListResp)

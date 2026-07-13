@@ -43,4 +43,4 @@ if [ -z "$mysql_pod" ]; then
 fi
 
 echo "[MYSQL] apply scripts/k8s/init-db.sql through pod/$mysql_pod"
-kubectl -n "$namespace" exec -i "$mysql_pod" -- mysql -uroot -p"$password" < "$repo_root/scripts/k8s/init-db.sql"
+kubectl -n "$namespace" exec -i "$mysql_pod" -- mysql --default-character-set=utf8mb4 -uroot -p"$password" < "$repo_root/scripts/k8s/init-db.sql"

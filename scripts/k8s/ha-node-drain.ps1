@@ -1,7 +1,7 @@
 param(
   [string]$Namespace = "flash-mall",
   [string]$NodeName = "flash-mall-worker",
-  [string[]]$Apps = @("auth-api", "entry-api", "order-rpc", "product-rpc"),
+  [string[]]$Apps = @("auth-api", "entry-api", "order-rpc", "product-rpc", "inventory-kitex"),
   [switch]$Restore
 )
 

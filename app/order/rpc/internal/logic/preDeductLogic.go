@@ -74,6 +74,18 @@ func (l *PreDeductLogic) PreDeduct(in *order.PreDeductReq) (*order.Empty, error)
 	if in.OrderId == "" {
 		return nil, status.Error(codes.InvalidArgument, "order_id is required")
 	}
+	if l.svcCtx.InventoryClient != nil {
+		if err := l.svcCtx.InventoryClient.ReserveStock(l.ctx, in.OrderId, in.ProductId, in.Amount); err != nil {
+			l.Errorf("inventory reserve stock failed: order_id=%s product_id=%d amount=%d err=%v", in.OrderId, in.ProductId, in.Amount, err)
+			return nil, err
+		}
+		l.Infow("inventory stock reserved",
+			logx.Field("order_id", in.OrderId),
+			logx.Field("product_id", in.ProductId),
+			logx.Field("amount", in.Amount),
+		)
+		return &order.Empty{}, nil
+	}
 	shardCount := stockShardCount(l.svcCtx.Config.StockShardCount)
 	stockKeys := stockShardKeys(in.ProductId, shardCount)
 	l.Infow("pre-deduct start",

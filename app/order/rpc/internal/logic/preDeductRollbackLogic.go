@@ -31,6 +31,19 @@ func (l *PreDeductRollbackLogic) PreDeductRollback(in *order.PreDeductReq) (*ord
 	if in.OrderId == "" {
 		return nil, status.Error(codes.InvalidArgument, "order_id is required")
 	}
+	if l.svcCtx.InventoryClient != nil {
+		if err := l.svcCtx.InventoryClient.ReleaseStock(l.ctx, in.OrderId, "pre_deduct_rollback"); err != nil {
+			l.Errorf("inventory release stock failed: order_id=%s product_id=%d amount=%d err=%v", in.OrderId, in.ProductId, in.Amount, err)
+			return nil, err
+		}
+		l.Infow("inventory stock released",
+			logx.Field("order_id", in.OrderId),
+			logx.Field("product_id", in.ProductId),
+			logx.Field("amount", in.Amount),
+			logx.Field("reason", "pre_deduct_rollback"),
+		)
+		return &order.Empty{}, nil
+	}
 	shardCount := stockShardCount(l.svcCtx.Config.StockShardCount)
 	stockKeys := stockShardKeys(in.ProductId, shardCount)
 	l.Infow("pre-deduct rollback start",

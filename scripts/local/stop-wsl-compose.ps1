@@ -3,6 +3,7 @@ param(
   [string]$Distro = "Ubuntu",
   [string]$Workspace = "/home/mildred/code/flash-mall",
   [switch]$Volumes,
+  [switch]$KeepAlive,
   [switch]$Help
 )
 
@@ -16,6 +17,7 @@ Options:
   -Distro NAME       WSL distro name. Default: Ubuntu.
   -Workspace PATH    WSL workspace path. Default: /home/mildred/code/flash-mall.
   -Volumes           Also remove compose volumes, including local MySQL data.
+  -KeepAlive         Leave the WSL keepalive process running after compose down.
 "@ | Write-Host
   exit 0
 }
@@ -34,4 +36,11 @@ $bashCommand = "cd $quotedWorkspace && scripts/local/stop-compose-all.sh $($quot
 
 Write-Host "[WSL] $Distro $bashCommand"
 & wsl.exe -d $Distro -- bash -lc $bashCommand
-exit $LASTEXITCODE
+$exitCode = $LASTEXITCODE
+
+if ($exitCode -eq 0 -and -not $KeepAlive) {
+  & (Join-Path $PSScriptRoot "stop-wsl-keepalive.ps1") -Distro $Distro
+  $exitCode = $LASTEXITCODE
+}
+
+exit $exitCode

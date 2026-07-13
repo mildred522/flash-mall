@@ -9,6 +9,7 @@ import (
 
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/paymentstatus"
+	"flash-mall/app/order/rpc/internal/job"
 	"flash-mall/app/order/rpc/internal/svc"
 	order "flash-mall/app/order/rpc/order"
 
@@ -95,6 +96,9 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
+		if err := l.confirmInventoryDeduct(in.OrderId); err != nil {
+			return nil, err
+		}
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "PAID"}, nil
 	}
 	if orderStatus == orderstatus.Closed {
@@ -141,12 +145,34 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 	if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "SUCCESS", ""); err != nil {
 		return nil, err
 	}
+	if err := job.InsertOrderPaidOutbox(tx, in.OrderId); err != nil {
+		return nil, status.Error(codes.Internal, "insert paid outbox failed")
+	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	if err := l.confirmInventoryDeduct(in.OrderId); err != nil {
+		return nil, err
+	}
 
 	return &order.MarkOrderPaidResp{Updated: true, OrderStatus: "PAID"}, nil
+}
+
+func (l *MarkOrderPaidLogic) confirmInventoryDeduct(orderID string) error {
+	if l.svcCtx.InventoryClient != nil {
+		if err := l.svcCtx.InventoryClient.ConfirmDeduct(l.ctx, orderID); err != nil {
+			l.Errorf("inventory confirm deduct failed: order_id=%s err=%v", orderID, err)
+			if l.svcCtx.Config.RequireInventoryReserve {
+				return status.Error(codes.Internal, "inventory confirm deduct failed")
+			}
+		}
+		return nil
+	}
+	if l.svcCtx.Config.RequireInventoryReserve {
+		return status.Error(codes.Internal, "inventory client not configured")
+	}
+	return nil
 }
 
 func parsePaymentCallbackPayload(body string) (paymentCallbackPayload, error) {
