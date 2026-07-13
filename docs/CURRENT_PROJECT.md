@@ -23,7 +23,8 @@ tree and deployment manifests, not from archived plans or logs.
 
 ## Implemented Hertz route groups
 
-- Shop: catalog, product list/detail, authenticated user addresses.
+- Shop: database-backed homepage showcase, product list/detail, public store
+  detail and store product list, plus authenticated user addresses.
 - Auth: login, registration, refresh, logout, verification-code and password
   flows proxied to auth-api.
 - Orders: create, mock payment, signed payment callback, status, list/detail,
@@ -31,10 +32,35 @@ tree and deployment manifests, not from archived plans or logs.
 - Inventory: administrator and merchant stock audit, stock adjustment, and
   stock/card snapshot rebuild. Reserve/release/confirm remain internal
   `order-rpc -> inventory-kitex` commands rather than public Hertz routes.
-- Admin: products, suppliers, promotions, campaigns, orders, refunds,
-  reconciliation, events, dashboard, and auth-admin proxy operations.
+- Admin: products, suppliers, promotions, campaigns, homepage showcase
+  candidates/publishing, orders, refunds, reconciliation, events, dashboard,
+  and auth-admin proxy operations.
 - Merchant: application creation, dashboard, products, stock adjustment,
-  stock audit, orders, shipping, and refunds.
+  stock audit, store profile/assets, orders, shipping, and refunds.
+
+## Storefront and homepage showcase
+
+- Every approved merchant has a uniform public storefront. Merchants may edit
+  only the Logo, banner, and description; product `status=1/2` controls whether
+  the product is visible in that merchant's store.
+- Product cards and product details include merchant ownership plus a stable
+  `/store/{merchant_id}` link. Public browser routes are `/product/{id}` and
+  `/store/{merchant_id}`, with browser back/forward handled by the shop app.
+- The homepage uses a versioned 12-slot database layout. Publishing replaces
+  the complete layout transactionally with optimistic locking. A product may
+  appear once and one merchant may occupy at most two slots; invalid products
+  remain visible to administrators with a reason but are hidden publicly.
+- Candidate recommendation is deterministic and advisory. It scores recent
+  sales, available stock, active promotions, freshness, and merchant diversity,
+  returns human-readable reasons, caches reads for 60 seconds, and invalidates
+  the cache after a successful publish.
+- Store images use `/uploads/stores/{merchant_id}/...`; uploaded product images
+  use `/uploads/products/...`. Compose mounts both through the persistent local
+  upload directory so a Hertz container rebuild does not remove them.
+- Fresh databases seed only products 100 and 101 into the homepage because the
+  current demo fixture has one merchant. The migration removes slots 3-5 only
+  when they exactly match the old, never-published five-product seed; it never
+  rewrites an administrator-published layout.
 
 ## Functional migration status
 
@@ -52,8 +78,9 @@ for the Hertz/Kitex branch to be considered complete.
 
 - `/debug` and `/monitor` are local operational pages, not production API
   migration blockers.
-- `/metrics` needs an internal-only exposure policy before being mounted on
-  Hertz.
+- `/metrics` is mounted on Hertz for local/Compose observation. Production
+  ingress must restrict it to the monitoring network rather than expose it as
+  a customer API.
 - Legacy static `/js/*` and `/styles/*` routes are not required by the current
   inlined shop/admin build artifacts.
 
@@ -67,6 +94,38 @@ for the Hertz/Kitex branch to be considered complete.
 - The catalog UI response mismatch was fixed in the shared front-end client:
   it now unwraps the Hertz response envelope without changing the direct
   auth-api response contract.
+
+### Storefront/showcase acceptance (2026-07-13)
+
+- Rebuilt only `hertz-gateway` with
+  `scripts/local/build-compose-images.sh --tag dev hertz-gateway`, recreated
+  that Compose service, and received `status=ok` from
+  `/api/system/health`. Other business containers and data volumes stayed up.
+- Ran `scripts/k8s/init-db.sql` repeatedly. The store/showcase tables,
+  `product.merchant_id`, optimistic layout version, and compatibility cleanup
+  remained idempotent.
+- Added `BASE_URL` mode to `scripts/ci/smoke-e2e.sh`. It performs only deployed
+  read checks and never starts services or executes `docker compose down -v`.
+  `BASE_URL=http://127.0.0.1:8889 ./scripts/ci/smoke-e2e.sh` passed after the
+  rebuild. Local curl explicitly bypasses host proxies to avoid false 502s.
+- Executed a real role chain with merchant `1001` and administrator `1002`:
+  uploaded store and product images, saved a versioned store profile, created
+  product 106 with stock 48, obtained recommendation score 37 with stock/new
+  product explanations, published it to slot 1, and verified the public
+  catalog, product detail, store detail, and store product list. The original
+  layout was then restored to products 100/101 and product 106 was taken
+  offline.
+- Used the installed Windows Chrome (not Firefox) to navigate
+  `/shop -> /product/106 -> /store/1000`, then verified browser back and
+  forward. Merchant login showed the versioned store settings and preview;
+  the administrator one-click login showed the 12-slot showcase workbench.
+- Runtime metrics recorded successful public/admin reads, candidate requests,
+  publishes, active/pending slot gauges, bounded invalid-reason gauges, and
+  store request durations. Structured logs included request IDs and
+  old/current/new publish versions without business IDs in metric labels.
+- Backend handler/middleware/service-context tests, all three front-end Vitest
+  workspaces, all three production front-end builds, static artifact checks,
+  shell syntax, and `git diff --check` passed before the deployed acceptance.
 
 ## Go-zero vs Hertz comparison plan
 

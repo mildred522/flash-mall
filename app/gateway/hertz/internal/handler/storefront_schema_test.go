@@ -143,8 +143,8 @@ func TestSeedDefaultShowcaseSeedsOnlyEmptyLayout(t *testing.T) {
 	mock.ExpectQuery("SELECT COUNT\\(1\\) FROM mall_product.homepage_showcase_item").
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
-	mock.ExpectExec("INSERT INTO mall_product.homepage_showcase_item").
-		WillReturnResult(sqlmock.NewResult(0, 5))
+	mock.ExpectExec("INSERT INTO mall_product.homepage_showcase_item .*\\(1, 1, 100\\), \\(1, 2, 101\\)$").
+		WillReturnResult(sqlmock.NewResult(0, 2))
 
 	if err := seedDefaultShowcase(context.Background(), db); err != nil {
 		t.Fatal(err)

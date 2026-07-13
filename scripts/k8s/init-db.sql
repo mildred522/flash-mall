@@ -712,14 +712,26 @@ INSERT INTO homepage_showcase (id, version, operator_id)
 VALUES (1, 1, 0)
 ON DUPLICATE KEY UPDATE id = VALUES(id);
 
+-- 早期默认布局将同一商家的五件商品全部放到首页，与“每商家最多两个槽位”冲突。
+-- 只收敛从未人工发布过的精确旧种子，不覆盖管理员已经发布的布局。
+DELETE item
+FROM homepage_showcase_item item
+JOIN homepage_showcase showcase ON showcase.id = item.showcase_id
+WHERE showcase.id = 1
+  AND showcase.version = 1
+  AND showcase.operator_id = 0
+  AND showcase.publish_time IS NULL
+  AND (
+    (item.slot_no = 3 AND item.product_id = 102)
+    OR (item.slot_no = 4 AND item.product_id = 103)
+    OR (item.slot_no = 5 AND item.product_id = 104)
+  );
+
 INSERT INTO homepage_showcase_item (showcase_id, slot_no, product_id)
 SELECT seed.showcase_id, seed.slot_no, seed.product_id
 FROM (
   SELECT 1 AS showcase_id, 1 AS slot_no, 100 AS product_id
   UNION ALL SELECT 1, 2, 101
-  UNION ALL SELECT 1, 3, 102
-  UNION ALL SELECT 1, 4, 103
-  UNION ALL SELECT 1, 5, 104
 ) AS seed
 WHERE NOT EXISTS (
   SELECT 1 FROM homepage_showcase_item existing WHERE existing.showcase_id = 1

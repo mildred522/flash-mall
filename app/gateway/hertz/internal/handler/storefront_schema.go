@@ -124,6 +124,6 @@ ON DUPLICATE KEY UPDATE id = VALUES(id)`); err != nil {
 		return nil
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO mall_product.homepage_showcase_item (showcase_id, slot_no, product_id) VALUES
-(1, 1, 100), (1, 2, 101), (1, 3, 102), (1, 4, 103), (1, 5, 104)`)
+(1, 1, 100), (1, 2, 101)`)
 	return err
 }

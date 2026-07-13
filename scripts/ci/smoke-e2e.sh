@@ -6,6 +6,30 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 LOG_DIR="${REPO_ROOT}/.runtime/ci-smoke"
 mkdir -p "${LOG_DIR}"
 
+run_read_only_storefront_smoke() {
+  local base_url="${1%/}"
+  local curl_args=(--noproxy '*')
+  local body
+
+  echo "[smoke] checking deployed storefront at ${base_url}"
+  body="$(curl "${curl_args[@]}" -fsS "${base_url}/api/system/health")"
+  grep -q '"status":"ok"' <<<"${body}"
+  body="$(curl "${curl_args[@]}" -fsS "${base_url}/api/shop/catalog")"
+  grep -q '"items"' <<<"${body}"
+  body="$(curl "${curl_args[@]}" -fsS "${base_url}/api/shop/stores/detail?merchant_id=1000")"
+  grep -q '"merchant_id":1000' <<<"${body}"
+  body="$(curl "${curl_args[@]}" -fsS "${base_url}/product/100")"
+  grep -qi '<!doctype html>' <<<"${body}"
+  body="$(curl "${curl_args[@]}" -fsS "${base_url}/store/1000")"
+  grep -qi '<!doctype html>' <<<"${body}"
+  echo "[ok] deployed storefront read-only smoke passed"
+}
+
+if [[ -n "${BASE_URL:-}" ]]; then
+  run_read_only_storefront_smoke "${BASE_URL}"
+  exit 0
+fi
+
 PIDS=()
 
 cleanup() {
