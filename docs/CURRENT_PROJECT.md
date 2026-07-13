@@ -189,6 +189,25 @@ The legacy entry service and Go-zero baseline remain available for comparison
 and interview narration regardless of the Hertz branch verdict. Cleanup is a
 separate optional decision, not a migration acceptance requirement.
 
+## Windows 桌面控制中心
+
+推荐使用仓库内的 WPF 桌面控制中心启动和观察本地项目。它调用 Ubuntu WSL
+中的 Docker，不依赖 Docker Desktop；Hertz 网关和商城/后台入口使用端口
+`8889`。默认“停止项目”只执行 Compose down 并保留 MySQL、Redis 等数据卷，
+而旧 `entry-api` 不在桌面入口的默认构建和启动范围内。
+
+```powershell
+# 首次安装或更新启动器
+pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
+
+# 不创建快捷方式，只验证发布
+pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1 -NoShortcut
+```
+
+安装后可通过桌面上的“Flash Mall 控制中心”启动、重新构建、停止项目，打开
+商城、后台、RabbitMQ 与 Jaeger，并查看业务服务状态和运行日志。关闭控制中心
+窗口只会取消当前前台操作，不会自动停止已经运行的容器。
+
 ## Docker build design (approved 2026-07-12)
 
 ### Problem statement

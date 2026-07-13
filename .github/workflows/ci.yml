@@ -24,6 +24,7 @@ jobs:
       ci: ${{ steps.filter.outputs.ci }}
       entry_contract: ${{ steps.filter.outputs.entry_contract }}
       auth_contract: ${{ steps.filter.outputs.auth_contract }}
+      desktop_launcher: ${{ steps.filter.outputs.desktop_launcher }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,6 +58,15 @@ jobs:
               - 'app/entry/api/entry.api'
             auth_contract:
               - 'app/auth/api/auth.api'
+            desktop_launcher:
+              - 'tools/FlashMall.Launcher/**'
+              - 'tools/FlashMall.Launcher.Tests/**'
+              - 'scripts/local/flash-mall-control.sh'
+              - 'scripts/local/test-flash-mall-control.sh'
+              - 'scripts/local/start-compose-all.sh'
+              - 'scripts/local/install-desktop-launcher.ps1'
+              - 'scripts/local/test-install-desktop-launcher.ps1'
+              - '.github/workflows/ci.yml'
 
   go-checks:
     needs: changes
@@ -165,6 +175,26 @@ jobs:
       - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 
+  desktop-launcher:
+    needs: changes
+    if: needs.changes.outputs.desktop_launcher == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Test desktop launcher
+        run: dotnet test tools/FlashMall.Launcher.Tests/FlashMall.Launcher.Tests.csproj -c Release
+      - name: Test WSL control protocol
+        shell: bash
+        run: sh -n scripts/local/flash-mall-control.sh && sh scripts/local/test-flash-mall-control.sh
+      - name: Test launcher installer
+        shell: pwsh
+        run: ./scripts/local/test-install-desktop-launcher.ps1
+      - name: Publish desktop launcher
+        run: dotnet publish tools/FlashMall.Launcher/FlashMall.Launcher.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true
+
   fast-ci:
     name: Fast CI
     if: always()
@@ -174,6 +204,7 @@ jobs:
       - frontend-build
       - web-build
       - ci-config-check
+      - desktop-launcher
     runs-on: ubuntu-latest
     steps:
       - name: Require successful relevant checks
@@ -183,9 +214,10 @@ jobs:
           FRONTEND_RESULT: ${{ needs.frontend-build.result }}
           WEB_RESULT: ${{ needs.web-build.result }}
           CI_RESULT: ${{ needs.ci-config-check.result }}
+          DESKTOP_RESULT: ${{ needs.desktop-launcher.result }}
         run: |
           [[ "$CHANGES_RESULT" == "success" ]]
-          for result in "$GO_RESULT" "$FRONTEND_RESULT" "$WEB_RESULT" "$CI_RESULT"; do
+          for result in "$GO_RESULT" "$FRONTEND_RESULT" "$WEB_RESULT" "$CI_RESULT" "$DESKTOP_RESULT"; do
             case "$result" in
               success|skipped) ;;
               *) echo "required component result: $result" >&2; exit 1 ;;
