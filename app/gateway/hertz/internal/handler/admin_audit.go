@@ -40,6 +40,8 @@ const (
 	adminAuditPromotionUpdated  = "admin_promotion_updated"
 	adminAuditPromotionEnabled  = "admin_promotion_enabled"
 	adminAuditPromotionDisabled = "admin_promotion_disabled"
+
+	adminAuditHomepageShowcasePublished = "homepage_showcase.publish"
 )
 
 const (
