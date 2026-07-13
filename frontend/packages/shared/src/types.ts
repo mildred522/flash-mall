@@ -168,6 +168,7 @@ export interface AdminOrderStatusLogResp extends AdminMutationResp {
 export interface AdminProductItem {
   product_id: number;
   name: string;
+  image_url: string;
   origin_price_fen: number;
   sale_price_fen: number;
   supplier_id: number;
@@ -189,6 +190,7 @@ export type AdminProductDetailResp = AdminProductItem;
 
 export interface AdminProductCreateReq {
   name: string;
+  image_url?: string;
   origin_price_fen: number;
   sale_price_fen: number;
   stock_available?: number;
@@ -203,6 +205,7 @@ export interface AdminProductCreateResp extends AdminMutationResp {
 export interface AdminProductUpdateReq {
   product_id: number;
   name?: string;
+  image_url?: string;
   origin_price_fen?: number;
   sale_price_fen?: number;
   supplier_id?: number;

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Descriptions, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Tag, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { ProTable, type ActionType, type ProColumns } from '@ant-design/pro-components';
-import { authed, formatPriceFen } from '@flash-mall/shared';
+import { authed, formatPriceFen, uploadProductImage } from '@flash-mall/shared';
 import type {
   AdminMutationResp,
   AdminProductCreateReq,
@@ -19,6 +19,7 @@ import type {
 
 type ProductFormValues = {
   name: string;
+  image_url?: string;
   origin_price_fen: number;
   sale_price_fen: number;
   supplier_id: number;
@@ -48,6 +49,7 @@ function productStatusTag(product: Pick<AdminProductItem, 'status'>) {
 export default function ProductsPage() {
   const actionRef = useRef<ActionType | undefined>(undefined);
   const [productForm] = Form.useForm<ProductFormValues>();
+  const watchedImageURL = Form.useWatch('image_url', productForm);
   const [stockForm] = Form.useForm<StockFormValues>();
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [stockModalOpen, setStockModalOpen] = useState(false);
@@ -58,6 +60,7 @@ export default function ProductsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<AdminSupplierItem[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
   const [initialProductId] = useState(() => {
     const productId = window.__flashAdminProductProductId || 0;
     window.__flashAdminProductProductId = 0;
@@ -118,6 +121,7 @@ export default function ProductsPage() {
     productForm.resetFields();
     productForm.setFieldsValue({
       name: '',
+      image_url: '',
       origin_price_fen: 0,
       sale_price_fen: 0,
       supplier_id: suppliers[0]?.supplier_id || 0,
@@ -125,24 +129,28 @@ export default function ProductsPage() {
       status: 1,
     });
     setProductModalOpen(true);
+    setSelectedImageFile(null);
   };
 
   const closeProductModal = () => {
     setProductModalOpen(false);
     setEditingProduct(null);
     productForm.resetFields();
+    setSelectedImageFile(null);
   };
 
   const openEdit = (product: AdminProductItem) => {
     setEditingProduct(product);
     productForm.setFieldsValue({
       name: product.name,
+      image_url: product.image_url || '',
       origin_price_fen: product.origin_price_fen,
       sale_price_fen: product.sale_price_fen,
       supplier_id: product.supplier_id,
       status: product.status,
     });
     setProductModalOpen(true);
+    setSelectedImageFile(null);
   };
 
   const openStock = (product: AdminProductItem) => {
@@ -159,10 +167,16 @@ export default function ProductsPage() {
     }
     setSubmitting(true);
     try {
+      let imageURL = values.image_url?.trim() || '';
+      if (selectedImageFile) {
+        imageURL = await uploadProductImage(selectedImageFile, '/api/admin/products/image');
+        productForm.setFieldValue('image_url', imageURL);
+      }
       if (editingProduct) {
         const body: AdminProductUpdateReq = {
           product_id: editingProduct.product_id,
           name: values.name,
+          image_url: imageURL,
           origin_price_fen: values.origin_price_fen,
           sale_price_fen: values.sale_price_fen,
           supplier_id: values.supplier_id,
@@ -183,6 +197,7 @@ export default function ProductsPage() {
       } else {
         const body: AdminProductCreateReq = {
           name: values.name,
+          image_url: imageURL,
           origin_price_fen: values.origin_price_fen,
           sale_price_fen: values.sale_price_fen,
           supplier_id: values.supplier_id,
@@ -199,6 +214,8 @@ export default function ProductsPage() {
           message.error(error || '商品创建失败');
         }
       }
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : '商品保存失败');
     } finally {
       setSubmitting(false);
     }
@@ -275,6 +292,15 @@ export default function ProductsPage() {
         '2': { text: '低库存' },
         '3': { text: '缺货' },
       },
+    },
+    {
+      title: '图片',
+      dataIndex: 'image_url',
+      width: 88,
+      search: false,
+      render: (_, row) => row.image_url
+        ? <img src={row.image_url} alt={`${row.name} 商品图`} style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover' }} />
+        : <span style={{ color: '#999' }}>无图</span>,
     },
     { title: '名称', dataIndex: 'name', ellipsis: true, search: false },
     {
@@ -415,12 +441,32 @@ export default function ProductsPage() {
         onCancel={closeProductModal}
         onOk={saveProduct}
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={productForm} layout="vertical" preserve={false}>
           <Form.Item name="name" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}>
             <Input maxLength={80} />
           </Form.Item>
+          <Form.Item name="image_url" label="图片地址">
+            <Input placeholder="https://... 或上传本地图片" />
+          </Form.Item>
+          <Form.Item label="上传图片">
+            <input
+              id="admin-product-image-file"
+              aria-label="上传图片"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(event) => setSelectedImageFile(event.target.files?.[0] || null)}
+            />
+          </Form.Item>
+          {(watchedImageURL || selectedImageFile) && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+              {watchedImageURL && (
+                <img src={watchedImageURL} alt="商品图片预览" style={{ width: 96, height: 96, borderRadius: 8, objectFit: 'cover' }} />
+              )}
+              {selectedImageFile && <span>待上传：{selectedImageFile.name}</span>}
+            </div>
+          )}
           <Form.Item name="origin_price_fen" label="原价(分)" rules={[{ required: true, message: '请输入原价' }]}>
             <InputNumber min={0} precision={0} style={{ width: '100%' }} />
           </Form.Item>
@@ -470,7 +516,7 @@ export default function ProductsPage() {
         onCancel={() => setStockModalOpen(false)}
         onOk={adjustStock}
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={stockForm} layout="vertical" preserve={false}>
           <Form.Item
@@ -562,6 +608,11 @@ export default function ProductsPage() {
             <Descriptions.Item label="商品ID">{detail.product_id}</Descriptions.Item>
             <Descriptions.Item label="状态">{productStatusTag(detail)}</Descriptions.Item>
             <Descriptions.Item label="名称" span={2}>{detail.name || '-'}</Descriptions.Item>
+            <Descriptions.Item label="商品图片" span={2}>
+              {detail.image_url
+                ? <img src={detail.image_url} alt={`${detail.name} 商品图`} style={{ maxWidth: 240, maxHeight: 160, borderRadius: 8, objectFit: 'contain' }} />
+                : '无图'}
+            </Descriptions.Item>
             <Descriptions.Item label="供应商" span={2}>
               {detail.supplier_name ? `${detail.supplier_name} (${detail.supplier_id})` : detail.supplier_id || '-'}
             </Descriptions.Item>
