@@ -16,6 +16,7 @@ func TestResetPasswordLogic_ResetPassword_UpdatesCredentialAndInvalidatesSession
 		DemoPassword:           "pwd",
 		RefreshTokenTTLSeconds: 3600,
 		CodeTTLSeconds:         300,
+		ExposeDebugCode:        true,
 	})
 
 	sendCode := NewSendCodeLogic(context.Background(), svcCtx)
@@ -72,6 +73,7 @@ func TestResetPasswordLogic_ResetPassword_RevokesRefreshedSessions(t *testing.T)
 		DemoPassword:           "pwd",
 		RefreshTokenTTLSeconds: 3600,
 		CodeTTLSeconds:         300,
+		ExposeDebugCode:        true,
 	})
 
 	sendCode := NewSendCodeLogic(context.Background(), svcCtx)

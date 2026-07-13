@@ -34,11 +34,33 @@ func TestSendCodeLogic_Send_Success(t *testing.T) {
 	if !resp.Sent {
 		t.Fatalf("expected sent=true")
 	}
-	if resp.DebugCode == "" {
-		t.Fatalf("expected debug code")
+	if resp.DebugCode != "" {
+		t.Fatalf("debug code must be hidden by default, got %q", resp.DebugCode)
 	}
 	if resp.ExpiresAt <= 0 {
 		t.Fatalf("expected expires_at")
+	}
+}
+
+func TestSendCodeLogic_Send_ExposesDebugCodeWhenEnabled(t *testing.T) {
+	svcCtx := svc.NewServiceContext(config.Config{
+		JwtAuthSecret:          "test-auth-jwt-secret",
+		JwtExpireSeconds:       600,
+		DemoPassword:           "pwd",
+		RefreshTokenTTLSeconds: 3600,
+		CodeTTLSeconds:         300,
+		ExposeDebugCode:        true,
+	})
+
+	resp, err := NewSendCodeLogic(context.Background(), svcCtx).Send(&types.SendCodeReq{
+		Phone: "13800138000",
+		Scene: "register",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.DebugCode == "" {
+		t.Fatal("expected debug code when ExposeDebugCode is enabled")
 	}
 }
 
@@ -147,6 +169,7 @@ func TestSendCodeLogic_Send_StillReturnsCodeWhenRiskPersistenceFails(t *testing.
 		CodeSendPhoneMaxAttempts:   3,
 		CodeSendIPWindowSeconds:    60,
 		CodeSendIPMaxAttempts:      3,
+		ExposeDebugCode:            true,
 	})
 	svcCtx.RiskLimiter = failingPersistLimiter{}
 

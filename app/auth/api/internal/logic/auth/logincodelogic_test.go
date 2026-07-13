@@ -16,6 +16,7 @@ func TestLoginCodeLogic_Login_Success(t *testing.T) {
 		DemoPassword:           "pwd",
 		RefreshTokenTTLSeconds: 3600,
 		CodeTTLSeconds:         300,
+		ExposeDebugCode:        true,
 	})
 
 	sendCode := NewSendCodeLogic(context.Background(), svcCtx)

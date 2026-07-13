@@ -12,6 +12,7 @@ RedisConf:
   Type: node
 RefreshTokenTTLSeconds: 604800
 CodeTTLSeconds: 300
+ExposeDebugCode: false
 RefreshCookieName: fm_refresh_token
 LoginFailWindowSeconds: 900
 LoginFailPhoneMaxAttempts: 5

@@ -63,10 +63,14 @@ func (l *SendCodeLogic) Send(req *types.SendCodeReq) (*types.SendCodeResp, error
 		UserAgent:     req.UserAgent,
 	})
 
+	debugCode := ""
+	if l.svcCtx.Config.ExposeDebugCode {
+		debugCode = code
+	}
 	return &types.SendCodeResp{
 		Sent:      true,
 		ExpiresAt: expiresAt.Unix(),
-		DebugCode: code,
+		DebugCode: debugCode,
 	}, nil
 }
 

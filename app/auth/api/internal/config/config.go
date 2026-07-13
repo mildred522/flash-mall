@@ -15,6 +15,7 @@ type Config struct {
 	RedisConf                   redis.RedisConf
 	RefreshTokenTTLSeconds      int64
 	CodeTTLSeconds              int64
+	ExposeDebugCode             bool
 	RefreshCookieName           string
 	LoginFailWindowSeconds      int64
 	LoginFailPhoneMaxAttempts   int64
