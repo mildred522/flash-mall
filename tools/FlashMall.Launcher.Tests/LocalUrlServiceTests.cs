@@ -7,6 +7,7 @@ public sealed class LocalUrlServiceTests
     [Theory]
     [InlineData("http://127.0.0.1:8889/shop", true)]
     [InlineData("http://127.0.0.1:8889/admin", true)]
+    [InlineData("http://127.0.0.1:8889/merchant", true)]
     [InlineData("http://127.0.0.1:15672", true)]
     [InlineData("http://127.0.0.1:16686", true)]
     [InlineData("https://example.com", false)]

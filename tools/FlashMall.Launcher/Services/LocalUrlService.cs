@@ -8,6 +8,7 @@ public sealed class LocalUrlService : ILocalUrlService
     {
         "http://127.0.0.1:8889/shop",
         "http://127.0.0.1:8889/admin",
+        "http://127.0.0.1:8889/merchant",
         "http://127.0.0.1:15672",
         "http://127.0.0.1:16686",
     };

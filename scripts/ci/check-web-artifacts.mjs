@@ -10,17 +10,28 @@ const targets = files.length > 0
   : [
       resolve(repositoryRoot, 'app/entry/api/internal/handler/web/shop.html'),
       resolve(repositoryRoot, 'app/entry/api/internal/handler/web/admin.html'),
+      resolve(repositoryRoot, 'app/entry/api/internal/handler/web/merchant.html'),
     ];
 
 let failed = false;
 for (const target of targets) {
-  const html = readFileSync(target, 'utf8');
+  let html;
+  try {
+    html = readFileSync(target, 'utf8');
+  } catch (error) {
+    console.error(`[FAIL] ${target}: ${error.code === 'ENOENT' ? 'artifact is missing' : error.message}`);
+    failed = true;
+    continue;
+  }
+
+  let targetFailed = false;
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
     .filter((match) => !/\bsrc\s*=/.test(match[1]));
 
   if (scripts.length === 0) {
     console.error(`[FAIL] ${target}: no inline scripts found`);
     failed = true;
+    targetFailed = true;
     continue;
   }
 
@@ -38,13 +49,14 @@ for (const target of targets) {
         console.error(`[FAIL] ${target}: inline script ${index} is invalid`);
         console.error((result.stderr || result.stdout).trim());
         failed = true;
+        targetFailed = true;
       }
     } finally {
       rmSync(temporary, { force: true });
     }
   }
 
-  if (!failed) {
+  if (!targetFailed) {
     console.log(`[OK] ${target}: ${scripts.length} inline script(s) parsed`);
   }
 }

@@ -131,11 +131,12 @@
                 </Grid>
 
                 <TextBlock Text="本地入口" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,23,0,8" />
-                <UniformGrid Columns="4">
+                <UniformGrid Columns="3">
                     <Button Content="商城" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/shop" Margin="0,0,5,0" Padding="5,8" />
-                    <Button Content="后台" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/admin" Margin="0,0,5,0" Padding="5,8" />
-                    <Button Content="MQ" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:15672" Margin="0,0,5,0" Padding="5,8" />
-                    <Button Content="链路" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:16686" Padding="5,8" />
+                    <Button Content="平台后台" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/admin" Margin="0,0,5,0" Padding="5,8" />
+                    <Button Content="商家后台" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/merchant" Padding="5,8" />
+                    <Button Content="MQ" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:15672" Margin="0,6,5,0" Padding="5,8" />
+                    <Button Content="链路" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:16686" Margin="0,6,5,0" Padding="5,8" />
                 </UniformGrid>
 
                 <Expander Margin="0,24,0,0" Foreground="#DCE5EC">

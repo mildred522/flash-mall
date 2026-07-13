@@ -12,6 +12,9 @@ execSync('npm run build -w packages/shop', { cwd: __dirname, stdio: 'inherit' })
 console.log('[build] Building admin...');
 execSync('npm run build -w packages/admin', { cwd: __dirname, stdio: 'inherit' });
 
+console.log('[build] Building merchant...');
+execSync('npm run build -w packages/merchant', { cwd: __dirname, stdio: 'inherit' });
+
 if (!existsSync(webDir)) mkdirSync(webDir, { recursive: true });
 
 copyFileSync(resolve(__dirname, 'packages/shop/dist/index.html'), resolve(webDir, 'shop.html'));
@@ -25,5 +28,8 @@ if (existsSync(productAssets)) {
 
 copyFileSync(resolve(__dirname, 'packages/admin/dist/index.html'), resolve(webDir, 'admin.html'));
 console.log('[build] Copied admin.html');
+
+copyFileSync(resolve(__dirname, 'packages/merchant/dist/index.html'), resolve(webDir, 'merchant.html'));
+console.log('[build] Copied merchant.html');
 
 console.log('[build] Done!');

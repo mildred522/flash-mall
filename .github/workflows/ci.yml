@@ -148,7 +148,7 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Build frontend sources
-        run: cd frontend && npm ci && npm run build:shop && npm run build:admin
+        run: cd frontend && npm ci && npm run build
       - name: Parse committed single-file artifacts
         run: node scripts/ci/check-web-artifacts.mjs
 
