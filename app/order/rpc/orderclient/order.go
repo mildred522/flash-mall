@@ -20,6 +20,10 @@ type (
 	MarkOrderPaidResp  = order.MarkOrderPaidResp
 	GetOrderDetailReq  = order.GetOrderDetailReq
 	GetOrderDetailResp = order.GetOrderDetailResp
+	RequestRefundReq   = order.RequestRefundReq
+	RequestRefundResp  = order.RequestRefundResp
+	AuditRefundReq     = order.AuditRefundReq
+	AuditRefundResp    = order.AuditRefundResp
 	Empty              = order.Empty
 
 	Order interface {
@@ -33,6 +37,8 @@ type (
 		CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
 		MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
 		GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
+		RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error)
+		AuditRefund(ctx context.Context, in *AuditRefundReq, opts ...grpc.CallOption) (*AuditRefundResp, error)
 	}
 
 	defaultOrder struct {
@@ -74,4 +80,14 @@ func (m *defaultOrder) MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, 
 func (m *defaultOrder) GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error) {
 	client := order.NewOrderClient(m.cli.Conn())
 	return client.GetOrderDetail(ctx, in, opts...)
+}
+
+func (m *defaultOrder) RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.RequestRefund(ctx, in, opts...)
+}
+
+func (m *defaultOrder) AuditRefund(ctx context.Context, in *AuditRefundReq, opts ...grpc.CallOption) (*AuditRefundResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.AuditRefund(ctx, in, opts...)
 }

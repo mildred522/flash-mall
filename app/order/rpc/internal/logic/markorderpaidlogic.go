@@ -141,6 +141,12 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 	if paymentRows == 0 {
 		return nil, status.Error(codes.FailedPrecondition, "payment order is not payable")
 	}
+	if _, err := tx.ExecContext(l.ctx,
+		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, 0, 'payment callback success')",
+		in.OrderId, orderstatus.PendingPayment, orderstatus.Paid,
+	); err != nil {
+		return nil, err
+	}
 
 	if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "SUCCESS", ""); err != nil {
 		return nil, err

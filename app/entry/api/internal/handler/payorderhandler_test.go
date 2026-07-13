@@ -47,6 +47,14 @@ func (s *stubOrderRPC) MarkOrderPaid(_ context.Context, in *orderclient.MarkOrde
 	return s.resp, nil
 }
 
+func (s *stubOrderRPC) RequestRefund(context.Context, *orderclient.RequestRefundReq, ...grpc.CallOption) (*orderclient.RequestRefundResp, error) {
+	panic("unexpected RequestRefund call")
+}
+
+func (s *stubOrderRPC) AuditRefund(context.Context, *orderclient.AuditRefundReq, ...grpc.CallOption) (*orderclient.AuditRefundResp, error) {
+	panic("unexpected AuditRefund call")
+}
+
 func TestPaymentCallbackHandler_DelegatesToOrderRPC(t *testing.T) {
 	orderRPC := &stubOrderRPC{
 		resp: &orderclient.MarkOrderPaidResp{

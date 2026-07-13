@@ -245,6 +245,7 @@ PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS reconciliation_issue (
   id bigint NOT NULL AUTO_INCREMENT,
+  issue_key varchar(192) NULL COMMENT 'Hertz 对账稳定幂等键；旧入口兼容为空',
   issue_type varchar(64) NOT NULL COMMENT '问题类型',
   order_id varchar(64) NOT NULL DEFAULT '' COMMENT '订单id',
   payment_order_id varchar(64) NOT NULL DEFAULT '' COMMENT '支付单id',
@@ -257,10 +258,23 @@ CREATE TABLE IF NOT EXISTS reconciliation_issue (
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
+  UNIQUE KEY uniq_issue_key (issue_key),
   KEY ix_status (status),
   KEY ix_order_id (order_id),
   KEY ix_issue_type (issue_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'reconciliation_issue' AND COLUMN_NAME = 'issue_key');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE reconciliation_issue ADD COLUMN issue_key varchar(192) NULL AFTER id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+UPDATE reconciliation_issue
+SET issue_key = CONCAT(issue_type, ':', order_id, ':', payment_order_id, ':', refund_order_id, ':legacy:', id)
+WHERE issue_key IS NULL OR issue_key = '';
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'reconciliation_issue' AND INDEX_NAME = 'uniq_issue_key');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE reconciliation_issue ADD UNIQUE KEY uniq_issue_key (issue_key)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 CREATE TABLE IF NOT EXISTS order_outbox (
   id bigint NOT NULL AUTO_INCREMENT,

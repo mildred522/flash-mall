@@ -46,6 +46,9 @@ func TestMarkOrderPaidLogic_MarkPaid_IsIdempotent(t *testing.T) {
 	if err != nil || second.Updated {
 		t.Fatalf("second callback should be idempotent, resp=%#v err=%v", second, err)
 	}
+	if got := queryOrderStatusLogCount(t, svcCtx, orderID, 0, 1); got != 1 {
+		t.Fatalf("payment transition log count = %d, want 1", got)
+	}
 }
 
 func TestMarkOrderPaidLogic_MarkPaid_RejectsPaymentOrderForDifferentOrder(t *testing.T) {
@@ -164,6 +167,17 @@ func ensureMarkPaidSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			KEY ix_payment_order_id (payment_order_id),
 			KEY ix_order_id (order_id)
 		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+		`CREATE TABLE IF NOT EXISTS order_status_log (
+			id bigint NOT NULL AUTO_INCREMENT,
+			order_id varchar(64) NOT NULL,
+			from_status tinyint NOT NULL,
+			to_status tinyint NOT NULL,
+			operator_id bigint NOT NULL DEFAULT 0,
+			remark varchar(255) NOT NULL DEFAULT '',
+			create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id),
+			KEY ix_order_id (order_id)
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 	}
 
 	for _, statement := range statements {
@@ -180,6 +194,7 @@ func cleanupMarkPaidRows(t *testing.T, svcCtx *svc.ServiceContext, orderID, paym
 	t.Helper()
 
 	statements := []string{
+		fmt.Sprintf("DELETE FROM order_status_log WHERE order_id = '%s'", orderID),
 		fmt.Sprintf("DELETE FROM payment_callback_event WHERE order_id = '%s' OR payment_order_id = '%s'", orderID, paymentOrderID),
 		fmt.Sprintf("DELETE FROM payment_order WHERE id = '%s'", paymentOrderID),
 		fmt.Sprintf("DELETE FROM orders WHERE id = '%s'", orderID),
@@ -227,6 +242,18 @@ func queryPaymentStatus(t *testing.T, svcCtx *svc.ServiceContext, paymentOrderID
 	var got int64
 	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got, "SELECT status FROM payment_order WHERE id = ?", paymentOrderID); err != nil {
 		t.Fatalf("query payment status failed: %v", err)
+	}
+	return got
+}
+
+func queryOrderStatusLogCount(t *testing.T, svcCtx *svc.ServiceContext, orderID string, fromStatus, toStatus int64) int64 {
+	t.Helper()
+
+	var got int64
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &got,
+		"SELECT COUNT(*) FROM order_status_log WHERE order_id = ? AND from_status = ? AND to_status = ?",
+		orderID, fromStatus, toStatus); err != nil {
+		t.Fatalf("query order status log count failed: %v", err)
 	}
 	return got
 }

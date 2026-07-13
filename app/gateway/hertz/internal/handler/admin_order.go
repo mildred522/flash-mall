@@ -10,7 +10,9 @@ import (
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
+	orderpb "flash-mall/app/order/rpc/order"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -150,13 +152,8 @@ func AdminRefundOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		if req.Reason == "" {
 			req.Reason = "admin refund"
 		}
-		db, err := orderDB(svcCtx)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
-			return
-		}
 		operatorID := gatewayOperatorID(ctx)
-		if err := refundAdminOrder(ctx, svcCtx, db, req, operatorID); err != nil {
+		if err := refundAdminOrder(ctx, svcCtx, nil, req, operatorID); err != nil {
 			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditOrderRefunded, fmt.Sprintf("order:%s reason:%s", req.OrderID, adminAuditReasonInvalidStatus))
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -380,32 +377,23 @@ func closeAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.DB
 	return tx.Commit()
 }
 
-func refundAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.DB, req RefundOrderReq, operatorID int64) error {
-	tx, err := db.BeginTx(ctx, nil)
+func refundAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB, req RefundOrderReq, operatorID int64) error {
+	requestID := tracectx.RequestIDFrom(ctx)
+	if requestID == "" {
+		requestID = req.OrderID + ":admin-refund"
+	}
+	requested, err := svcCtx.OrderRpc.RequestRefund(ctx, &orderpb.RequestRefundReq{
+		OrderId: req.OrderID, RequesterId: operatorID, RequesterRole: "admin",
+		Reason: req.Reason, RequestId: requestID,
+	})
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
-	var currentStatus int64
-	if err := tx.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = ? FOR UPDATE", req.OrderID).Scan(&currentStatus); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanRequestRefund(currentStatus) {
-		return apperror.New(apperror.CodeRefundNotAllowed, "order cannot be refunded")
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE orders SET status = ?, refund_requested_at = NOW(), refunded_at = NOW() WHERE id = ? AND status = ?", orderstatus.Refunded, req.OrderID, currentStatus); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)", req.OrderID, currentStatus, orderstatus.Refunded, operatorID, "admin refund: "+req.Reason); err != nil {
-		return err
-	}
-	if err = releaseInventoryStock(ctx, svcCtx, InventoryReleaseReq{OrderID: req.OrderID, Reason: req.Reason}); err != nil {
-		return apperror.Wrap(apperror.CodeStockReconcileFailed, "release order stock failed", err)
-	}
-	return tx.Commit()
+	_, err = svcCtx.OrderRpc.AuditRefund(ctx, &orderpb.AuditRefundReq{
+		RefundId: requested.GetRefundId(), OperatorId: operatorID, Approve: true,
+		Remark: req.Reason, RequestId: requestID,
+	})
+	return err
 }
 
 func gatewayOperatorID(ctx context.Context) int64 {

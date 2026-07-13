@@ -12,6 +12,7 @@ import (
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/paymentstatus"
+	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -369,78 +370,15 @@ func cancelUserOrder(ctx context.Context, svcCtx *svc.ServiceContext, req Cancel
 }
 
 func requestUserRefund(ctx context.Context, svcCtx *svc.ServiceContext, req RefundOrderReq, userID int64) error {
-	db, err := orderDB(svcCtx)
-	if err != nil {
-		return err
+	requestID := tracectx.RequestIDFrom(ctx)
+	if requestID == "" {
+		requestID = req.OrderID + ":refund-request"
 	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var currentStatus int64
-	var merchantID int64
-	var productID int64
-	err = tx.QueryRowContext(ctx,
-		"SELECT status, merchant_id, product_id FROM orders WHERE id = ? AND user_id = ? FOR UPDATE",
-		req.OrderID, userID,
-	).Scan(&currentStatus, &merchantID, &productID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanRequestRefund(currentStatus) {
-		return apperror.New(apperror.CodeRefundNotAllowed, "order cannot be refunded in current status")
-	}
-
-	result, err := tx.ExecContext(ctx,
-		"UPDATE orders SET status = ?, refund_requested_at = NOW() WHERE id = ? AND status = ?",
-		orderstatus.RefundRequested, req.OrderID, currentStatus,
-	)
-	if err != nil {
-		return err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order status changed concurrently")
-	}
-
-	var paymentOrderID string
-	var refundAmountFen int64
-	_ = tx.QueryRowContext(ctx,
-		"SELECT COALESCE(id,''), COALESCE(payable_amount_fen,0) FROM payment_order WHERE order_id = ? LIMIT 1",
-		req.OrderID,
-	).Scan(&paymentOrderID, &refundAmountFen)
-
-	refundID := fmt.Sprintf("rf_%s_%d", req.OrderID, time.Now().UnixNano())
-	if _, err = tx.ExecContext(ctx,
-		`INSERT INTO refund_order
-		  (id, order_id, payment_order_id, user_id, merchant_id, product_id, refund_amount_fen, status, reason)
-		  VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-		refundID, req.OrderID, paymentOrderID, userID, merchantID, productID, refundAmountFen, req.Reason,
-	); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx,
-		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
-		req.OrderID, currentStatus, orderstatus.RefundRequested, userID, "refund requested: "+req.Reason,
-	); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx,
-		`INSERT INTO order_outbox (event_id, event_type, aggregate_id, payload, status)
-		 VALUES (?, 'refund.requested', ?, JSON_OBJECT('refund_id', ?, 'order_id', ?, 'user_id', ?, 'merchant_id', ?, 'amount_fen', ?), 0)`,
-		"evt_"+refundID, req.OrderID, refundID, req.OrderID, userID, merchantID, refundAmountFen,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
+	_, err := svcCtx.OrderRpc.RequestRefund(ctx, &orderpb.RequestRefundReq{
+		OrderId: req.OrderID, RequesterId: userID, RequesterRole: "user",
+		Reason: req.Reason, RequestId: requestID,
+	})
+	return err
 }
 
 func confirmUserReceipt(ctx context.Context, svcCtx *svc.ServiceContext, orderID string, userID int64) error {
@@ -698,6 +636,8 @@ func createOrderStatusCode(err error) int {
 			return consts.StatusNotFound
 		case codes.Unauthenticated:
 			return consts.StatusUnauthorized
+		case codes.PermissionDenied:
+			return consts.StatusForbidden
 		case codes.Unavailable:
 			return consts.StatusServiceUnavailable
 		}
