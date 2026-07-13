@@ -130,7 +130,7 @@ services:
     command:
       - sh
       - -c
-      - mysql --default-character-set=utf8mb4 -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+      - mysql -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
     restart: "no"
 
   auth-api:
@@ -162,10 +162,6 @@ services:
     container_name: product-rpc
     environment:
       FLASH_MALL_PRODUCT_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
-      FLASH_MALL_AUTH_SERVICE_BASE_URL: http://auth-api:8890
-      FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
-      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
     volumes:
       - ./config/product.yaml:/etc/flash-mall/product.yaml:ro
     command: ["-f", "/etc/flash-mall/product.yaml"]
@@ -187,9 +183,7 @@ services:
     container_name: order-rpc
     environment:
       FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      FLASH_MALL_AUTH_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
-      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
     volumes:
       - ./config/order.yaml:/etc/flash-mall/order.yaml:ro
     command: ["-f", "/etc/flash-mall/order.yaml"]
@@ -210,32 +204,6 @@ services:
         condition: service_healthy
       product-rpc:
         condition: service_started
-      inventory-kitex:
-        condition: service_started
-
-  inventory-kitex:
-    image: flash-mall/inventory-kitex:${FLASH_MALL_IMAGE_TAG:-dev}
-    build:
-      context: ..
-      dockerfile: build/docker/inventory-kitex.Dockerfile
-    container_name: inventory-kitex
-    environment:
-      INVENTORY_LISTEN_ON: 0.0.0.0:8093
-      INVENTORY_METRICS_LISTEN_ON: 0.0.0.0:9093
-      INVENTORY_REDIS_HOST: redis:6379
-      INVENTORY_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      INVENTORY_STOCK_SHARD_COUNT: 4
-      INVENTORY_FINAL_DEDUCT_ENABLED: ${FLASH_MALL_INVENTORY_FINAL_DEDUCT_ENABLED:-true}
-    ports:
-      - "8093:8093"
-      - "9093:9093"
-    depends_on:
-      mysql-init:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
-      redis-init:
-        condition: service_completed_successfully
 
   entry-api:
     image: flash-mall/entry-api:${FLASH_MALL_IMAGE_TAG:-dev}
@@ -243,14 +211,11 @@ services:
       context: ..
       dockerfile: build/docker/entry-api.Dockerfile
     container_name: entry-api
-    profiles: ["legacy-entry"]
     environment:
       FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
       FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
       FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
-      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
-      FLASH_MALL_INVENTORY_OWNS_FINAL_DEDUCT: ${FLASH_MALL_INVENTORY_OWNS_FINAL_DEDUCT:-true}
     volumes:
       - ./config/entry-api.yaml:/etc/flash-mall/entry-api.yaml:ro
     command: ["-f", "/etc/flash-mall/entry-api.yaml"]
@@ -265,8 +230,6 @@ services:
         condition: service_started
       order-rpc:
         condition: service_started
-      inventory-kitex:
-        condition: service_started
       redis:
         condition: service_healthy
       redis-init:
@@ -275,38 +238,6 @@ services:
         condition: service_started
       rabbitmq:
         condition: service_healthy
-
-  hertz-gateway:
-    image: flash-mall/hertz-gateway:${FLASH_MALL_IMAGE_TAG:-dev}
-    build:
-      context: ..
-      dockerfile: build/docker/hertz-gateway.Dockerfile
-    container_name: hertz-gateway
-    environment:
-      FLASH_MALL_PRODUCT_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      FLASH_MALL_ORDER_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_order?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      FLASH_MALL_AUTH_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
-      FLASH_MALL_JWT_AUTH_SECRET: ${FLASH_MALL_JWT_AUTH_SECRET:-flash-mall-local-jwt-secret}
-      FLASH_MALL_AUTH_SERVICE_BASE_URL: http://auth-api:8890
-      FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
-      FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
-    volumes:
-      - ./config/gateway.yaml:/etc/flash-mall/gateway.yaml:ro
-      - ../.runtime/uploads:/data/flash-mall/uploads
-    command: ["-f", "/etc/flash-mall/gateway.yaml"]
-    ports:
-      - "8889:8889"
-    depends_on:
-      product-rpc:
-        condition: service_started
-      inventory-kitex:
-        condition: service_started
-      order-rpc:
-        condition: service_started
-      dtm:
-        condition: service_started
-      etcd:
-        condition: service_started
 
 volumes:
   mysql-data:

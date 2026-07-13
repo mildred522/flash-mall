@@ -1,37 +1,54 @@
-[CmdletBinding()]
 param(
-  [string]$Tag = "dev",
-  [string[]]$Services = @(),
-  [string]$Distro = "Ubuntu",
-  [string]$Workspace = "/home/mildred/code/flash-mall"
+  [string]$Tag = "dev"
 )
 
 $ErrorActionPreference = "Stop"
-$supportedServices = @(
-  "auth-api",
-  "product-rpc",
-  "order-rpc",
-  "inventory-kitex",
-  "entry-api",
-  "hertz-gateway"
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
+$contextRoot = Join-Path $repoRoot ".runtime\docker-context"
+$dockerfile = Join-Path $repoRoot "build\docker\local-binary.Dockerfile"
+
+$services = @(
+  @{ Name = "auth-api"; Package = "./app/auth/api" },
+  @{ Name = "product-rpc"; Package = "./app/product/rpc" },
+  @{ Name = "order-rpc"; Package = "./app/order/rpc" },
+  @{ Name = "entry-api"; Package = "./app/entry/api" }
 )
 
-foreach ($service in $Services) {
-  if ($service -notin $supportedServices) {
-    throw "unknown service: $service"
+New-Item -ItemType Directory -Force -Path $contextRoot | Out-Null
+
+$oldGOOS = $env:GOOS
+$oldGOARCH = $env:GOARCH
+$oldCGO = $env:CGO_ENABLED
+try {
+  $env:GOOS = "linux"
+  $env:GOARCH = "amd64"
+  $env:CGO_ENABLED = "0"
+
+  foreach ($svc in $services) {
+    $svcContext = Join-Path $contextRoot $svc.Name
+    New-Item -ItemType Directory -Force -Path $svcContext | Out-Null
+    $binaryPath = Join-Path $svcContext "app"
+
+    Write-Host "[GO BUILD] $($svc.Name)"
+    & go build -trimpath -tags timetzdata -o $binaryPath $svc.Package
+    if ($LASTEXITCODE -ne 0) {
+      throw "go build failed for $($svc.Name)"
+    }
+
+    Write-Host "[DOCKER BUILD] flash-mall/$($svc.Name):$Tag"
+    & docker buildx version *> $null
+    if ($LASTEXITCODE -eq 0) {
+      & docker buildx build --load -f $dockerfile -t "flash-mall/$($svc.Name):$Tag" $svcContext
+    } else {
+      & docker build -f $dockerfile -t "flash-mall/$($svc.Name):$Tag" $svcContext
+    }
+    if ($LASTEXITCODE -ne 0) {
+      throw "docker build failed for $($svc.Name)"
+    }
   }
+} finally {
+  $env:GOOS = $oldGOOS
+  $env:GOARCH = $oldGOARCH
+  $env:CGO_ENABLED = $oldCGO
 }
-
-function ConvertTo-BashSingleQuoted {
-  param([string]$Value)
-  return "'" + ($Value -replace "'", "'\''") + "'"
-}
-
-$scriptArgs = @("--tag", $Tag) + $Services
-$quotedWorkspace = ConvertTo-BashSingleQuoted $Workspace
-$quotedArgs = $scriptArgs | ForEach-Object { ConvertTo-BashSingleQuoted $_ }
-$bashCommand = "cd $quotedWorkspace && scripts/local/build-compose-images.sh $($quotedArgs -join ' ')"
-
-Write-Host "[WSL] $Distro $bashCommand"
-& wsl.exe -d $Distro -- bash -lc $bashCommand
-exit $LASTEXITCODE

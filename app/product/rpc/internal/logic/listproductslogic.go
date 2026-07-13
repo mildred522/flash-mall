@@ -28,10 +28,6 @@ func NewListProductsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *List
 
 // 批量查询商品
 func (l *ListProductsLogic) ListProducts(in *product.ListProductsReq) (*product.ListProductsResp, error) {
-	if resp, ok, err := l.listProductCardSnapshots(in); err == nil && ok {
-		return resp, nil
-	}
-
 	var rows []productCardRow
 
 	if len(in.ProductIds) > 0 {
@@ -97,20 +93,8 @@ ORDER BY p.id`
 	for i := range rows {
 		placeholders[i] = "?"
 	}
-	stockQuery := fmt.Sprintf(`
-SELECT ids.product_id,
-       COALESCE(s.available, bucket.stock, 0) AS stock
-FROM (
-  SELECT ? AS product_id%s
-) ids
-LEFT JOIN product_stock_snapshot s ON s.product_id = ids.product_id
-LEFT JOIN (
-  SELECT product_id, COALESCE(SUM(stock), 0) AS stock
-  FROM product_stock_bucket
-  WHERE product_id IN (%s)
-  GROUP BY product_id
-) bucket ON bucket.product_id = ids.product_id`,
-		unionProductIDSelects(len(productIDs)-1),
+	stockQuery := fmt.Sprintf(
+		"SELECT product_id, COALESCE(SUM(stock), 0) AS stock FROM product_stock_bucket WHERE product_id IN (%s) GROUP BY product_id",
 		strings.Join(placeholders, ","),
 	)
 	type stockRow struct {
@@ -118,16 +102,8 @@ LEFT JOIN (
 		Stock     int64 `db:"stock"`
 	}
 	var stockRows []stockRow
-	stockArgs := append(append([]interface{}{}, productIDs...), productIDs...)
-	if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &stockRows, stockQuery, stockArgs...); err != nil && err != sqlx.ErrNotFound {
-		fallbackQuery := fmt.Sprintf(`
-SELECT product_id, COALESCE(SUM(stock), 0) AS stock
-FROM product_stock_bucket
-WHERE product_id IN (%s)
-GROUP BY product_id`, strings.Join(placeholders, ","))
-		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &stockRows, fallbackQuery, productIDs...); err != nil && err != sqlx.ErrNotFound {
-			return nil, err
-		}
+	if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &stockRows, stockQuery, productIDs...); err != nil && err != sqlx.ErrNotFound {
+		return nil, err
 	}
 	stockMap := make(map[int64]int64, len(stockRows))
 	for _, sr := range stockRows {
@@ -174,74 +150,4 @@ GROUP BY product_id`, strings.Join(placeholders, ","))
 		Items: items,
 		Total: total,
 	}, nil
-}
-
-func (l *ListProductsLogic) listProductCardSnapshots(in *product.ListProductsReq) (*product.ListProductsResp, bool, error) {
-	var rows []productCardSnapshotRow
-	if len(in.ProductIds) > 0 {
-		placeholders := make([]string, len(in.ProductIds))
-		args := make([]interface{}, len(in.ProductIds))
-		for i, id := range in.ProductIds {
-			placeholders[i] = "?"
-			args[i] = id
-		}
-		query := fmt.Sprintf(`SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id
-FROM product_card_snapshot
-WHERE product_id IN (%s) AND status = 1
-ORDER BY product_id`, strings.Join(placeholders, ","))
-		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &rows, query, args...); err != nil && err != sqlx.ErrNotFound {
-			return nil, false, err
-		}
-		if len(rows) == 0 {
-			return nil, false, nil
-		}
-		return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: int64(len(rows))}, true, nil
-	}
-
-	query := `SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id
-FROM product_card_snapshot
-WHERE status = 1
-ORDER BY product_id`
-	if in.PageSize > 0 {
-		offset := (in.PageNum - 1) * in.PageSize
-		if offset < 0 {
-			offset = 0
-		}
-		query += fmt.Sprintf(" LIMIT %d OFFSET %d", in.PageSize, offset)
-	}
-	if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &rows, query); err != nil && err != sqlx.ErrNotFound {
-		return nil, false, err
-	}
-	if len(rows) == 0 {
-		return nil, false, nil
-	}
-	total := int64(len(rows))
-	if in.PageSize > 0 {
-		var countRow struct {
-			Count int64 `db:"count"`
-		}
-		if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &countRow, "SELECT COUNT(*) AS count FROM product_card_snapshot WHERE status = 1"); err == nil {
-			total = countRow.Count
-		}
-	}
-	return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: total}, true, nil
-}
-
-func productCardSnapshotsToResp(rows []productCardSnapshotRow) []*product.GetProductCardResp {
-	items := make([]*product.GetProductCardResp, 0, len(rows))
-	for _, row := range rows {
-		items = append(items, productCardSnapshotToResp(row))
-	}
-	return items
-}
-
-func unionProductIDSelects(count int) string {
-	if count <= 0 {
-		return ""
-	}
-	parts := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		parts = append(parts, " UNION ALL SELECT ?")
-	}
-	return strings.Join(parts, "")
 }

@@ -107,7 +107,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	if l.svcCtx.Config.OrderRpcTarget == "" {
 		return nil, status.Error(codes.Internal, "Order RPC target not configured")
 	}
-	if !l.svcCtx.Config.InventoryOwnsFinalDeduct && l.svcCtx.Config.ProductRpcTarget == "" {
+	if l.svcCtx.Config.ProductRpcTarget == "" {
 		return nil, status.Error(codes.Internal, "Product RPC target not configured")
 	}
 
@@ -150,6 +150,7 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 	}
 
 	orderRoute := l.svcCtx.Config.OrderRpcTarget + "/order.Order"
+	productRoute := l.svcCtx.Config.ProductRpcTarget + "/product.Product"
 
 	preDeductReq := &order.PreDeductReq{
 		ProductId: req.ProductId,
@@ -164,18 +165,15 @@ func (l *CreateOrderLogic) CreateOrder(req *types.CreateOrderReq) (resp *types.C
 		Amount:           req.Amount,
 		ExpectedPriceFen: req.ExpectedPriceFen,
 	}
+	deductReq := &product.DeductReq{
+		Id:      req.ProductId,
+		Num:     req.Amount,
+		OrderId: orderID,
+	}
 
 	saga.Add(orderRoute+"/PreDeduct", orderRoute+"/PreDeductRollback", preDeductReq)
 	saga.Add(orderRoute+"/CreateOrder", orderRoute+"/CreateOrderRollback", createOrderReq)
-	if !l.svcCtx.Config.InventoryOwnsFinalDeduct {
-		productRoute := l.svcCtx.Config.ProductRpcTarget + "/product.Product"
-		deductReq := &product.DeductReq{
-			Id:      req.ProductId,
-			Num:     req.Amount,
-			OrderId: orderID,
-		}
-		saga.Add(productRoute+"/Deduct", productRoute+"/DeductRollback", deductReq)
-	}
+	saga.Add(productRoute+"/Deduct", productRoute+"/DeductRollback", deductReq)
 
 	if err = l.submitSaga(saga); err != nil {
 		l.Errorf("submit SAGA failed: %v", err)

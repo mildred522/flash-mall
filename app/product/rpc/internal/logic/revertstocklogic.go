@@ -72,9 +72,6 @@ func (l *RevertStockLogic) RevertStock(in *product.RevertStockReq) (*product.Rev
 	if err != nil {
 		return nil, err
 	}
-	if err := syncProductStockSnapshotTx(tx, in.Id); err != nil {
-		return nil, err
-	}
 
 	// 5) 提交事务
 	if err := tx.Commit(); err != nil {

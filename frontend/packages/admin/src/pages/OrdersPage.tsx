@@ -38,7 +38,7 @@ function actionError(data: ActionResp | OrderDetailResp | AdminOrderStatusLogRes
 }
 
 export default function OrdersPage() {
-  const actionRef = useRef<ActionType | undefined>(undefined);
+  const actionRef = useRef<ActionType>();
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detail, setDetail] = useState<OrderDetailResp | null>(null);

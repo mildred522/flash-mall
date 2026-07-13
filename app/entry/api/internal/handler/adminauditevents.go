@@ -10,13 +10,11 @@ const (
 	adminAuditOrderRefunded = "admin_order_refunded"
 	adminAuditOrderClosed   = "admin_order_closed"
 
-	adminAuditProductCreated               = "admin_product_created"
-	adminAuditProductUpdated               = "admin_product_updated"
-	adminAuditProductEnabled               = "admin_product_enabled"
-	adminAuditProductDisabled              = "admin_product_disabled"
-	adminAuditProductStockAdjusted         = "admin_product_stock_adjusted"
-	adminAuditStockSnapshotRebuilt         = "admin_stock_snapshot_rebuilt"
-	adminAuditProductCardSnapshotRefreshed = "admin_product_card_snapshot_refreshed"
+	adminAuditProductCreated       = "admin_product_created"
+	adminAuditProductUpdated       = "admin_product_updated"
+	adminAuditProductEnabled       = "admin_product_enabled"
+	adminAuditProductDisabled      = "admin_product_disabled"
+	adminAuditProductStockAdjusted = "admin_product_stock_adjusted"
 
 	adminAuditSupplierCreated  = "admin_supplier_created"
 	adminAuditSupplierUpdated  = "admin_supplier_updated"

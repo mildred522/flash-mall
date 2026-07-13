@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/entry/api/internal/svc"
 	"flash-mall/app/entry/api/internal/types"
@@ -277,112 +275,28 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 		if _, err = tx.ExecContext(r.Context(),
-			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
-			productID, merchantID, req.Name, req.ImageUrl, req.StockAvailable, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
+			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)",
+			productID, merchantID, req.Name, req.ImageUrl, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
 		); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if err = insertAdminProductStockBuckets(r.Context(), tx, productID, req.StockAvailable); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
+		if req.StockAvailable > 0 {
+			if err = insertAdminProductStockBuckets(r.Context(), tx, productID, req.StockAvailable); err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
 		}
 		if err = tx.Commit(); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		callCtx := context.WithValue(r.Context(), "merchant_id", merchantID)
-		if err := syncRuntimeProductStock(callCtx, svcCtx, productID, req.StockAvailable); err != nil {
+		if err := seedRedisStockShards(r.Context(), svcCtx, productID, req.StockAvailable); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, productID)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		httpx.OkJsonCtx(r.Context(), w, types.AdminProductCreateResp{ProductId: productID})
-	})
-}
-
-func MerchantProductStockAdjustHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	return withMerchantAccess(svcCtx, func(w http.ResponseWriter, r *http.Request, db *sql.DB, merchantID int64) {
-		var req types.AdminProductStockAdjustReq
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if req.ProductId <= 0 || req.Delta == 0 {
-			writeBadRequest(w, "product_id and non-zero delta are required")
-			return
-		}
-		if req.BucketIdx < 0 {
-			writeBadRequest(w, "bucket_idx must be non-negative")
-			return
-		}
-		if ok, err := merchantOwnsProduct(r.Context(), db, merchantID, req.ProductId); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		} else if !ok {
-			writeNotFound(w, "product not found for merchant")
-			return
-		}
-		callCtx := context.WithValue(r.Context(), "merchant_id", merchantID)
-		if svcCtx.InventoryClient != nil {
-			resp, err := svcCtx.InventoryClient.AdjustStock(callCtx, req.ProductId, req.Delta, int(req.BucketIdx), "merchant stock adjust")
-			if err != nil {
-				switch apperror.CodeOf(err) {
-				case apperror.CodeStockNotFound, apperror.CodeProductNotFound, apperror.CodeNotFound:
-					writeNotFound(w, "product not found")
-				case apperror.CodeStockInsufficient:
-					writeConflict(w, "stock bucket not found or insufficient stock")
-				default:
-					httpx.ErrorCtx(r.Context(), w, err)
-				}
-				return
-			}
-			var total int64
-			if resp != nil && resp.GetAfter() != nil {
-				total = resp.GetAfter().GetTotal()
-			}
-			refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
-			invalidateAdminCatalogCache(r.Context(), svcCtx)
-			httpx.OkJsonCtx(r.Context(), w, types.AdminProductStockAdjustResp{ProductId: req.ProductId, StockAvailable: total})
-			return
-		}
-		total, err := adjustLegacyMerchantStock(r.Context(), db, req.ProductId, merchantID, req.Delta, req.BucketIdx)
-		if err != nil {
-			if apperror.CodeOf(err) == apperror.CodeStockInsufficient {
-				writeConflict(w, "stock bucket not found or insufficient stock")
-				return
-			}
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if err := syncRuntimeProductStock(callCtx, svcCtx, req.ProductId, total); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
-		invalidateAdminCatalogCache(r.Context(), svcCtx)
-		httpx.OkJsonCtx(r.Context(), w, types.AdminProductStockAdjustResp{ProductId: req.ProductId, StockAvailable: total})
-	})
-}
-
-func MerchantStockChangeLogHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	return withMerchantAccess(svcCtx, func(w http.ResponseWriter, r *http.Request, db *sql.DB, merchantID int64) {
-		var req types.AdminStockChangeLogReq
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if req.ProductId > 0 {
-			if ok, err := merchantOwnsProduct(r.Context(), db, merchantID, req.ProductId); err != nil {
-				httpx.ErrorCtx(r.Context(), w, err)
-				return
-			} else if !ok {
-				writeNotFound(w, "product not found for merchant")
-				return
-			}
-		}
-		writeStockChangeLogList(w, r, db, req, merchantID)
 	})
 }
 
@@ -489,79 +403,6 @@ func firstAccessibleMerchantID(r *http.Request, db *sql.DB, userID int64) (int64
 	return merchantID, nil
 }
 
-func merchantOwnsProduct(ctx context.Context, db *sql.DB, merchantID int64, productID int64) (bool, error) {
-	var exists int
-	err := db.QueryRowContext(ctx, "SELECT 1 FROM mall_product.product WHERE id = ? AND merchant_id = ? LIMIT 1", productID, merchantID).Scan(&exists)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return false, err
-}
-
-func adjustLegacyMerchantStock(ctx context.Context, db *sql.DB, productID int64, merchantID int64, delta int64, bucketIdx int64) (int64, error) {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if ok, err := merchantOwnsProductTx(ctx, tx, merchantID, productID); err != nil {
-		return 0, err
-	} else if !ok {
-		return 0, apperror.New(apperror.CodeNotFound, "product not found for merchant")
-	}
-
-	var result sql.Result
-	if delta > 0 {
-		result, err = tx.ExecContext(ctx,
-			"INSERT INTO mall_product.product_stock_bucket (product_id, bucket_idx, stock, version) VALUES (?, ?, ?, 0) ON DUPLICATE KEY UPDATE stock = stock + VALUES(stock), version = version + 1",
-			productID, bucketIdx, delta,
-		)
-	} else {
-		result, err = tx.ExecContext(ctx,
-			"UPDATE mall_product.product_stock_bucket SET stock = stock + ?, version = version + 1 WHERE product_id = ? AND bucket_idx = ? AND stock + ? >= 0",
-			delta, productID, bucketIdx, delta,
-		)
-	}
-	if err != nil {
-		return 0, err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	if rows == 0 {
-		return 0, apperror.New(apperror.CodeStockInsufficient, "stock bucket not found or insufficient stock")
-	}
-
-	total, err := adminProductStockTotal(ctx, tx, productID)
-	if err != nil {
-		return 0, err
-	}
-	if _, err := tx.ExecContext(ctx, "UPDATE mall_product.product SET stock = ?, version = version + 1 WHERE id = ? AND merchant_id = ?", total, productID, merchantID); err != nil {
-		return 0, err
-	}
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
-	return total, nil
-}
-
-func merchantOwnsProductTx(ctx context.Context, tx *sql.Tx, merchantID int64, productID int64) (bool, error) {
-	var exists int
-	err := tx.QueryRowContext(ctx, "SELECT 1 FROM mall_product.product WHERE id = ? AND merchant_id = ? LIMIT 1 FOR UPDATE", productID, merchantID).Scan(&exists)
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	return false, err
-}
-
 func parseOptionalInt64(value string) int64 {
 	parsed, _ := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
 	return parsed
@@ -597,11 +438,10 @@ func writeMerchantProductList(w http.ResponseWriter, r *http.Request, db *sql.DB
 	}
 	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
 	rows, err := db.QueryContext(r.Context(), fmt.Sprintf(`SELECT p.id, p.merchant_id, COALESCE(m.name, ''), p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
-       COALESCE(snap.available, stock.stock_available, 0), p.status
+       COALESCE(stock.stock_available, 0), p.status
 FROM mall_product.product p
 LEFT JOIN merchant m ON m.id = p.merchant_id
 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
-LEFT JOIN mall_product.product_stock_snapshot snap ON snap.product_id = p.id
 LEFT JOIN (
   SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
   FROM mall_product.product_stock_bucket

@@ -43,6 +43,7 @@ jobs:
         github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main' &&
+        secrets.KUBE_CONFIG != '' &&
         vars.AUTO_DEPLOY_DEMO != 'false'
       )
     runs-on: ubuntu-latest
@@ -61,27 +62,20 @@ jobs:
         shell: bash
         run: |
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            {
-              echo "image_tag=${{ inputs.image_tag }}"
-              echo "include_dependencies=${{ inputs.include_dependencies }}"
-              echo "run_init_jobs=${{ inputs.run_init_jobs }}"
-            } >> "$GITHUB_OUTPUT"
+            echo "image_tag=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+            echo "include_dependencies=${{ inputs.include_dependencies }}" >> "$GITHUB_OUTPUT"
+            echo "run_init_jobs=${{ inputs.run_init_jobs }}" >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}"
-              echo "include_dependencies=false"
-              echo "run_init_jobs=false"
-            } >> "$GITHUB_OUTPUT"
+            echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+            echo "include_dependencies=false" >> "$GITHUB_OUTPUT"
+            echo "run_init_jobs=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Write kubeconfig
         env:
           KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG }}
         run: |
-          if [ -z "$KUBE_CONFIG_DATA" ]; then
-            echo "KUBE_CONFIG secret is required for deployment" >&2
-            exit 1
-          fi
+          test -n "$KUBE_CONFIG_DATA"
           printf '%s' "$KUBE_CONFIG_DATA" > "$RUNNER_TEMP/kubeconfig"
           echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
 
@@ -103,8 +97,6 @@ jobs:
           kubectl apply -f k8s/apps/02-entry-api.yaml
           kubectl apply -f k8s/apps/03-order-rpc.yaml
           kubectl apply -f k8s/apps/04-product-rpc.yaml
-          kubectl apply -f k8s/apps/08-inventory-kitex.yaml
-          kubectl apply -f k8s/apps/09-hertz-gateway.yaml
           kubectl apply -f k8s/apps/05-ingress.yaml
 
       - name: Run init jobs
@@ -119,8 +111,6 @@ jobs:
           kubectl -n "$NAMESPACE" set image deployment/entry-api entry-api="$REGISTRY/${{ github.repository_owner }}/flash-mall-entry-api:${{ steps.vars.outputs.image_tag }}"
           kubectl -n "$NAMESPACE" set image deployment/order-rpc order-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-order-rpc:${{ steps.vars.outputs.image_tag }}"
           kubectl -n "$NAMESPACE" set image deployment/product-rpc product-rpc="$REGISTRY/${{ github.repository_owner }}/flash-mall-product-rpc:${{ steps.vars.outputs.image_tag }}"
-          kubectl -n "$NAMESPACE" set image deployment/inventory-kitex inventory-kitex="$REGISTRY/${{ github.repository_owner }}/flash-mall-inventory-kitex:${{ steps.vars.outputs.image_tag }}"
-          kubectl -n "$NAMESPACE" set image deployment/hertz-gateway hertz-gateway="$REGISTRY/${{ github.repository_owner }}/flash-mall-hertz-gateway:${{ steps.vars.outputs.image_tag }}"
 
       - name: Wait for rollout
         run: |
@@ -128,5 +118,3 @@ jobs:
           kubectl -n "$NAMESPACE" rollout status deployment/entry-api --timeout=180s
           kubectl -n "$NAMESPACE" rollout status deployment/order-rpc --timeout=180s
           kubectl -n "$NAMESPACE" rollout status deployment/product-rpc --timeout=180s
-          kubectl -n "$NAMESPACE" rollout status deployment/inventory-kitex --timeout=180s
-          kubectl -n "$NAMESPACE" rollout status deployment/hertz-gateway --timeout=180s

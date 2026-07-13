@@ -39,7 +39,6 @@ func main() {
 
 	ctx := svc.NewServiceContext(c)
 	job.NewOutboxPublisher(ctx).Start()
-	job.NewOrderPaidProjectionConsumer(ctx).Start()
 
 	observability.StartDiagnostics(c.MetricsAddr, c.PprofAddr)
 

@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title">
-  <title id="title">运动休闲鞋</title>
-  <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e7f7ed"/><stop offset="1" stop-color="#a7ddbd"/></linearGradient></defs>
-  <rect width="640" height="480" rx="36" fill="url(#bg)"/>
-  <ellipse cx="329" cy="389" rx="219" ry="27" fill="#145b39" opacity=".18"/>
-  <path d="M143 279l91-121 94 77 67 42 105 24q42 12 38 57l-13 28H135q-48-2-42-48 5-39 50-59z" fill="#f7f8f5" stroke="#246b46" stroke-width="11" stroke-linejoin="round"/>
-  <path d="M232 160l-10 123 105 30 67-34M273 211l-38 25M303 235l-58 35M95 337h443" fill="none" stroke="#56aa78" stroke-width="11" stroke-linecap="round"/>
-  <path d="M123 357h388" stroke="#183f2c" stroke-width="15" stroke-linecap="round"/>
-</svg>

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"flash-mall/app/common/apperror"
 	"flash-mall/app/entry/api/internal/svc"
 	"flash-mall/app/entry/api/internal/types"
 
@@ -84,13 +83,12 @@ func AdminProductListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			)`
 		}
 		stockStatus := normalizeAdminProductStockStatus(req.StockStatus)
-		stockExpr := "COALESCE((SELECT available FROM mall_product.product_stock_snapshot snap_filter WHERE snap_filter.product_id = p.id), (SELECT SUM(stock) FROM mall_product.product_stock_bucket b_filter WHERE b_filter.product_id = p.id), 0)"
 		if stockStatus == 1 {
-			where += " AND " + stockExpr + " > 100"
+			where += " AND COALESCE((SELECT SUM(stock) FROM mall_product.product_stock_bucket b_filter WHERE b_filter.product_id = p.id), 0) > 100"
 		} else if stockStatus == 2 {
-			where += " AND " + stockExpr + " > 0 AND " + stockExpr + " <= 100"
+			where += " AND COALESCE((SELECT SUM(stock) FROM mall_product.product_stock_bucket b_filter WHERE b_filter.product_id = p.id), 0) > 0 AND COALESCE((SELECT SUM(stock) FROM mall_product.product_stock_bucket b_filter WHERE b_filter.product_id = p.id), 0) <= 100"
 		} else if stockStatus == 3 {
-			where += " AND " + stockExpr + " = 0"
+			where += " AND COALESCE((SELECT SUM(stock) FROM mall_product.product_stock_bucket b_filter WHERE b_filter.product_id = p.id), 0) = 0"
 		}
 		if keyword := strings.TrimSpace(req.Keyword); keyword != "" {
 			where += " AND p.name LIKE ?"
@@ -107,13 +105,12 @@ func AdminProductListHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 
 		query := fmt.Sprintf(
 			`SELECT p.id, p.merchant_id, COALESCE(m.name, ''), p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
-			        COALESCE(snap.available, stock.stock_available, 0),
+			        COALESCE(stock.stock_available, 0),
 			        COALESCE(promo.promotion_price_fen, 0),
 			        p.status
 			 FROM mall_product.product p
 			 LEFT JOIN merchant m ON m.id = p.merchant_id
 			 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
-			 LEFT JOIN mall_product.product_stock_snapshot snap ON snap.product_id = p.id
 			 LEFT JOIN (
 			   SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
 			   FROM mall_product.product_stock_bucket
@@ -199,13 +196,12 @@ func AdminProductDetailHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		var item types.AdminProductItem
 		err = db.QueryRowContext(r.Context(),
 			`SELECT p.id, p.merchant_id, COALESCE(m.name, ''), p.name, COALESCE(p.image_url, ''), p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(s.name, ''),
-			        COALESCE(snap.available, stock.stock_available, 0),
+			        COALESCE(stock.stock_available, 0),
 			        COALESCE(promo.promotion_price_fen, 0),
 			        p.status
 			 FROM mall_product.product p
 			 LEFT JOIN merchant m ON m.id = p.merchant_id
 			 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
-			 LEFT JOIN mall_product.product_stock_snapshot snap ON snap.product_id = p.id
 			 LEFT JOIN (
 			   SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
 			   FROM mall_product.product_stock_bucket
@@ -385,7 +381,6 @@ func AdminProductUpdateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			}
 		}
 
-		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminProductUpdateAuditEvent(req.Status), fmt.Sprintf("product:%d", req.ProductId))
 		httpx.OkJsonCtx(r.Context(), w, map[string]any{"ok": true})
@@ -467,27 +462,28 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 			return
 		}
 		if _, err = tx.ExecContext(r.Context(),
-			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
-			productID, req.MerchantId, req.Name, req.ImageUrl, req.StockAvailable, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
+			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?, ?)",
+			productID, req.MerchantId, req.Name, req.ImageUrl, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierId,
 		); err != nil {
 			logx.WithContext(r.Context()).Errorf("admin product create failed: %v", err)
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if err = insertAdminProductStockBuckets(r.Context(), tx, productID, req.StockAvailable); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
+		if req.StockAvailable > 0 {
+			if err = insertAdminProductStockBuckets(r.Context(), tx, productID, req.StockAvailable); err != nil {
+				httpx.ErrorCtx(r.Context(), w, err)
+				return
+			}
 		}
 		if err = tx.Commit(); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if err := syncRuntimeProductStock(r.Context(), svcCtx, productID, req.StockAvailable); err != nil {
+		if err := seedRedisStockShards(r.Context(), svcCtx, productID, req.StockAvailable); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
 
-		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, productID)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminAuditProductCreated, fmt.Sprintf("product:%d merchant:%d name:%s", productID, req.MerchantId, req.Name))
 		httpx.OkJsonCtx(r.Context(), w, types.AdminProductCreateResp{ProductId: productID})
@@ -507,34 +503,6 @@ func AdminProductStockAdjustHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 		}
 		if req.BucketIdx < 0 {
 			writeBadRequest(w, "bucket_idx must be non-negative")
-			return
-		}
-		if svcCtx.InventoryClient != nil {
-			resp, err := svcCtx.InventoryClient.AdjustStock(r.Context(), req.ProductId, req.Delta, int(req.BucketIdx), "admin stock adjust")
-			if err != nil {
-				switch apperror.CodeOf(err) {
-				case apperror.CodeStockNotFound, apperror.CodeProductNotFound, apperror.CodeNotFound:
-					recordAdminAuditFailure(r, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d reason:%s", req.ProductId, adminAuditReasonNotFound))
-					writeNotFound(w, "product not found")
-				case apperror.CodeStockInsufficient:
-					recordAdminAuditFailure(r, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d delta:%d bucket:%d reason:%s", req.ProductId, req.Delta, req.BucketIdx, adminAuditReasonInsufficientOrMissingStock))
-					writeConflict(w, "stock bucket not found or insufficient stock")
-				default:
-					httpx.ErrorCtx(r.Context(), w, err)
-				}
-				return
-			}
-			var total int64
-			if resp != nil && resp.GetAfter() != nil {
-				total = resp.GetAfter().GetTotal()
-			}
-			refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
-			invalidateAdminCatalogCache(r.Context(), svcCtx)
-			recordAdminAuditEvent(r, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d delta:%d bucket:%d", req.ProductId, req.Delta, req.BucketIdx))
-			httpx.OkJsonCtx(r.Context(), w, types.AdminProductStockAdjustResp{
-				ProductId:      req.ProductId,
-				StockAvailable: total,
-			})
 			return
 		}
 
@@ -593,19 +561,10 @@ func AdminProductStockAdjustHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if _, err := tx.ExecContext(r.Context(), "UPDATE mall_product.product SET stock = ?, version = version + 1 WHERE id = ?", total, req.ProductId); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
 		if err = tx.Commit(); err != nil {
 			httpx.ErrorCtx(r.Context(), w, err)
 			return
 		}
-		if err := syncRuntimeProductStock(r.Context(), svcCtx, req.ProductId, total); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		refreshProductCardSnapshotBestEffort(r.Context(), svcCtx, req.ProductId)
 		invalidateAdminCatalogCache(r.Context(), svcCtx)
 		recordAdminAuditEvent(r, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d delta:%d bucket:%d", req.ProductId, req.Delta, req.BucketIdx))
 		httpx.OkJsonCtx(r.Context(), w, types.AdminProductStockAdjustResp{
@@ -613,243 +572,6 @@ func AdminProductStockAdjustHandler(svcCtx *svc.ServiceContext) http.HandlerFunc
 			StockAvailable: total,
 		})
 	}
-}
-
-func AdminStockChangeLogHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req types.AdminStockChangeLogReq
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		writeStockChangeLogList(w, r, db, req, 0)
-	}
-}
-
-func AdminStockSnapshotRebuildHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		var req types.AdminStockSnapshotRebuildReq
-		if err := httpx.Parse(r, &req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if req.ProductId < 0 {
-			writeBadRequest(w, "product_id must be positive")
-			return
-		}
-		if req.Limit <= 0 || req.Limit > 10000 {
-			req.Limit = 10000
-		}
-
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if err := ensureProductMerchantSchema(r.Context(), db); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-
-		affected, err := rebuildProductStockSnapshots(r.Context(), db, req)
-		if err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		if _, err := rebuildProductCardSnapshots(r.Context(), db, req); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		recordAdminAuditEvent(r, svcCtx, adminAuditStockSnapshotRebuilt, fmt.Sprintf("product:%d limit:%d affected:%d", req.ProductId, req.Limit, affected))
-		httpx.OkJsonCtx(r.Context(), w, types.AdminStockSnapshotRebuildResp{Affected: affected, Limit: req.Limit})
-	}
-}
-
-func rebuildProductStockSnapshots(ctx context.Context, db *sql.DB, req types.AdminStockSnapshotRebuildReq) (int64, error) {
-	where := "1=1"
-	args := make([]any, 0, 2)
-	if req.ProductId > 0 {
-		where += " AND p.id = ?"
-		args = append(args, req.ProductId)
-	}
-	args = append(args, req.Limit)
-	result, err := db.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO mall_product.product_stock_snapshot (product_id, available, reserved, total, source, version)
-SELECT p.id,
-       COALESCE(bucket.stock_available, 0) AS available,
-       COALESCE(old.reserved, 0) AS reserved,
-       COALESCE(bucket.stock_available, 0) + COALESCE(old.reserved, 0) AS total,
-       'admin-rebuild' AS source,
-       0 AS version
-FROM mall_product.product p
-LEFT JOIN (
-  SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
-  FROM mall_product.product_stock_bucket
-  GROUP BY product_id
-) bucket ON bucket.product_id = p.id
-LEFT JOIN mall_product.product_stock_snapshot old ON old.product_id = p.id
-WHERE %s
-ORDER BY p.id
-LIMIT ?
-ON DUPLICATE KEY UPDATE
-  available = VALUES(available),
-  reserved = VALUES(reserved),
-  total = VALUES(total),
-  source = VALUES(source),
-  version = version + 1`, where), args...)
-	if err != nil {
-		return 0, err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return affected, nil
-}
-
-func rebuildProductCardSnapshots(ctx context.Context, db *sql.DB, req types.AdminStockSnapshotRebuildReq) (int64, error) {
-	where := "1=1"
-	args := make([]any, 0, 2)
-	if req.ProductId > 0 {
-		where += " AND p.id = ?"
-		args = append(args, req.ProductId)
-	}
-	args = append(args, req.Limit)
-	result, err := db.ExecContext(ctx, fmt.Sprintf(`
-INSERT INTO mall_product.product_card_snapshot (product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id, status, version)
-SELECT p.id,
-       p.name,
-       p.origin_price_fen,
-       CASE WHEN promo.promotion_price_fen > 0 THEN promo.promotion_price_fen ELSE p.sale_price_fen END AS final_price_fen,
-       CASE WHEN promo.promotion_price_fen > 0 THEN 'LIMITED_PRICE' ELSE '' END AS promotion_type,
-       CASE WHEN promo.promotion_price_fen > 0 THEN '限时价' ELSE '' END AS promotion_tag,
-       COALESCE(stock.available, bucket.stock_available, 0) AS stock_available,
-       p.supplier_id,
-       p.status,
-       0 AS version
-FROM mall_product.product p
-LEFT JOIN mall_product.product_stock_snapshot stock ON stock.product_id = p.id
-LEFT JOIN (
-  SELECT product_id, COALESCE(SUM(stock), 0) AS stock_available
-  FROM mall_product.product_stock_bucket
-  GROUP BY product_id
-) bucket ON bucket.product_id = p.id
-LEFT JOIN (
-  SELECT product_id, MIN(discount_value) AS promotion_price_fen
-  FROM mall_product.promotion_rule
-  WHERE type = 'LIMITED_PRICE'
-    AND status = 1
-    AND (starts_at IS NULL OR starts_at <= NOW())
-    AND (ends_at IS NULL OR ends_at >= NOW())
-  GROUP BY product_id
-) promo ON promo.product_id = p.id
-WHERE %s
-ORDER BY p.id
-LIMIT ?
-ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  origin_price_fen = VALUES(origin_price_fen),
-  final_price_fen = VALUES(final_price_fen),
-  promotion_type = VALUES(promotion_type),
-  promotion_tag = VALUES(promotion_tag),
-  stock_available = VALUES(stock_available),
-  supplier_id = VALUES(supplier_id),
-  status = VALUES(status),
-  version = version + 1`, where), args...)
-	if err != nil {
-		return 0, err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return affected, nil
-}
-
-func refreshProductCardSnapshotBestEffort(ctx context.Context, svcCtx *svc.ServiceContext, productID int64) {
-	if productID <= 0 {
-		return
-	}
-	db, err := svcCtx.SqlConn.RawDB()
-	if err != nil {
-		logx.WithContext(ctx).Errorf("product card snapshot refresh skipped: raw db unavailable: %v", err)
-		return
-	}
-	if err := ensureProductMerchantSchema(ctx, db); err != nil {
-		logx.WithContext(ctx).Errorf("product card snapshot refresh skipped: ensure schema failed: %v", err)
-		return
-	}
-	if _, err := rebuildProductCardSnapshots(ctx, db, types.AdminStockSnapshotRebuildReq{ProductId: productID, Limit: 1}); err != nil {
-		logx.WithContext(ctx).Errorf("product card snapshot refresh failed: product=%d err=%v", productID, err)
-	}
-}
-
-func writeStockChangeLogList(w http.ResponseWriter, r *http.Request, db *sql.DB, req types.AdminStockChangeLogReq, merchantID int64) {
-	req.OrderId = strings.TrimSpace(req.OrderId)
-	req.ChangeType = strings.ToUpper(strings.TrimSpace(req.ChangeType))
-	if req.Page <= 0 {
-		req.Page = 1
-	}
-	if req.PageSize <= 0 || req.PageSize > 100 {
-		req.PageSize = 20
-	}
-	where := "1=1"
-	args := make([]any, 0, 5)
-	if req.ProductId > 0 {
-		where += " AND l.product_id = ?"
-		args = append(args, req.ProductId)
-	}
-	if req.OrderId != "" {
-		where += " AND l.order_id = ?"
-		args = append(args, req.OrderId)
-	}
-	if req.ChangeType != "" {
-		where += " AND l.change_type = ?"
-		args = append(args, req.ChangeType)
-	}
-	if req.OperatorMerchantId > 0 {
-		where += " AND l.operator_merchant_id = ?"
-		args = append(args, req.OperatorMerchantId)
-	}
-	if merchantID > 0 {
-		where += " AND EXISTS (SELECT 1 FROM mall_product.product p WHERE p.id = l.product_id AND p.merchant_id = ?)"
-		args = append(args, merchantID)
-	}
-	var total int64
-	if err := db.QueryRowContext(r.Context(), fmt.Sprintf("SELECT COUNT(*) FROM mall_product.inventory_stock_change_log l WHERE %s", where), args...).Scan(&total); err != nil {
-		httpx.ErrorCtx(r.Context(), w, err)
-		return
-	}
-	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
-	rows, err := db.QueryContext(r.Context(), fmt.Sprintf(`SELECT l.id, l.product_id, l.order_id, l.change_type, l.delta, l.bucket_idx, l.before_available, l.before_reserved, l.before_total, l.after_available, l.after_reserved, l.after_total, l.reason, l.request_id, l.trace_id, l.operator_user_id, l.operator_merchant_id, l.operator_role, COALESCE(l.create_time, '')
-FROM mall_product.inventory_stock_change_log l
-WHERE %s
-ORDER BY l.id DESC
-LIMIT ? OFFSET ?`, where), queryArgs...)
-	if err != nil {
-		httpx.ErrorCtx(r.Context(), w, err)
-		return
-	}
-	defer func() { _ = rows.Close() }()
-	items := make([]types.AdminStockChangeLogItem, 0)
-	for rows.Next() {
-		var item types.AdminStockChangeLogItem
-		if err := rows.Scan(&item.Id, &item.ProductId, &item.OrderId, &item.ChangeType, &item.Delta, &item.BucketIdx, &item.BeforeAvailable, &item.BeforeReserved, &item.BeforeTotal, &item.AfterAvailable, &item.AfterReserved, &item.AfterTotal, &item.Reason, &item.RequestId, &item.TraceId, &item.OperatorUserId, &item.OperatorMerchantId, &item.OperatorRole, &item.CreateTime); err != nil {
-			httpx.ErrorCtx(r.Context(), w, err)
-			return
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		httpx.ErrorCtx(r.Context(), w, err)
-		return
-	}
-	httpx.OkJsonCtx(r.Context(), w, types.AdminStockChangeLogResp{Items: items, Total: total, Page: req.Page, PageSize: req.PageSize})
 }
 
 func nextAdminProductID(ctx context.Context, tx *sql.Tx) (int64, error) {

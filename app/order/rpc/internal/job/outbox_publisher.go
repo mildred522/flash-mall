@@ -42,20 +42,6 @@ type outboxEvent struct {
 	AttemptCount int
 }
 
-type OrderPaidEvent struct {
-	EventID   string `json:"event_id"`
-	EventType string `json:"event_type"`
-	OrderID   string `json:"order_id"`
-}
-
-func NewOrderPaidEvent(orderID string) OrderPaidEvent {
-	return OrderPaidEvent{
-		EventID:   fmt.Sprintf("order.paid:%s", orderID),
-		EventType: "order.paid",
-		OrderID:   orderID,
-	}
-}
-
 type OutboxPublisher struct {
 	svcCtx *svc.ServiceContext
 	logx.Logger
@@ -286,10 +272,7 @@ WHERE id = ? AND status = ?
 }
 
 func (p *OutboxPublisher) publishOne(ctx context.Context, evt outboxEvent) error {
-	routeKey := strings.TrimSpace(evt.EventType)
-	if routeKey == "" {
-		routeKey = strings.TrimSpace(p.svcCtx.Config.RabbitMQRouteKey)
-	}
+	routeKey := strings.TrimSpace(p.svcCtx.Config.RabbitMQRouteKey)
 	if routeKey == "" {
 		routeKey = "order.created"
 	}
@@ -380,17 +363,6 @@ func InsertOrderCreatedOutbox(tx *sql.Tx, orderID, payload string) error {
 		`INSERT IGNORE INTO order_outbox (event_id, event_type, aggregate_id, payload, status, next_retry_at)
 VALUES (?, 'order.created', ?, ?, 0, NOW())`,
 		eventID, orderID, payload,
-	)
-	return err
-}
-
-func InsertOrderPaidOutbox(tx *sql.Tx, orderID string) error {
-	event := NewOrderPaidEvent(orderID)
-	payload := fmt.Sprintf(`{"event_id":%q,"event_type":%q,"order_id":%q}`, event.EventID, event.EventType, event.OrderID)
-	_, err := tx.Exec(
-		`INSERT IGNORE INTO order_outbox (event_id, event_type, aggregate_id, payload, status, next_retry_at)
-VALUES (?, ?, ?, ?, 0, NOW())`,
-		event.EventID, event.EventType, orderID, payload,
 	)
 	return err
 }

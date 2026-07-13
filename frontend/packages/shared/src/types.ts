@@ -1,7 +1,6 @@
 export interface ProductCard {
   product_id: number;
   name: string;
-  image_url: string;
   origin_price_fen: number;
   final_price_fen: number;
   promotion_tag: string;
@@ -61,28 +60,8 @@ export interface ActionResp {
   error?: string;
 }
 
-export interface PaymentIntentResp {
-  order_id: string;
-  payment_order_id: string;
-  out_trade_no: string;
-  payable_amount_fen: number;
-  status: string;
-  qr_url: string;
-  expires_at: number;
-}
-
-export interface PaymentStatusResp {
-  order_id: string;
-  payment_order_id: string;
-  out_trade_no: string;
-  payable_amount_fen: number;
-  status: string;
-  expires_at: number;
-}
-
 export interface LoginResp {
   access_token: string;
-  refresh_token?: string;
   token_type: string;
   expires_at: number;
   user_id: number;
