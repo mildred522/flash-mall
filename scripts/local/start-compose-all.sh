@@ -75,7 +75,7 @@ fi
 
 if [ "$no_build" -eq 0 ]; then
   if [ "$compose_build" -eq 1 ]; then
-    docker compose -f "$compose_file" build auth-api product-rpc order-rpc inventory-kitex entry-api hertz-gateway
+    docker compose -f "$compose_file" build auth-api product-rpc order-rpc inventory-kitex hertz-gateway
   else
     "$script_dir/build-compose-images.sh" --tag "$FLASH_MALL_IMAGE_TAG"
   fi
@@ -102,8 +102,8 @@ fi
 
 cat <<'EOF'
 
-entry-api: http://127.0.0.1:8888
 hertz-gateway: http://127.0.0.1:8889
 auth-api:  http://127.0.0.1:8890
 rabbitmq:  http://127.0.0.1:15672
+jaeger:    http://127.0.0.1:16686
 EOF
