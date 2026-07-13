@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ComponentType } from 'react';
 import { ProLayout } from '@ant-design/pro-components';
 import {
+  AuditOutlined,
   DashboardOutlined,
   OrderedListOutlined,
   SafetyCertificateOutlined,
@@ -12,6 +13,7 @@ import {
 } from '@ant-design/icons';
 import AdminGuard from './components/AdminGuard';
 import DashboardPage from './pages/DashboardPage';
+import MerchantApplicationsPage from './pages/MerchantApplicationsPage';
 import OrdersPage from './pages/OrdersPage';
 import ProductsPage from './pages/ProductsPage';
 import PromotionsPage from './pages/PromotionsPage';
@@ -40,6 +42,7 @@ declare global {
 
 const routeMap: Record<string, ComponentType> = {
   '/admin': DashboardPage,
+  '/admin/merchant-applications': MerchantApplicationsPage,
   '/admin/orders': OrdersPage,
   '/admin/products': ProductsPage,
   '/admin/suppliers': SuppliersPage,
@@ -51,6 +54,7 @@ const routeMap: Record<string, ComponentType> = {
 const menuRoutes = {
   routes: [
     { path: '/admin', name: '数据概览', icon: <DashboardOutlined /> },
+    { path: '/admin/merchant-applications', name: '商家入驻', icon: <AuditOutlined /> },
     { path: '/admin/orders', name: '订单管理', icon: <OrderedListOutlined /> },
     { path: '/admin/products', name: '商品管理', icon: <ShoppingOutlined /> },
     { path: '/admin/suppliers', name: '供应商管理', icon: <ShopOutlined /> },
