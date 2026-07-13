@@ -1,10 +1,15 @@
 import { execSync } from 'child_process';
-import { copyFileSync, cpSync, mkdirSync, existsSync } from 'fs';
+import { cpSync, mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const webDir = resolve(__dirname, '../app/entry/api/internal/handler/web');
+
+function copySingleFileHtml(source, target) {
+  const html = readFileSync(source, 'utf8').replace(/[ \t]+$/gm, '');
+  writeFileSync(target, html, 'utf8');
+}
 
 console.log('[build] Building shop...');
 execSync('npm run build -w packages/shop', { cwd: __dirname, stdio: 'inherit' });
@@ -17,7 +22,7 @@ execSync('npm run build -w packages/merchant', { cwd: __dirname, stdio: 'inherit
 
 if (!existsSync(webDir)) mkdirSync(webDir, { recursive: true });
 
-copyFileSync(resolve(__dirname, 'packages/shop/dist/index.html'), resolve(webDir, 'shop.html'));
+copySingleFileHtml(resolve(__dirname, 'packages/shop/dist/index.html'), resolve(webDir, 'shop.html'));
 console.log('[build] Copied shop.html');
 
 const productAssets = resolve(__dirname, 'packages/shop/dist/products');
@@ -26,10 +31,10 @@ if (existsSync(productAssets)) {
   console.log('[build] Copied bundled product images');
 }
 
-copyFileSync(resolve(__dirname, 'packages/admin/dist/index.html'), resolve(webDir, 'admin.html'));
+copySingleFileHtml(resolve(__dirname, 'packages/admin/dist/index.html'), resolve(webDir, 'admin.html'));
 console.log('[build] Copied admin.html');
 
-copyFileSync(resolve(__dirname, 'packages/merchant/dist/index.html'), resolve(webDir, 'merchant.html'));
+copySingleFileHtml(resolve(__dirname, 'packages/merchant/dist/index.html'), resolve(webDir, 'merchant.html'));
 console.log('[build] Copied merchant.html');
 
 console.log('[build] Done!');
