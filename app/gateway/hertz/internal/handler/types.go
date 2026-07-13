@@ -13,6 +13,12 @@ type ProductCard struct {
 	StockReserved  int64  `json:"stock_reserved,omitempty"`
 	StockTotal     int64  `json:"stock_total,omitempty"`
 	StockSource    string `json:"stock_source,omitempty"`
+	MerchantID     int64  `json:"merchant_id"`
+	MerchantName   string `json:"merchant_name"`
+	MerchantLogo   string `json:"merchant_logo,omitempty"`
+	StoreURL       string `json:"store_url"`
+	StoreStatus    int64  `json:"store_status"`
+	SlotNo         int64  `json:"slot_no,omitempty"`
 }
 
 type ProductListResp struct {
@@ -20,6 +26,28 @@ type ProductListResp struct {
 	Total    int64         `json:"total"`
 	Page     int64         `json:"page"`
 	PageSize int64         `json:"page_size"`
+}
+
+type PublicStoreDetail struct {
+	MerchantID   int64  `json:"merchant_id"`
+	MerchantName string `json:"merchant_name"`
+	LogoURL      string `json:"logo_url"`
+	BannerURL    string `json:"banner_url"`
+	Description  string `json:"description"`
+	Status       int64  `json:"status"`
+	ProductCount int64  `json:"product_count"`
+}
+
+type StoreProductListResp struct {
+	Items    []ProductCard `json:"items"`
+	Total    int64         `json:"total"`
+	Page     int64         `json:"page"`
+	PageSize int64         `json:"page_size"`
+}
+
+type ProductDetailResp struct {
+	Item          ProductCard   `json:"item"`
+	StoreProducts []ProductCard `json:"store_products"`
 }
 
 type AdminProductItem struct {

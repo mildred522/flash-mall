@@ -25,6 +25,25 @@ func TestEnsureMerchantStoreProfileTable(t *testing.T) {
 	}
 }
 
+func TestEnsureMerchantStoreProfileTableCachesSuccessfulDDL(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectExec("CREATE TABLE IF NOT EXISTS mall_order.merchant_store_profile").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := ensureMerchantStoreProfileTable(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if err := ensureMerchantStoreProfileTable(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEnsureHomepageShowcaseTables(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

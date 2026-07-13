@@ -93,20 +93,55 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		resp, err := svcCtx.ProductRpc.GetProductCard(ctx, &productclient.GetProductCardReq{ProductId: productID})
+		db, err := svcCtx.SqlConn.RawDB()
+		if err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
+			return
+		}
+		if err = ensureMerchantStoreProfileTable(ctx, db); err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", err))
+			return
+		}
+		meta := loadProductMeta(ctx, svcCtx, []int64{productID})
+		mainMeta, exists := meta[productID]
+		if !exists || !productMetaPubliclyVisible(mainMeta) {
+			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeProductNotFound, "product not found"))
+			return
+		}
+		relatedIDs, _, err := loadStoreProductIDs(ctx, db, mainMeta.MerchantID, "", 1, 5)
+		if err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "related product query failed", err))
+			return
+		}
+		relatedIDs = excludeProductID(relatedIDs, productID, 4)
+		allIDs := append([]int64{productID}, relatedIDs...)
+		resp, err := svcCtx.ProductRpc.ListProducts(ctx, &productclient.ListProductsReq{ProductIds: allIDs})
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product service unavailable", err))
 			return
 		}
-		if resp == nil || resp.ProductId == 0 {
+		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, allIDs), nil)
+		detail, exists := buildProductDetailResp(productID, relatedIDs, cards)
+		if !exists {
 			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeProductNotFound, "product not found"))
 			return
 		}
-
-		meta := loadProductMeta(ctx, svcCtx, []int64{productID})
-		cards := buildProductCards([]*productclient.GetProductCardResp{resp}, meta, loadCatalogInventoryStocks(ctx, svcCtx, []int64{productID}))
-		ok(ctx, c, map[string]any{"item": cards[productID]})
+		ok(ctx, c, detail)
 	}
+}
+
+func excludeProductID(ids []int64, excluded int64, limit int) []int64 {
+	result := make([]int64, 0, limit)
+	for _, id := range ids {
+		if id == excluded {
+			continue
+		}
+		result = append(result, id)
+		if len(result) == limit {
+			break
+		}
+	}
+	return result
 }
 
 func parseProductListQuery(c *app.RequestContext, activeOnly bool) (productListQuery, *apperror.Error) {
@@ -242,8 +277,13 @@ func productWhereClause(ctx context.Context, db *sql.DB, req productListQuery) (
 }
 
 type productMeta struct {
-	ImageURL     string
-	SupplierName string
+	ImageURL      string
+	SupplierName  string
+	MerchantID    int64
+	MerchantName  string
+	MerchantLogo  string
+	StoreStatus   int64
+	ProductStatus int64
 }
 
 func loadProductMeta(ctx context.Context, svcCtx *svc.ServiceContext, productIDs []int64) map[int64]productMeta {
@@ -256,6 +296,10 @@ func loadProductMeta(ctx context.Context, svcCtx *svc.ServiceContext, productIDs
 		logx.WithContext(ctx).Errorf("gateway product meta db failed: %v", err)
 		return result
 	}
+	if err := ensureMerchantStoreProfileTable(ctx, db); err != nil {
+		logx.WithContext(ctx).Errorf("gateway merchant store schema failed: %v", err)
+		return result
+	}
 
 	placeholders := make([]string, 0, len(productIDs))
 	args := make([]any, 0, len(productIDs))
@@ -264,9 +308,13 @@ func loadProductMeta(ctx context.Context, svcCtx *svc.ServiceContext, productIDs
 		args = append(args, productID)
 	}
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
-SELECT p.id, COALESCE(p.image_url, ''), COALESCE(s.name, '')
+SELECT p.id, COALESCE(p.image_url, ''), COALESCE(s.name, ''),
+       p.merchant_id, COALESCE(m.name, ''), COALESCE(profile.logo_url, ''),
+       COALESCE(m.status, 0), p.status
 FROM mall_product.product p
 LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
+LEFT JOIN mall_order.merchant m ON m.id = p.merchant_id
+LEFT JOIN mall_order.merchant_store_profile profile ON profile.merchant_id = p.merchant_id
 WHERE p.id IN (%s)`, strings.Join(placeholders, ",")), args...)
 	if err != nil {
 		logx.WithContext(ctx).Errorf("gateway product meta query failed: %v", err)
@@ -277,7 +325,8 @@ WHERE p.id IN (%s)`, strings.Join(placeholders, ",")), args...)
 	for rows.Next() {
 		var productID int64
 		var meta productMeta
-		if err := rows.Scan(&productID, &meta.ImageURL, &meta.SupplierName); err == nil {
+		if err := rows.Scan(&productID, &meta.ImageURL, &meta.SupplierName, &meta.MerchantID,
+			&meta.MerchantName, &meta.MerchantLogo, &meta.StoreStatus, &meta.ProductStatus); err == nil {
 			result[productID] = meta
 		}
 	}
@@ -314,6 +363,11 @@ func buildProductCards(items []*productclient.GetProductCardResp, meta map[int64
 			StockReserved:  stockReserved,
 			StockTotal:     stockTotal,
 			StockSource:    stockSource,
+			MerchantID:     m.MerchantID,
+			MerchantName:   m.MerchantName,
+			MerchantLogo:   m.MerchantLogo,
+			StoreURL:       fmt.Sprintf("/store/%d", m.MerchantID),
+			StoreStatus:    m.StoreStatus,
 		}
 	}
 	return cards

@@ -11,7 +11,10 @@ type storefrontSchemaState struct {
 	ready bool
 }
 
-var storefrontSchemaStates sync.Map
+var (
+	storefrontSchemaStates           sync.Map
+	merchantStoreProfileSchemaStates sync.Map
+)
 
 func ensureStorefrontSchema(ctx context.Context, db *sql.DB) error {
 	value, _ := storefrontSchemaStates.LoadOrStore(db, &storefrontSchemaState{})
@@ -38,6 +41,13 @@ func ensureStorefrontSchema(ctx context.Context, db *sql.DB) error {
 }
 
 func ensureMerchantStoreProfileTable(ctx context.Context, db *sql.DB) error {
+	value, _ := merchantStoreProfileSchemaStates.LoadOrStore(db, &storefrontSchemaState{})
+	state := value.(*storefrontSchemaState)
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.ready {
+		return nil
+	}
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS mall_order.merchant_store_profile (
   merchant_id bigint NOT NULL,
   logo_url varchar(512) NOT NULL DEFAULT '',
@@ -48,6 +58,9 @@ func ensureMerchantStoreProfileTable(ctx context.Context, db *sql.DB) error {
   update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (merchant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+	if err == nil {
+		state.ready = true
+	}
 	return err
 }
 

@@ -26,6 +26,8 @@ func registerSystemRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt
 	h.GET("/", StaticPageHandler("home.html"))
 	h.GET("/shop", StaticPageHandler("shop.html"))
 	h.GET("/pay", StaticPageHandler("shop.html"))
+	h.GET("/product/*any", StaticPageHandler("shop.html"))
+	h.GET("/store/*any", StaticPageHandler("shop.html"))
 	h.GET("/admin", StaticPageHandler("admin.html"))
 	h.GET("/admin/*any", StaticPageHandler("admin.html"))
 	h.GET("/merchant", StaticPageHandler("merchant.html"))
@@ -42,6 +44,8 @@ func registerShopRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 	h.GET("/api/shop/catalog", CatalogHandler(svcCtx))
 	h.GET("/api/shop/products", ProductListHandler(svcCtx, true))
 	h.GET("/api/shop/products/detail", ProductDetailHandler(svcCtx))
+	h.GET("/api/shop/stores/detail", StoreDetailHandler(svcCtx))
+	h.GET("/api/shop/stores/products", StoreProductListHandler(svcCtx))
 	h.GET("/api/user/addresses", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), UserAddressListHandler(svcCtx))
 	h.POST("/api/user/addresses/upsert", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), UserAddressUpsertHandler(svcCtx))
 }
