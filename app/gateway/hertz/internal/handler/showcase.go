@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 const currentShowcaseID int64 = 1
@@ -283,6 +286,10 @@ func buildPublicShowcaseCatalog(layout ShowcaseResp, cards map[int64]ProductCard
 
 func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		result := "error"
+		var observedLayout ShowcaseResp
+		defer func() { recordShowcaseRead("public", result, observedLayout, time.Since(startedAt)) }()
 		db, err := svcCtx.SqlConn.RawDB()
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
@@ -297,6 +304,7 @@ func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase query failed", err))
 			return
 		}
+		observedLayout = layout
 		productIDs := make([]int64, 0, 12)
 		for _, slot := range layout.Items {
 			if slot.Valid {
@@ -304,6 +312,7 @@ func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			}
 		}
 		if len(productIDs) == 0 {
+			result = "success"
 			ok(ctx, c, buildPublicShowcaseCatalog(layout, map[int64]ProductCard{}))
 			return
 		}
@@ -313,6 +322,7 @@ func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, productIDs), nil)
+		result = "success"
 		ok(ctx, c, buildPublicShowcaseCatalog(layout, cards))
 	}
 }
@@ -341,6 +351,10 @@ func loadAdminShowcase(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.
 
 func AdminShowcaseHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		result := "error"
+		var observedLayout ShowcaseResp
+		defer func() { recordShowcaseRead("admin", result, observedLayout, time.Since(startedAt)) }()
 		db, err := svcCtx.SqlConn.RawDB()
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
@@ -355,18 +369,36 @@ func AdminShowcaseHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase query failed", err))
 			return
 		}
+		observedLayout = layout
+		result = "success"
 		ok(ctx, c, layout)
 	}
 }
 
 func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		publishResult := "error"
+		operatorID := gatewayOperatorID(ctx)
+		var expectedVersion, currentVersion, newVersion int64
+		defer func() {
+			recordShowcasePublish(publishResult)
+			logx.WithContext(ctx).Infof(
+				"showcase_publish result=%s operator_id=%d expected_version=%d current_version=%d new_version=%d request_id=%s duration_ms=%d",
+				publishResult, operatorID, expectedVersion, currentVersion, newVersion,
+				tracectx.RequestIDFrom(ctx), time.Since(startedAt).Milliseconds(),
+			)
+		}()
 		var req showcasePublishReq
 		if err := decodeJSONBody(c, &req); err != nil || req.ExpectedVersion <= 0 {
+			publishResult = "invalid"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "invalid showcase publish request"))
 			return
 		}
+		expectedVersion = req.ExpectedVersion
+		currentVersion = req.ExpectedVersion
 		if err := validateShowcaseDraftShape(req.Items); err != nil {
+			publishResult = "invalid"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, err.Error()))
 			return
 		}
@@ -379,13 +411,17 @@ func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", err))
 			return
 		}
-		operatorID := gatewayOperatorID(ctx)
-		newVersion, err := publishShowcase(ctx, db, operatorID, req)
+		newVersion, err = publishShowcase(ctx, db, operatorID, req)
 		if errors.Is(err, errShowcaseInvalidDraft) {
+			publishResult = "invalid"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, err.Error()))
 			return
 		}
 		if errors.Is(err, errShowcaseVersionConflict) || errors.Is(err, errShowcaseStateConflict) {
+			publishResult = "conflict"
+			if latest, loadErr := loadShowcaseLayout(ctx, db); loadErr == nil {
+				currentVersion = latest.Version
+			}
 			fail(ctx, c, consts.StatusConflict, apperror.New(apperror.CodeConflict, err.Error()))
 			return
 		}
@@ -393,6 +429,7 @@ func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase publish failed", err))
 			return
 		}
+		publishResult = "success"
 		defaultShowcaseCandidateCache.invalidate()
 		productIDs := make([]string, 0, len(req.Items))
 		for _, item := range req.Items {

@@ -35,6 +35,7 @@ func registerSystemRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt
 	h.GET("/health", HealthHandler(svcCtx, startedAt))
 	h.GET("/api/system/health", HealthHandler(svcCtx, startedAt))
 	h.GET("/api/system/migration/routes", RouteMigrationStatusHandler())
+	h.GET("/metrics", MetricsHandler())
 }
 
 func registerShopRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {

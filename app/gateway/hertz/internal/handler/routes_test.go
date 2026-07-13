@@ -77,3 +77,37 @@ func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutes_ShowcaseStoreAndMetricsAreRegistered(t *testing.T) {
+	h := server.Default()
+	svcCtx := &svc.ServiceContext{}
+	registerSystemRoutes(h, svcCtx, time.Now())
+	registerShopRoutes(h, svcCtx)
+	registerAdminRoutes(h, svcCtx)
+	registerMerchantRoutes(h, svcCtx)
+
+	want := map[string]bool{
+		"GET /metrics":                       false,
+		"GET /product/*any":                  false,
+		"GET /store/*any":                    false,
+		"GET /api/shop/stores/detail":        false,
+		"GET /api/shop/stores/products":      false,
+		"GET /api/admin/showcase":            false,
+		"GET /api/admin/showcase/candidates": false,
+		"POST /api/admin/showcase/publish":   false,
+		"GET /api/merchant/store/profile":    false,
+		"POST /api/merchant/store/profile":   false,
+		"POST /api/merchant/store/assets":    false,
+	}
+	for _, route := range h.Routes() {
+		key := route.Method + " " + route.Path
+		if _, exists := want[key]; exists {
+			want[key] = true
+		}
+	}
+	for route, found := range want {
+		if !found {
+			t.Errorf("route is missing: %s", route)
+		}
+	}
+}

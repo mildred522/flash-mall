@@ -6,14 +6,17 @@ import (
 	"errors"
 	"net/url"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
+	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	"github.com/zeromicro/go-zero/core/logx"
 )
 
 var (
@@ -57,13 +60,24 @@ func MerchantStoreProfileHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 
 func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		result := "error"
+		var userID, merchantID int64
+		defer func() {
+			logx.WithContext(ctx).Infof(
+				"merchant_store_update result=%s merchant_id=%d user_id=%d request_id=%s duration_ms=%d",
+				result, merchantID, userID, tracectx.RequestIDFrom(ctx), time.Since(startedAt).Milliseconds(),
+			)
+		}()
 		identity, hasIdentity := authctx.IdentityFrom(ctx)
+		userID = identity.UserID
 		if !hasIdentity || identity.UserID <= 0 {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
 		var req merchantStoreUpdateReq
 		if err := decodeJSONBody(c, &req); err != nil {
+			result = "invalid"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "invalid merchant store request"))
 			return
 		}
@@ -71,6 +85,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		req.BannerURL = strings.TrimSpace(req.BannerURL)
 		req.Description = strings.TrimSpace(req.Description)
 		if err := validateMerchantStoreUpdate(req); err != nil {
+			result = "invalid"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, err.Error()))
 			return
 		}
@@ -79,7 +94,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
 			return
 		}
-		merchantID, err := selectedMerchantID(ctx, db, identity)
+		merchantID, err = selectedMerchantID(ctx, db, identity)
 		if err != nil {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
@@ -89,6 +104,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		if _, err = saveMerchantStoreProfile(ctx, db, merchantID, req); errors.Is(err, errMerchantStoreVersionConflict) {
+			result = "conflict"
 			fail(ctx, c, consts.StatusConflict, apperror.New(apperror.CodeConflict, err.Error()))
 			return
 		} else if errors.Is(err, errMerchantStoreUnavailable) {
@@ -103,6 +119,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store query failed", err))
 			return
 		}
+		result = "success"
 		ok(ctx, c, profile)
 	}
 }

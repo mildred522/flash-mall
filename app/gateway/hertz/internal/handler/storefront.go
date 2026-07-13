@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/gateway/hertz/internal/svc"
@@ -88,6 +89,9 @@ func buildProductDetailResp(productID int64, relatedIDs []int64, cards map[int64
 
 func StoreDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		result := "error"
+		defer func() { recordStoreRequest("detail", result, time.Since(startedAt)) }()
 		merchantID, err := parsePositiveInt64(c.Query("merchant_id"))
 		if err != nil {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "merchant_id required"))
@@ -111,12 +115,16 @@ func StoreDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store query failed", err))
 			return
 		}
+		result = "success"
 		ok(ctx, c, detail)
 	}
 }
 
 func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		result := "error"
+		defer func() { recordStoreRequest("products", result, time.Since(startedAt)) }()
 		merchantID, err := parsePositiveInt64(c.Query("merchant_id"))
 		if err != nil {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "merchant_id required"))
@@ -153,6 +161,7 @@ func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		if len(ids) == 0 {
+			result = "success"
 			ok(ctx, c, StoreProductListResp{Items: []ProductCard{}, Total: total, Page: page, PageSize: pageSize})
 			return
 		}
@@ -162,6 +171,7 @@ func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, ids), nil)
+		result = "success"
 		ok(ctx, c, StoreProductListResp{Items: orderProductCards(ids, cards), Total: total, Page: page, PageSize: pageSize})
 	}
 }

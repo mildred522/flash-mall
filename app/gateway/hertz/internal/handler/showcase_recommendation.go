@@ -240,6 +240,9 @@ func (cache *showcaseCandidateCache) invalidate() {
 
 func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		startedAt := time.Now()
+		metricResult := "error"
+		defer func() { recordShowcaseCandidate(metricResult, time.Since(startedAt)) }()
 		page, err := parseInt64Default(c.Query("page"), 1)
 		if err != nil || page <= 0 {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "page must be positive"))
@@ -261,9 +264,12 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 		keyword := strings.TrimSpace(c.Query("keyword"))
 		cacheKey := fmt.Sprintf("page=%d&size=%d&merchant=%d&keyword=%s", page, pageSize, merchantID, keyword)
 		if cached, found := defaultShowcaseCandidateCache.get(cacheKey, time.Now()); found {
+			showcaseCandidateCacheTotal.WithLabelValues("hit").Inc()
+			metricResult = "success"
 			ok(ctx, c, cached)
 			return
 		}
+		showcaseCandidateCacheTotal.WithLabelValues("miss").Inc()
 		db, err := svcCtx.SqlConn.RawDB()
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
@@ -312,6 +318,7 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 		}
 		result := ShowcaseCandidatesResp{Items: ranked[int(start):int(end)], Total: total, Page: page, PageSize: pageSize}
 		defaultShowcaseCandidateCache.put(cacheKey, result, time.Now())
+		metricResult = "success"
 		ok(ctx, c, result)
 	}
 }
