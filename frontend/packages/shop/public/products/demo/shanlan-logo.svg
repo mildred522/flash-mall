@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">山岚烘焙研究所</title>
+  <rect width="512" height="512" rx="256" fill="#6f4a2f"/>
+  <path d="M96 334 204 166l56 87 46-70 110 151H96Z" fill="#ead9bd"/>
+  <path d="M150 350c50-42 90-60 120-54 33 7 59 28 92 11" fill="none" stroke="#d59a45" stroke-width="28" stroke-linecap="round"/>
+  <path d="M258 107v137M222 131c21 4 36 18 36 39-22-3-36-17-36-39Zm72 0c-21 4-36 18-36 39 22-3 36-17 36-39Z" fill="none" stroke="#f5e8cf" stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

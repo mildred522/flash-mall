@@ -192,7 +192,14 @@ ORDER BY product_id`, strings.Join(placeholders, ","))
 		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &rows, query, args...); err != nil && err != sqlx.ErrNotFound {
 			return nil, false, err
 		}
-		if len(rows) == 0 {
+		// A snapshot hit is only complete when every requested product has an
+		// active card. Treating a partial hit as complete silently drops the
+		// remaining products from callers such as the homepage showcase.
+		requestedIDs := make(map[int64]struct{}, len(in.ProductIds))
+		for _, id := range in.ProductIds {
+			requestedIDs[id] = struct{}{}
+		}
+		if len(rows) != len(requestedIDs) {
 			return nil, false, nil
 		}
 		return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: int64(len(rows))}, true, nil
@@ -215,16 +222,28 @@ ORDER BY product_id`
 	if len(rows) == 0 {
 		return nil, false, nil
 	}
-	total := int64(len(rows))
-	if in.PageSize > 0 {
-		var countRow struct {
-			Count int64 `db:"count"`
-		}
-		if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &countRow, "SELECT COUNT(*) AS count FROM product_card_snapshot WHERE status = 1"); err == nil {
-			total = countRow.Count
-		}
+	var completeness struct {
+		ProductCount     int64 `db:"product_count"`
+		MissingSnapshots int64 `db:"missing_snapshots"`
+		StaleSnapshots   int64 `db:"stale_snapshots"`
 	}
-	return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: total}, true, nil
+	completenessQuery := `SELECT
+  (SELECT COUNT(*) FROM product WHERE status = 1) AS product_count,
+	(SELECT COUNT(*)
+	 FROM product p
+	 LEFT JOIN product_card_snapshot s ON s.product_id = p.id AND s.status = 1
+	 WHERE p.status = 1 AND s.product_id IS NULL) AS missing_snapshots,
+	(SELECT COUNT(*)
+	 FROM product_card_snapshot s
+	 LEFT JOIN product p ON p.id = s.product_id AND p.status = 1
+	 WHERE s.status = 1 AND p.id IS NULL) AS stale_snapshots`
+	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &completeness, completenessQuery); err != nil {
+		return nil, false, err
+	}
+	if completeness.MissingSnapshots > 0 || completeness.StaleSnapshots > 0 {
+		return nil, false, nil
+	}
+	return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: completeness.ProductCount}, true, nil
 }
 
 func productCardSnapshotsToResp(rows []productCardSnapshotRow) []*product.GetProductCardResp {

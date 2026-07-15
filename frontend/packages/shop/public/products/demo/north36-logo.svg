@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">北纬三十六户外</title>
+  <rect width="512" height="512" rx="256" fill="#1d3445"/>
+  <circle cx="256" cy="256" r="156" fill="none" stroke="#d7e0dc" stroke-width="18"/>
+  <path d="m105 322 97-142 53 77 58-96 102 161H105Z" fill="#8ca7a0"/>
+  <path d="m190 284 65-96 64 96-64 67-65-67Z" fill="#eef1ea"/>
+  <path d="M256 92v56M228 120h56" stroke="#d8a756" stroke-width="16" stroke-linecap="round"/>
+</svg>

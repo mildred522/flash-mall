@@ -87,6 +87,22 @@ services:
         redis-cli -h redis SETNX stock:104:1 2500
         redis-cli -h redis SETNX stock:104:2 2500
         redis-cli -h redis SETNX stock:104:3 2500
+        redis-cli -h redis SETNX stock:201:0 9
+        redis-cli -h redis SETNX stock:201:1 9
+        redis-cli -h redis SETNX stock:201:2 9
+        redis-cli -h redis SETNX stock:201:3 9
+        redis-cli -h redis SETNX stock:202:0 7
+        redis-cli -h redis SETNX stock:202:1 7
+        redis-cli -h redis SETNX stock:202:2 7
+        redis-cli -h redis SETNX stock:202:3 7
+        redis-cli -h redis SETNX stock:211:0 11
+        redis-cli -h redis SETNX stock:211:1 11
+        redis-cli -h redis SETNX stock:211:2 10
+        redis-cli -h redis SETNX stock:211:3 10
+        redis-cli -h redis SETNX stock:212:0 14
+        redis-cli -h redis SETNX stock:212:1 14
+        redis-cli -h redis SETNX stock:212:2 14
+        redis-cli -h redis SETNX stock:212:3 13
     restart: "no"
 
   rabbitmq:
