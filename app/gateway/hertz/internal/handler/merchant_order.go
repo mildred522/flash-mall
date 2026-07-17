@@ -3,12 +3,12 @@ package handler
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -72,7 +72,7 @@ func MerchantShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		db, merchantID, ready := merchantOrderDB(ctx, c, svcCtx, identity)
+		_, merchantID, ready := merchantOrderDB(ctx, c, svcCtx, identity)
 		if !ready {
 			return
 		}
@@ -87,7 +87,11 @@ func MerchantShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "order_id is required"))
 			return
 		}
-		if err := shipMerchantOrder(ctx, db, merchantID, req.OrderID); err != nil {
+		commands, err := requireOrderCommands(svcCtx)
+		if err == nil {
+			err = commands.ShipMerchant(ctx, ports.ShipMerchantOrderCommand{OrderID: req.OrderID, MerchantID: merchantID})
+		}
+		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
@@ -288,42 +292,6 @@ LIMIT ? OFFSET ?`, queryArgs...)
 		return MerchantRefundListResp{}, err
 	}
 	return MerchantRefundListResp{Items: items, Total: total}, nil
-}
-
-func shipMerchantOrder(ctx context.Context, db *sql.DB, merchantID int64, orderID string) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var currentStatus int64
-	err = tx.QueryRowContext(ctx,
-		"SELECT status FROM orders WHERE id = ? AND merchant_id = ? FOR UPDATE",
-		orderID, merchantID,
-	).Scan(&currentStatus)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found for merchant")
-		}
-		return err
-	}
-	if !orderstatus.CanShip(currentStatus) {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order is not in paid status")
-	}
-	if _, err = tx.ExecContext(ctx,
-		"UPDATE orders SET status = ?, shipped_at = NOW() WHERE id = ? AND merchant_id = ? AND status = ?",
-		orderstatus.Shipped, orderID, merchantID, orderstatus.Paid,
-	); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx,
-		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
-		orderID, orderstatus.Paid, orderstatus.Shipped, merchantID, "merchant ship order",
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 func refundStatusText(status int64) string {

@@ -91,8 +91,8 @@ func TestLoadProductMetaEnsuresStoreProfileTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	mock.ExpectExec("CREATE TABLE IF NOT EXISTS mall_order.merchant_store_profile").
-		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT COUNT\\(1\\)").WithArgs("mall_order", "merchant_store_profile").
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("SELECT p.id, COALESCE\\(p.image_url").
 		WithArgs(int64(100)).
 		WillReturnRows(sqlmock.NewRows([]string{

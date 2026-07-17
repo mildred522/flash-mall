@@ -74,6 +74,68 @@ canonical Hertz handlers. Merchant application administration is included:
 the project's architecture-evolution narrative. Removing it is not required
 for the Hertz/Kitex branch to be considered complete.
 
+## R0 migration-enabling refactor (2026-07-17)
+
+R0 removes the dependency ambiguity that had accumulated inside the Hertz
+handler package before the next Kitex migration phase:
+
+- Business-facing contracts now live in `app/gateway/hertz/internal/ports`.
+  The inventory, order-command, product-initialization, and snapshot contracts
+  do not import Hertz, SQL, Go-zero RPC clients, or Kitex generated types.
+- `adapters/inventorykitex` is the only Hertz package allowed to import the
+  inventory Thrift output. It converts neutral request metadata and stock
+  models at the boundary; handlers and health checks no longer depend on
+  generated `RequestMeta` or inventory DTOs.
+- User cancellation/receipt, administrator shipping/closure, and merchant
+  shipping call the `OrderCommands` port. Their existing SQL implementation is
+  isolated in `adapters/legacyorder`; it is deliberately named as temporary
+  migration debt rather than presented as the final ownership model.
+- The unused public reserve/release/confirm handler functions and DTOs were
+  removed. The only public inventory route in that group is the read-only
+  summary; order inventory effects remain internal commands.
+- Hertz no longer runs `CREATE TABLE` or `ALTER TABLE` in request handlers.
+  `scripts/k8s/init-db.sql` owns schema creation and idempotent migrations;
+  runtime code performs read-only, cached readiness checks and reports the
+  exact missing table or column.
+- New products are inserted offline together with a
+  `product_inventory_seed` task in one MySQL transaction. Kitex seeding must
+  succeed before the requested product status is restored. Failures record
+  attempts, error text, and retry time, and can be retried through the scoped
+  administrator or merchant endpoints:
+  `POST /api/admin/products/inventory-seed/retry` and
+  `POST /api/merchant/products/inventory-seed/retry`. Retrying an already
+  successful task is a no-op and does not reset stock or increment attempts.
+- Stock and product-card snapshot SQL moved to `adapters/productmysql`; HTTP
+  handlers now call `ProductSnapshotStore`. Common body decoding and response
+  shaping moved to `transport/httpx`.
+- The former monolithic route and DTO files are split by system/shop-order,
+  back-office/compatibility and product/order/merchant/admin/inventory domains.
+  The duplicate merchant-order route registration was removed.
+- Architecture tests now reject Kitex generated imports outside the adapter,
+  runtime DDL, order-table DML outside `legacyorder`, infrastructure imports in
+  ports, and RPC/persistence imports in transport.
+
+The remaining P1 boundary is explicit: `legacyorder` still performs five order
+status writes and invokes inventory release during cancellation/closure. P1
+must add matching order-rpc commands and replace this adapter with an
+`orderrpc` adapter. The current isolation makes that replacement local and
+prevents new handlers from adding another direct SQL/Kitex path.
+
+### R0 deployed acceptance
+
+- `go test ./...`, `go vet ./app/gateway/hertz/...`, architecture tests, and
+  `git diff --check` passed.
+- The current initialization SQL was rerun against the WSL Compose MySQL. It
+  completed successfully, created `product_inventory_seed`, and backfilled 11
+  existing products; a repeated run remained successful.
+- The `hertz-gateway:dev` image was rebuilt and only that service was
+  recreated. Container, WSL-host, and Windows-host health checks returned 200
+  with authoritative inventory in `enforce` mode.
+- `/`, `/shop`, `/admin`, and `/api/shop/catalog` returned 200 after the
+  rebuild. A real administrator login reached the new seed-retry route and a
+  nonexistent task returned the expected `404 PRODUCT_NOT_FOUND` without
+  changing inventory. The deployed read-only smoke script passed.
+
 ## P0 reliability architecture
 
 ### Authoritative inventory and durable reservations

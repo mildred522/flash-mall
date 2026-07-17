@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -696,14 +697,11 @@ func promotionProductIDsBestEffort(ctx context.Context, db *sql.DB, promotionID 
 }
 
 func refreshProductCardSnapshotsBestEffort(ctx context.Context, svcCtx *svc.ServiceContext, productIDs ...int64) {
-	db, err := svcCtx.SqlConn.RawDB()
+	store, err := requireProductSnapshotStore(svcCtx)
 	if err != nil {
 		return
 	}
-	if err := ensureGatewayProductReadTables(ctx, db); err != nil {
-		return
-	}
 	for _, productID := range uniquePositiveInt64s(productIDs) {
-		_, _ = rebuildGatewayProductCardSnapshots(ctx, db, productID, 1)
+		_, _ = store.RebuildCards(ctx, ports.SnapshotRebuildRequest{ProductID: productID, Limit: 1})
 	}
 }

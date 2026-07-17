@@ -590,6 +590,22 @@ CREATE TABLE IF NOT EXISTS product_card_snapshot (
   KEY ix_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS product_inventory_seed (
+  product_id bigint NOT NULL,
+  desired_total bigint NOT NULL DEFAULT 0,
+  shard_count int NOT NULL DEFAULT 4,
+  desired_product_status tinyint NOT NULL DEFAULT 1,
+  status tinyint NOT NULL DEFAULT 0 COMMENT '0-pending 1-succeeded 2-failed',
+  attempt_count int NOT NULL DEFAULT 0,
+  last_error varchar(512) NOT NULL DEFAULT '',
+  next_retry_time datetime NULL DEFAULT NULL,
+  seeded_at datetime NULL DEFAULT NULL,
+  create_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  update_time timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (product_id),
+  KEY ix_seed_retry (status, next_retry_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS homepage_showcase (
   id bigint NOT NULL,
   version bigint NOT NULL DEFAULT 1,
@@ -774,6 +790,11 @@ ON DUPLICATE KEY UPDATE
   sale_price_fen = VALUES(sale_price_fen),
   status = VALUES(status),
   supplier_id = VALUES(supplier_id);
+
+INSERT IGNORE INTO product_inventory_seed
+  (product_id, desired_total, shard_count, desired_product_status, status, attempt_count, last_error, seeded_at)
+SELECT id, stock, 4, status, 1, 1, '', NOW()
+FROM product;
 
 INSERT INTO homepage_showcase (id, version, operator_id)
 VALUES (1, 1, 0)

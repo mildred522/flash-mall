@@ -60,10 +60,11 @@ func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
 	registerMerchantRoutes(h, svcCtx)
 
 	want := map[string]bool{
-		"GET /merchant":                     false,
-		"GET /merchant/*any":                false,
-		"GET /api/merchant/application":     false,
-		"POST /api/merchant/products/image": false,
+		"GET /merchant":                                    false,
+		"GET /merchant/*any":                               false,
+		"GET /api/merchant/application":                    false,
+		"POST /api/merchant/products/image":                false,
+		"POST /api/merchant/products/inventory-seed/retry": false,
 	}
 	for _, route := range h.Routes() {
 		key := route.Method + " " + route.Path
@@ -75,6 +76,30 @@ func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
 		if !found {
 			t.Errorf("merchant route is missing: %s", route)
 		}
+	}
+}
+
+func TestCanonicalRoutesDoNotContainDuplicateMethodAndPath(t *testing.T) {
+	h := server.Default()
+	svcCtx := &svc.ServiceContext{}
+	registerSystemRoutes(h, svcCtx, time.Now())
+	registerShopRoutes(h, svcCtx)
+	registerAuthRoutes(h, svcCtx)
+	registerInventoryRoutes(h, svcCtx)
+	registerOrderRoutes(h, svcCtx)
+	registerAdminRoutes(h, svcCtx)
+	registerMerchantRoutes(h, svcCtx)
+
+	seen := make(map[string]struct{})
+	for _, route := range h.Routes() {
+		key := route.Method + " " + route.Path
+		if _, exists := seen[key]; exists {
+			t.Errorf("duplicate canonical route: %s", key)
+		}
+		seen[key] = struct{}{}
+	}
+	if _, exists := seen["POST /api/admin/products/inventory-seed/retry"]; !exists {
+		t.Error("admin inventory seed retry route is missing")
 	}
 }
 

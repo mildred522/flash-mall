@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"flash-mall/app/gateway/hertz/internal/config"
-	"flash-mall/app/gateway/hertz/internal/inventoryclient"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
-	common "flash-mall/app/inventory/kitex/kitex_gen/flashmall/common"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/ut"
@@ -16,11 +15,11 @@ import (
 )
 
 type runtimeStateClientStub struct {
-	state inventoryclient.RuntimeState
+	state ports.InventoryRuntimeState
 	err   error
 }
 
-func (s runtimeStateClientStub) GetRuntimeState(context.Context, *common.RequestMeta) (inventoryclient.RuntimeState, error) {
+func (s runtimeStateClientStub) GetRuntimeState(context.Context, ports.RequestMeta) (ports.InventoryRuntimeState, error) {
 	return s.state, s.err
 }
 
@@ -38,7 +37,7 @@ func TestHealthRejectsMissingConfiguredInventoryClient(t *testing.T) {
 }
 
 func TestInventoryRuntimeReadinessRequiresAuthoritativeDeduct(t *testing.T) {
-	_, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: inventoryclient.RuntimeState{
+	_, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: ports.InventoryRuntimeState{
 		RedisConfigured: true,
 		MySQLConfigured: true,
 		ShardCount:      4,
@@ -49,7 +48,7 @@ func TestInventoryRuntimeReadinessRequiresAuthoritativeDeduct(t *testing.T) {
 }
 
 func TestInventoryRuntimeReadinessAcceptsAuthoritativeRuntime(t *testing.T) {
-	state, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: inventoryclient.RuntimeState{
+	state, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: ports.InventoryRuntimeState{
 		FinalDeductEnabled:       true,
 		RedisConfigured:          true,
 		MySQLConfigured:          true,
@@ -66,7 +65,7 @@ func TestInventoryRuntimeReadinessAcceptsAuthoritativeRuntime(t *testing.T) {
 }
 
 func TestInventoryRuntimeReadinessRequiresReservationLedger(t *testing.T) {
-	_, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: inventoryclient.RuntimeState{
+	_, err := checkInventoryRuntime(context.Background(), runtimeStateClientStub{state: ports.InventoryRuntimeState{
 		FinalDeductEnabled: true,
 		RedisConfigured:    true,
 		MySQLConfigured:    true,

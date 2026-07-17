@@ -227,7 +227,7 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 			if dbErr != nil {
 				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
 			}
-			if dbErr = ensureStorefrontSchema(loadCtx, db); dbErr != nil {
+			if dbErr = requireStorefrontSchema(loadCtx, db); dbErr != nil {
 				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", dbErr)
 			}
 			features, loadErr := loadShowcaseCandidateFeatures(loadCtx, db, showcaseCandidateQuery{Keyword: keyword, MerchantID: merchantID})

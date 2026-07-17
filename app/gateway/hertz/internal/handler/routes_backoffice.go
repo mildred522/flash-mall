@@ -1,0 +1,73 @@
+package handler
+
+import (
+	"flash-mall/app/gateway/hertz/internal/middleware"
+	"flash-mall/app/gateway/hertz/internal/svc"
+
+	"github.com/cloudwego/hertz/pkg/app/server"
+)
+
+func registerAdminRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
+	h.GET("/api/admin/showcase", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcaseHandler(svcCtx))
+	h.GET("/api/admin/showcase/candidates", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcaseCandidatesHandler(svcCtx))
+	h.POST("/api/admin/showcase/publish", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShowcasePublishHandler(svcCtx))
+	h.GET("/api/admin/merchants/applications", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminMerchantApplyListHandler(svcCtx))
+	h.POST("/api/admin/merchants/applications/audit", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminMerchantApplyAuditHandler(svcCtx))
+	h.GET("/api/admin/campaigns", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminCampaignListHandler(svcCtx))
+	h.POST("/api/admin/campaigns/upsert", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminCampaignUpsertHandler(svcCtx))
+	h.GET("/api/admin/products", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductListHandler(svcCtx))
+	h.GET("/api/admin/inventory/stock-changes", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminStockChangeLogHandler(svcCtx))
+	h.POST("/api/admin/inventory/stock-snapshots/rebuild", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminStockSnapshotRebuildHandler(svcCtx))
+	h.GET("/api/admin/products/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductDetailHandler(svcCtx))
+	h.POST("/api/admin/products/create", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductCreateHandler(svcCtx))
+	h.POST("/api/admin/products/inventory-seed/retry", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductInventorySeedRetryHandler(svcCtx))
+	h.POST("/api/admin/products/update", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductUpdateHandler(svcCtx))
+	h.POST("/api/admin/products/stock-adjust", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductStockAdjustHandler(svcCtx))
+	h.POST("/api/admin/products/card-snapshots/refresh", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductCardSnapshotRefreshHandler(svcCtx))
+	h.POST("/api/admin/products/image", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminProductImageUploadHandler(svcCtx))
+	h.GET("/api/admin/suppliers", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminSupplierListHandler(svcCtx))
+	h.GET("/api/admin/suppliers/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminSupplierDetailHandler(svcCtx))
+	h.POST("/api/admin/suppliers/create", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminSupplierCreateHandler(svcCtx))
+	h.POST("/api/admin/suppliers/update", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminSupplierUpdateHandler(svcCtx))
+	h.GET("/api/admin/promotions", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminPromotionListHandler(svcCtx))
+	h.GET("/api/admin/promotions/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminPromotionDetailHandler(svcCtx))
+	h.POST("/api/admin/promotions/create", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminPromotionCreateHandler(svcCtx))
+	h.POST("/api/admin/promotions/update", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminPromotionUpdateHandler(svcCtx))
+	h.GET("/api/admin/orders", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminOrderListHandler(svcCtx))
+	h.GET("/api/admin/orders/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminOrderDetailHandler(svcCtx))
+	h.GET("/api/admin/orders/status-logs", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminOrderStatusLogHandler(svcCtx))
+	h.POST("/api/admin/orders/ship", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminShipOrderHandler(svcCtx))
+	h.POST("/api/admin/orders/close", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminCloseOrderHandler(svcCtx))
+	h.POST("/api/admin/orders/refund", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminRefundOrderHandler(svcCtx))
+	h.GET("/api/admin/refunds", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminRefundListHandler(svcCtx))
+	h.POST("/api/admin/refunds/audit", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminRefundAuditHandler(svcCtx))
+	h.GET("/api/admin/dashboard/stats", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminDashboardStatsHandler(svcCtx))
+	h.GET("/api/admin/reconciliation/issues", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminReconciliationListHandler(svcCtx))
+	h.POST("/api/admin/reconciliation/scan", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminReconciliationScanHandler(svcCtx))
+	h.GET("/api/admin/events", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminEventListHandler(svcCtx))
+	h.POST("/api/admin/events/retry", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AdminEventRetryHandler(svcCtx))
+	h.GET("/api/admin/users", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/users"))
+	h.GET("/api/admin/users/detail", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/users/detail"))
+	h.POST("/api/admin/users/status", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/users/status"))
+	h.GET("/api/admin/security/events/recent", middleware.RequireAdmin(svcCtx.Config.JwtAuthSecret), AuthProxyHandler(svcCtx, "/api/admin/security/events/recent"))
+}
+
+func registerMerchantRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
+	h.GET("/api/merchant/me", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantMeHandler(svcCtx))
+	h.GET("/api/merchant/application", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplicationHandler(svcCtx))
+	h.POST("/api/merchant/apply", middleware.RequireUser(svcCtx.Config.JwtAuthSecret), MerchantApplyCreateHandler(svcCtx))
+	h.GET("/api/merchant/store/profile", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreProfileHandler(svcCtx))
+	h.POST("/api/merchant/store/profile", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreUpdateHandler(svcCtx))
+	h.POST("/api/merchant/store/assets", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStoreAssetUploadHandler(svcCtx))
+	h.GET("/api/merchant/dashboard/stats", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantDashboardStatsHandler(svcCtx))
+	h.GET("/api/merchant/products", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductListHandler(svcCtx))
+	h.POST("/api/merchant/products/create", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductCreateHandler(svcCtx))
+	h.POST("/api/merchant/products/inventory-seed/retry", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductInventorySeedRetryHandler(svcCtx))
+	h.POST("/api/merchant/products/update", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductUpdateHandler(svcCtx))
+	h.POST("/api/merchant/products/stock-adjust", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductStockAdjustHandler(svcCtx))
+	h.POST("/api/merchant/products/image", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantProductImageUploadHandler(svcCtx))
+	h.GET("/api/merchant/inventory/stock-changes", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantStockChangeLogHandler(svcCtx))
+	h.GET("/api/merchant/orders", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantOrderListHandler(svcCtx))
+	h.POST("/api/merchant/orders/ship", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantShipOrderHandler(svcCtx))
+	h.GET("/api/merchant/refunds", middleware.RequireMerchant(svcCtx.Config.JwtAuthSecret), MerchantRefundListHandler(svcCtx))
+}

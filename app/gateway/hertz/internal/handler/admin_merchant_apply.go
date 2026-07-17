@@ -31,7 +31,7 @@ func AdminMerchantApplyListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
-		if err = ensureGatewayMerchantBaseSchema(ctx, db); err != nil {
+		if err = requireGatewayMerchantBaseSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
@@ -128,7 +128,7 @@ func AdminMerchantApplyAuditHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
-		if err = ensureGatewayMerchantBaseSchema(ctx, db); err != nil {
+		if err = requireGatewayMerchantBaseSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}

@@ -63,7 +63,7 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product create failed", err))
 			return
 		}
-		if err := ensureGatewayProductMerchantSchema(ctx, db); err != nil {
+		if err := requireGatewayProductMerchantSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}
@@ -95,7 +95,7 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "status must be 1 or 2"))
 			return
 		}
-		inventoryRpc, err := requireInventoryClient(svcCtx)
+		initializer, err := requireProductInventoryInitializer(svcCtx)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return
@@ -121,11 +121,18 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product create failed", err))
 			return
 		}
+		desiredStatus := req.Status
 		if _, err = tx.ExecContext(ctx,
 			"INSERT INTO mall_product.product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
-			productID, merchantID, req.Name, req.ImageURL, req.StockAvailable, req.OriginPriceFen, req.SalePriceFen, req.Status, req.SupplierID,
+			productID, merchantID, req.Name, req.ImageURL, req.StockAvailable, req.OriginPriceFen, req.SalePriceFen, int64(2), req.SupplierID,
 		); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product create failed", err))
+			return
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO mall_product.product_inventory_seed
+(product_id, desired_total, shard_count, desired_product_status, status)
+VALUES (?, ?, 4, ?, 0)`, productID, req.StockAvailable, desiredStatus); err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product seed task create failed", err))
 			return
 		}
 		if err = tx.Commit(); err != nil {
@@ -135,8 +142,8 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 
 		identity.MerchantID = merchantID
 		callCtx := authctx.WithIdentity(ctx, identity)
-		if err := inventoryRpc.SeedStock(callCtx, productID, req.StockAvailable, 4, inventoryRequestMeta(callCtx)); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product stock seed failed", err))
+		if _, err := initializer.Initialize(callCtx, productID, inventoryRequestMeta(callCtx)); err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeStockReconcileFailed, fmt.Sprintf("product %d created offline; inventory seed can be retried", productID), err))
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, productID)
@@ -158,7 +165,7 @@ func MerchantProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product update failed", err))
 			return
 		}
-		if err := ensureGatewayProductMerchantSchema(ctx, db); err != nil {
+		if err := requireGatewayProductMerchantSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}
@@ -209,7 +216,7 @@ func MerchantProductStockAdjustHandler(svcCtx *svc.ServiceContext) app.HandlerFu
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant product stock adjust failed", err))
 			return
 		}
-		if err := ensureGatewayProductMerchantSchema(ctx, db); err != nil {
+		if err := requireGatewayProductMerchantSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product schema unavailable", err))
 			return
 		}

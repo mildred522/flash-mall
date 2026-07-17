@@ -13,6 +13,7 @@ import (
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/paymentstatus"
 	"flash-mall/app/common/tracectx"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -212,7 +213,13 @@ func CancelOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			req.Reason = "user cancel"
 		}
 
-		if err := cancelUserOrder(ctx, svcCtx, req, identity.UserID); err != nil {
+		commands, err := requireOrderCommands(svcCtx)
+		if err == nil {
+			err = commands.CancelUser(ctx, ports.CancelUserOrderCommand{
+				OrderID: req.OrderID, Reason: req.Reason, UserID: identity.UserID, Meta: inventoryRequestMeta(ctx),
+			})
+		}
+		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
@@ -270,7 +277,11 @@ func ConfirmReceiptHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		if err := confirmUserReceipt(ctx, svcCtx, req.OrderID, identity.UserID); err != nil {
+		commands, err := requireOrderCommands(svcCtx)
+		if err == nil {
+			err = commands.ConfirmReceipt(ctx, ports.ConfirmReceiptCommand{OrderID: req.OrderID, UserID: identity.UserID})
+		}
+		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
@@ -312,63 +323,6 @@ func submitCreateOrderSaga(svcCtx *svc.ServiceContext, req CreateOrderReq, order
 	return nil
 }
 
-func cancelUserOrder(ctx context.Context, svcCtx *svc.ServiceContext, req CancelOrderReq, userID int64) error {
-	db, err := orderDB(svcCtx)
-	if err != nil {
-		return err
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var currentStatus int64
-	var productID int64
-	var amount int64
-	err = tx.QueryRowContext(ctx,
-		"SELECT status, product_id, amount FROM orders WHERE id = ? AND user_id = ? FOR UPDATE",
-		req.OrderID, userID,
-	).Scan(&currentStatus, &productID, &amount)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanPay(currentStatus) {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order cannot be cancelled")
-	}
-
-	result, err := tx.ExecContext(ctx,
-		"UPDATE orders SET status = ? WHERE id = ? AND status = ?",
-		orderstatus.Closed, req.OrderID, orderstatus.PendingPayment,
-	)
-	if err != nil {
-		return err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order status changed concurrently")
-	}
-	if _, err = tx.ExecContext(ctx,
-		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
-		req.OrderID, orderstatus.PendingPayment, orderstatus.Closed, userID, "user cancelled: "+req.Reason,
-	); err != nil {
-		return err
-	}
-	if err = releaseInventoryStock(ctx, svcCtx, InventoryReleaseReq{
-		OrderID: req.OrderID,
-		Reason:  req.Reason,
-	}); err != nil {
-		return apperror.Wrap(apperror.CodeStockReconcileFailed, "release order stock failed", err)
-	}
-	return tx.Commit()
-}
-
 func requestUserRefund(ctx context.Context, svcCtx *svc.ServiceContext, req RefundOrderReq, userID int64) error {
 	requestID := tracectx.RequestIDFrom(ctx)
 	if requestID == "" {
@@ -379,55 +333,6 @@ func requestUserRefund(ctx context.Context, svcCtx *svc.ServiceContext, req Refu
 		Reason: req.Reason, RequestId: requestID,
 	})
 	return err
-}
-
-func confirmUserReceipt(ctx context.Context, svcCtx *svc.ServiceContext, orderID string, userID int64) error {
-	db, err := orderDB(svcCtx)
-	if err != nil {
-		return err
-	}
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	var currentStatus int64
-	err = tx.QueryRowContext(ctx,
-		"SELECT status FROM orders WHERE id = ? AND user_id = ? FOR UPDATE",
-		orderID, userID,
-	).Scan(&currentStatus)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanConfirmReceipt(currentStatus) {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order is not in shipped status")
-	}
-
-	result, err := tx.ExecContext(ctx,
-		"UPDATE orders SET status = ?, completed_at = NOW() WHERE id = ? AND status = ?",
-		orderstatus.Completed, orderID, orderstatus.Shipped,
-	)
-	if err != nil {
-		return err
-	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order status changed concurrently")
-	}
-	if _, err = tx.ExecContext(ctx,
-		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, 'buyer confirmed receipt')",
-		orderID, orderstatus.Shipped, orderstatus.Completed, userID,
-	); err != nil {
-		return err
-	}
-	return tx.Commit()
 }
 
 func loadUserOrderDetail(ctx context.Context, svcCtx *svc.ServiceContext, orderID string, userID int64) (OrderDetailResp, error) {

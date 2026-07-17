@@ -295,7 +295,7 @@ func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			if dbErr != nil {
 				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
 			}
-			if dbErr = ensureStorefrontSchema(loadCtx, db); dbErr != nil {
+			if dbErr = requireStorefrontSchema(loadCtx, db); dbErr != nil {
 				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", dbErr)
 			}
 			layout, loadErr := loadShowcaseLayout(loadCtx, db)
@@ -377,7 +377,7 @@ func AdminShowcaseHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
 			return
 		}
-		if err = ensureStorefrontSchema(ctx, db); err != nil {
+		if err = requireStorefrontSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", err))
 			return
 		}
@@ -424,7 +424,7 @@ func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
 			return
 		}
-		if err = ensureStorefrontSchema(ctx, db); err != nil {
+		if err = requireStorefrontSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", err))
 			return
 		}

@@ -102,7 +102,7 @@ func StoreDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			if dbErr != nil {
 				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
 			}
-			if dbErr = ensureMerchantStoreProfileTable(loadCtx, db); dbErr != nil {
+			if dbErr = requireMerchantStoreProfileSchema(loadCtx, db); dbErr != nil {
 				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
 			}
 			return loadPublicStoreDetail(loadCtx, db, merchantID)

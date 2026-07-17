@@ -41,7 +41,7 @@ func MerchantStoreProfileHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
 		}
-		if err = ensureMerchantStoreProfileTable(ctx, db); err != nil {
+		if err = requireMerchantStoreProfileSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", err))
 			return
 		}
@@ -99,7 +99,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
 		}
-		if err = ensureMerchantStoreProfileTable(ctx, db); err != nil {
+		if err = requireMerchantStoreProfileSchema(ctx, db); err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", err))
 			return
 		}

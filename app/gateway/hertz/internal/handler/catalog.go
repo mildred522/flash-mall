@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"flash-mall/app/common/apperror"
-	"flash-mall/app/gateway/hertz/internal/inventoryclient"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
 
@@ -90,7 +90,7 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			if dbErr != nil {
 				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
 			}
-			if dbErr = ensureMerchantStoreProfileTable(loadCtx, db); dbErr != nil {
+			if dbErr = requireMerchantStoreProfileSchema(loadCtx, db); dbErr != nil {
 				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
 			}
 			meta := loadProductMeta(loadCtx, svcCtx, []int64{productID})
@@ -293,7 +293,7 @@ func loadProductMeta(ctx context.Context, svcCtx *svc.ServiceContext, productIDs
 		logx.WithContext(ctx).Errorf("gateway product meta db failed: %v", err)
 		return result
 	}
-	if err := ensureMerchantStoreProfileTable(ctx, db); err != nil {
+	if err := requireMerchantStoreProfileSchema(ctx, db); err != nil {
 		logx.WithContext(ctx).Errorf("gateway merchant store schema failed: %v", err)
 		return result
 	}
@@ -330,7 +330,7 @@ WHERE p.id IN (%s)`, strings.Join(placeholders, ",")), args...)
 	return result
 }
 
-func buildProductCards(items []*productclient.GetProductCardResp, meta map[int64]productMeta, stocks map[int64]inventoryclient.Stock) map[int64]ProductCard {
+func buildProductCards(items []*productclient.GetProductCardResp, meta map[int64]productMeta, stocks map[int64]ports.Stock) map[int64]ProductCard {
 	cards := make(map[int64]ProductCard, len(items))
 	for _, item := range items {
 		if item == nil {
@@ -370,8 +370,8 @@ func buildProductCards(items []*productclient.GetProductCardResp, meta map[int64
 	return cards
 }
 
-func loadCatalogInventoryStocks(ctx context.Context, svcCtx *svc.ServiceContext, productIDs []int64) map[int64]inventoryclient.Stock {
-	result := make(map[int64]inventoryclient.Stock, len(productIDs))
+func loadCatalogInventoryStocks(ctx context.Context, svcCtx *svc.ServiceContext, productIDs []int64) map[int64]ports.Stock {
+	result := make(map[int64]ports.Stock, len(productIDs))
 	if !svcCtx.Config.EnableLiveStockOverlay || svcCtx.InventoryRpc == nil || len(productIDs) == 0 {
 		return result
 	}

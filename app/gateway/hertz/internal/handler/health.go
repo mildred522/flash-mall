@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"flash-mall/app/common/apperror"
-	"flash-mall/app/gateway/hertz/internal/inventoryclient"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
-	common "flash-mall/app/inventory/kitex/kitex_gen/flashmall/common"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
@@ -17,7 +16,7 @@ import (
 const inventoryReadinessTimeout = 750 * time.Millisecond
 
 type runtimeStateClient interface {
-	GetRuntimeState(context.Context, *common.RequestMeta) (inventoryclient.RuntimeState, error)
+	GetRuntimeState(context.Context, ports.RequestMeta) (ports.InventoryRuntimeState, error)
 }
 
 func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerFunc {
@@ -48,12 +47,12 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 	}
 }
 
-func checkInventoryRuntime(ctx context.Context, client runtimeStateClient) (inventoryclient.RuntimeState, error) {
+func checkInventoryRuntime(ctx context.Context, client runtimeStateClient) (ports.InventoryRuntimeState, error) {
 	checkCtx, cancel := context.WithTimeout(ctx, inventoryReadinessTimeout)
 	defer cancel()
 	state, err := client.GetRuntimeState(checkCtx, inventoryRequestMeta(ctx))
 	if err != nil {
-		return inventoryclient.RuntimeState{}, apperror.Wrap(apperror.CodeInternal, "inventory runtime state check failed", err)
+		return ports.InventoryRuntimeState{}, apperror.Wrap(apperror.CodeInternal, "inventory runtime state check failed", err)
 	}
 	if !state.FinalDeductEnabled || !state.RedisConfigured || !state.MySQLConfigured || state.ShardCount <= 0 || !state.ReservationLedgerEnabled {
 		return state, apperror.New(apperror.CodeInternal, fmt.Sprintf(

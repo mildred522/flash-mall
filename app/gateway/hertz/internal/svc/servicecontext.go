@@ -5,9 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"flash-mall/app/gateway/hertz/internal/adapters/inventorykitex"
+	"flash-mall/app/gateway/hertz/internal/adapters/legacyorder"
+	"flash-mall/app/gateway/hertz/internal/adapters/productmysql"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
-	"flash-mall/app/gateway/hertz/internal/inventoryclient"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	orderclient "flash-mall/app/order/rpc/orderclient"
 	productclient "flash-mall/app/product/rpc/productclient"
 
@@ -18,15 +21,18 @@ import (
 )
 
 type ServiceContext struct {
-	Config       config.Config
-	SqlConn      sqlx.SqlConn
-	OrderSqlConn sqlx.SqlConn
-	AuthSqlConn  sqlx.SqlConn
-	OrderRpc     orderclient.Order
-	ProductRpc   productclient.Product
-	InventoryRpc inventoryclient.Client
-	Cache        *gatewaycache.Coordinator
-	cacheRedis   *redis.Client
+	Config           config.Config
+	SqlConn          sqlx.SqlConn
+	OrderSqlConn     sqlx.SqlConn
+	AuthSqlConn      sqlx.SqlConn
+	OrderRpc         orderclient.Order
+	ProductRpc       productclient.Product
+	InventoryRpc     ports.InventoryService
+	OrderCommands    ports.OrderCommands
+	ProductInventory ports.ProductInventoryInitializer
+	ProductSnapshots ports.ProductSnapshotStore
+	Cache            *gatewaycache.Coordinator
+	cacheRedis       *redis.Client
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -39,12 +45,25 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		ProductRpc:   productclient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf)),
 	}
 	if c.InventoryKitexEndpoint != "" {
-		client, err := inventoryclient.NewKitexClient(c.InventoryKitexEndpoint)
+		client, err := inventorykitex.New(c.InventoryKitexEndpoint)
 		if err != nil {
 			logx.Errorf("hertz inventory kitex client init failed: endpoint=%s err=%v", c.InventoryKitexEndpoint, err)
 		} else {
 			svcCtx.InventoryRpc = client
 		}
+	}
+	orderDB, err := svcCtx.OrderSqlConn.RawDB()
+	if err != nil {
+		logx.Errorf("hertz legacy order adapter init failed: %v", err)
+	} else {
+		svcCtx.OrderCommands = legacyorder.New(orderDB, svcCtx.InventoryRpc)
+	}
+	productDB, err := svcCtx.SqlConn.RawDB()
+	if err != nil {
+		logx.Errorf("hertz product adapters init failed: %v", err)
+	} else {
+		svcCtx.ProductInventory = productmysql.NewInventoryInitializer(productDB, svcCtx.InventoryRpc)
+		svcCtx.ProductSnapshots = productmysql.NewSnapshotStore(productDB)
 	}
 	cacheConfig := c.CacheConfig()
 	var cacheRedis *redis.Client

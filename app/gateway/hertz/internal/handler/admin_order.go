@@ -11,6 +11,7 @@ import (
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/tracectx"
+	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -88,13 +89,12 @@ func AdminShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "order_id is required"))
 			return
 		}
-		db, err := orderDB(svcCtx)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
-			return
-		}
 		operatorID := gatewayOperatorID(ctx)
-		if err := shipAdminOrder(ctx, db, req.OrderID, operatorID); err != nil {
+		commands, err := requireOrderCommands(svcCtx)
+		if err == nil {
+			err = commands.ShipAdmin(ctx, ports.ShipAdminOrderCommand{OrderID: req.OrderID, OperatorID: operatorID})
+		}
+		if err != nil {
 			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditOrderShipped, fmt.Sprintf("order:%s reason:%s", req.OrderID, adminAuditReasonInvalidStatus))
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -120,13 +120,14 @@ func AdminCloseOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		if req.Reason == "" {
 			req.Reason = "admin close"
 		}
-		db, err := orderDB(svcCtx)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
-			return
-		}
 		operatorID := gatewayOperatorID(ctx)
-		if err := closeAdminOrder(ctx, svcCtx, db, req, operatorID); err != nil {
+		commands, err := requireOrderCommands(svcCtx)
+		if err == nil {
+			err = commands.CloseAdmin(ctx, ports.CloseAdminOrderCommand{
+				OrderID: req.OrderID, Reason: req.Reason, OperatorID: operatorID, Meta: inventoryRequestMeta(ctx),
+			})
+		}
+		if err != nil {
 			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditOrderClosed, fmt.Sprintf("order:%s reason:%s", req.OrderID, adminAuditReasonInvalidStatus))
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -322,59 +323,6 @@ ORDER BY id ASC`, orderID)
 		return AdminOrderStatusLogResp{}, err
 	}
 	return AdminOrderStatusLogResp{Items: items}, nil
-}
-
-func shipAdminOrder(ctx context.Context, db *sql.DB, orderID string, operatorID int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	var currentStatus int64
-	if err := tx.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = ? FOR UPDATE", orderID).Scan(&currentStatus); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanShip(currentStatus) {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order not in paid status")
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE orders SET status = ?, shipped_at = NOW() WHERE id = ? AND status = ?", orderstatus.Shipped, orderID, orderstatus.Paid); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, 'admin shipped')", orderID, orderstatus.Paid, orderstatus.Shipped, operatorID); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-func closeAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.DB, req CancelOrderReq, operatorID int64) error {
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	var currentStatus int64
-	if err := tx.QueryRowContext(ctx, "SELECT status FROM orders WHERE id = ? FOR UPDATE", req.OrderID).Scan(&currentStatus); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return err
-	}
-	if !orderstatus.CanPay(currentStatus) {
-		return apperror.New(apperror.CodeOrderStatusInvalid, "order cannot be closed")
-	}
-	if _, err = tx.ExecContext(ctx, "UPDATE orders SET status = ? WHERE id = ? AND status = ?", orderstatus.Closed, req.OrderID, orderstatus.PendingPayment); err != nil {
-		return err
-	}
-	if _, err = tx.ExecContext(ctx, "INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)", req.OrderID, orderstatus.PendingPayment, orderstatus.Closed, operatorID, "admin closed: "+req.Reason); err != nil {
-		return err
-	}
-	if err = releaseInventoryStock(ctx, svcCtx, InventoryReleaseReq{OrderID: req.OrderID, Reason: req.Reason}); err != nil {
-		return apperror.Wrap(apperror.CodeStockReconcileFailed, "release order stock failed", err)
-	}
-	return tx.Commit()
 }
 
 func refundAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB, req RefundOrderReq, operatorID int64) error {
