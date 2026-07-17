@@ -120,6 +120,7 @@ func MerchantStoreUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		result = "success"
+		invalidateStoreReadCaches(ctx, svcCtx, merchantID)
 		ok(ctx, c, profile)
 	}
 }

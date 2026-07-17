@@ -10,10 +10,46 @@ import (
 type Service struct {
 	repo              repository.StockRepository
 	defaultShardCount int
+	runtimeState      RuntimeState
 }
 
 func New(repo repository.StockRepository, defaultShardCount int) *Service {
-	return &Service{repo: repo, defaultShardCount: repository.NormalizeShardCount(defaultShardCount)}
+	shardCount := repository.NormalizeShardCount(defaultShardCount)
+	return &Service{
+		repo:              repo,
+		defaultShardCount: shardCount,
+		runtimeState: RuntimeState{
+			ShardCount:            int64(shardCount),
+			ReservationLedgerMode: "off",
+		},
+	}
+}
+
+type RuntimeState struct {
+	FinalDeductEnabled    bool
+	RedisConfigured       bool
+	MySQLConfigured       bool
+	ShardCount            int64
+	ReservationLedgerMode string
+}
+
+func (s *Service) GetRuntimeState(_ context.Context) RuntimeState {
+	return s.runtimeState
+}
+
+func (s *Service) WithRuntimeState(state RuntimeState) *Service {
+	if state.ShardCount <= 0 {
+		state.ShardCount = int64(s.defaultShardCount)
+	}
+	if state.ReservationLedgerMode == "" {
+		state.ReservationLedgerMode = "off"
+	}
+	s.runtimeState = state
+	return s
+}
+
+func (s *Service) CheckRuntime(ctx context.Context) error {
+	return s.repo.CheckRuntime(ctx)
 }
 
 func (s *Service) GetStock(ctx context.Context, productID int64) (domain.Stock, error) {
@@ -92,6 +128,14 @@ func (s *Service) ReleaseStock(ctx context.Context, orderID string, reason strin
 		meta.Reason = reason
 	}
 	return s.repo.ReleaseStock(ctx, orderID, meta)
+}
+
+func (s *Service) ReleaseExpiredReservations(ctx context.Context, limit int, meta domain.StockChangeMeta) (int, error) {
+	return s.repo.ReleaseExpiredReservations(ctx, limit, meta)
+}
+
+func (s *Service) ReservationStats(ctx context.Context) (domain.ReservationStats, error) {
+	return s.repo.ReservationStats(ctx)
 }
 
 func (s *Service) ReconcileStock(ctx context.Context, productID int64, meta domain.StockChangeMeta) (before domain.Stock, after domain.Stock, changed bool, err error) {

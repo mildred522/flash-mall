@@ -114,6 +114,16 @@ data:
     DtmWaitResult: true
     EnableLiveStockOverlay: false
     UploadDir: /data/flash-mall/uploads
+    CacheRedisAddr: ${FLASH_MALL_CACHE_REDIS_ADDR}
+    CachePrefix: flashmall:hertz:public:v1
+    CacheEnableL1: true
+    CacheEnableL2: true
+    CacheStaleWhileRevalidate: true
+    CacheAllowStaleOnError: true
+    CacheL1TTLMillis: 2000
+    CacheSoftTTLSeconds: 30
+    CacheHardTTLSeconds: 120
+    CacheMaxEntries: 512
 
     ProductRpcConf:
       Etcd:

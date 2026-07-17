@@ -1,0 +1,21 @@
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: hertz-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["hertz-gateway:8889"]
+  - job_name: order-rpc
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["order-rpc:9091"]
+  - job_name: product-rpc
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["product-rpc:9092"]
+  - job_name: inventory-kitex
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["inventory-kitex:9093"]

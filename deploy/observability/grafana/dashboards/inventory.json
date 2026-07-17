@@ -1,0 +1,30 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat", "title": "预占生命周期", "id": 1,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "inventory_reservations", "legendFormat": "{{state}}"}],
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries", "title": "Kitex 命令 p95", "id": 2,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, operation) (rate(inventory_kitex_command_duration_seconds_bucket[5m])))", "legendFormat": "{{operation}}"}],
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "timeseries", "title": "对账不一致与超时恢复", "id": 3,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [
+        {"expr": "rate(inventory_stock_reconcile_changed_total[5m])", "legendFormat": "reconcile_changed"},
+        {"expr": "sum by (result) (rate(inventory_reservation_recovery_total[5m]))", "legendFormat": "recovery / {{result}}"}
+      ],
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 7}
+    }
+  ],
+  "refresh": "10s", "schemaVersion": 39, "tags": ["flash-mall", "inventory"],
+  "templating": {"list": []}, "time": {"from": "now-1h", "to": "now"},
+  "title": "Flash Mall / 库存一致性", "uid": "flashmall-inventory", "version": 1
+}

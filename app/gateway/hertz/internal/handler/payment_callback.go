@@ -25,17 +25,23 @@ import (
 
 func PaymentCallbackHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
+		started := time.Now()
+		result := "error"
+		defer func() { recordPaymentCallback(result, time.Since(started)) }()
 		var req PaymentCallbackReq
 		if err := decodeJSONBody(c, &req); err != nil {
+			result = "invalid_request"
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "invalid payment callback request"))
 			return
 		}
 		if err := validatePaymentCallbackSignature(svcCtx.Config.PaymentCallbackSecret, svcCtx.Config.PaymentCallbackMaxSkewSeconds, req); err != nil {
+			result = "unauthorized"
 			fail(ctx, c, consts.StatusUnauthorized, err)
 			return
 		}
 		callbackBody, err := paymentCallbackBody(req)
 		if err != nil {
+			result = "invalid_payload"
 			fail(ctx, c, consts.StatusBadRequest, err)
 			return
 		}
@@ -47,6 +53,7 @@ func PaymentCallbackHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
+		result = "success"
 		ok(ctx, c, resp)
 	}
 }

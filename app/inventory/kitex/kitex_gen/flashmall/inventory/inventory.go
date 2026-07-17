@@ -736,6 +736,156 @@ var fieldIDToName_ReconcileStockResponse = map[int16]string{
 	3: "changed",
 }
 
+type GetRuntimeStateRequest struct {
+	Meta *common.RequestMeta `thrift:"meta,1" frugal:"1,default,common.RequestMeta" json:"meta"`
+}
+
+func NewGetRuntimeStateRequest() *GetRuntimeStateRequest {
+	return &GetRuntimeStateRequest{}
+}
+
+func (p *GetRuntimeStateRequest) InitDefault() {
+}
+
+var GetRuntimeStateRequest_Meta_DEFAULT *common.RequestMeta
+
+func (p *GetRuntimeStateRequest) GetMeta() (v *common.RequestMeta) {
+	if !p.IsSetMeta() {
+		return GetRuntimeStateRequest_Meta_DEFAULT
+	}
+	return p.Meta
+}
+func (p *GetRuntimeStateRequest) SetMeta(val *common.RequestMeta) {
+	p.Meta = val
+}
+
+func (p *GetRuntimeStateRequest) IsSetMeta() bool {
+	return p.Meta != nil
+}
+
+func (p *GetRuntimeStateRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("GetRuntimeStateRequest(%+v)", *p)
+}
+
+var fieldIDToName_GetRuntimeStateRequest = map[int16]string{
+	1: "meta",
+}
+
+type RuntimeStateDTO struct {
+	FinalDeductEnabled       bool   `thrift:"final_deduct_enabled,1" frugal:"1,default,bool" json:"final_deduct_enabled"`
+	RedisConfigured          bool   `thrift:"redis_configured,2" frugal:"2,default,bool" json:"redis_configured"`
+	MysqlConfigured          bool   `thrift:"mysql_configured,3" frugal:"3,default,bool" json:"mysql_configured"`
+	ShardCount               int32  `thrift:"shard_count,4" frugal:"4,default,i32" json:"shard_count"`
+	ReservationLedgerMode    string `thrift:"reservation_ledger_mode,5" frugal:"5,default,string" json:"reservation_ledger_mode"`
+	ReservationLedgerEnabled bool   `thrift:"reservation_ledger_enabled,6" frugal:"6,default,bool" json:"reservation_ledger_enabled"`
+}
+
+func NewRuntimeStateDTO() *RuntimeStateDTO {
+	return &RuntimeStateDTO{}
+}
+
+func (p *RuntimeStateDTO) InitDefault() {
+}
+
+func (p *RuntimeStateDTO) GetFinalDeductEnabled() (v bool) {
+	return p.FinalDeductEnabled
+}
+
+func (p *RuntimeStateDTO) GetRedisConfigured() (v bool) {
+	return p.RedisConfigured
+}
+
+func (p *RuntimeStateDTO) GetMysqlConfigured() (v bool) {
+	return p.MysqlConfigured
+}
+
+func (p *RuntimeStateDTO) GetShardCount() (v int32) {
+	return p.ShardCount
+}
+
+func (p *RuntimeStateDTO) GetReservationLedgerMode() (v string) {
+	return p.ReservationLedgerMode
+}
+
+func (p *RuntimeStateDTO) GetReservationLedgerEnabled() (v bool) {
+	return p.ReservationLedgerEnabled
+}
+func (p *RuntimeStateDTO) SetFinalDeductEnabled(val bool) {
+	p.FinalDeductEnabled = val
+}
+func (p *RuntimeStateDTO) SetRedisConfigured(val bool) {
+	p.RedisConfigured = val
+}
+func (p *RuntimeStateDTO) SetMysqlConfigured(val bool) {
+	p.MysqlConfigured = val
+}
+func (p *RuntimeStateDTO) SetShardCount(val int32) {
+	p.ShardCount = val
+}
+func (p *RuntimeStateDTO) SetReservationLedgerMode(val string) {
+	p.ReservationLedgerMode = val
+}
+func (p *RuntimeStateDTO) SetReservationLedgerEnabled(val bool) {
+	p.ReservationLedgerEnabled = val
+}
+
+func (p *RuntimeStateDTO) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("RuntimeStateDTO(%+v)", *p)
+}
+
+var fieldIDToName_RuntimeStateDTO = map[int16]string{
+	1: "final_deduct_enabled",
+	2: "redis_configured",
+	3: "mysql_configured",
+	4: "shard_count",
+	5: "reservation_ledger_mode",
+	6: "reservation_ledger_enabled",
+}
+
+type GetRuntimeStateResponse struct {
+	State *RuntimeStateDTO `thrift:"state,1" frugal:"1,default,RuntimeStateDTO" json:"state"`
+}
+
+func NewGetRuntimeStateResponse() *GetRuntimeStateResponse {
+	return &GetRuntimeStateResponse{}
+}
+
+func (p *GetRuntimeStateResponse) InitDefault() {
+}
+
+var GetRuntimeStateResponse_State_DEFAULT *RuntimeStateDTO
+
+func (p *GetRuntimeStateResponse) GetState() (v *RuntimeStateDTO) {
+	if !p.IsSetState() {
+		return GetRuntimeStateResponse_State_DEFAULT
+	}
+	return p.State
+}
+func (p *GetRuntimeStateResponse) SetState(val *RuntimeStateDTO) {
+	p.State = val
+}
+
+func (p *GetRuntimeStateResponse) IsSetState() bool {
+	return p.State != nil
+}
+
+func (p *GetRuntimeStateResponse) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("GetRuntimeStateResponse(%+v)", *p)
+}
+
+var fieldIDToName_GetRuntimeStateResponse = map[int16]string{
+	1: "state",
+}
+
 type InventoryService interface {
 	GetStock(ctx context.Context, req *GetStockRequest) (r *GetStockResponse, err error)
 
@@ -752,6 +902,8 @@ type InventoryService interface {
 	ReleaseStock(ctx context.Context, req *ReleaseStockRequest) (r *common.Empty, err error)
 
 	ReconcileStock(ctx context.Context, req *ReconcileStockRequest) (r *ReconcileStockResponse, err error)
+
+	GetRuntimeState(ctx context.Context, req *GetRuntimeStateRequest) (r *GetRuntimeStateResponse, err error)
 }
 
 type InventoryServiceGetStockArgs struct {
@@ -1502,6 +1654,100 @@ func (p *InventoryServiceReconcileStockResult) String() string {
 }
 
 var fieldIDToName_InventoryServiceReconcileStockResult = map[int16]string{
+	0: "success",
+	1: "biz",
+}
+
+type InventoryServiceGetRuntimeStateArgs struct {
+	Req *GetRuntimeStateRequest `thrift:"req,1" frugal:"1,default,GetRuntimeStateRequest" json:"req"`
+}
+
+func NewInventoryServiceGetRuntimeStateArgs() *InventoryServiceGetRuntimeStateArgs {
+	return &InventoryServiceGetRuntimeStateArgs{}
+}
+
+func (p *InventoryServiceGetRuntimeStateArgs) InitDefault() {
+}
+
+var InventoryServiceGetRuntimeStateArgs_Req_DEFAULT *GetRuntimeStateRequest
+
+func (p *InventoryServiceGetRuntimeStateArgs) GetReq() (v *GetRuntimeStateRequest) {
+	if !p.IsSetReq() {
+		return InventoryServiceGetRuntimeStateArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *InventoryServiceGetRuntimeStateArgs) SetReq(val *GetRuntimeStateRequest) {
+	p.Req = val
+}
+
+func (p *InventoryServiceGetRuntimeStateArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *InventoryServiceGetRuntimeStateArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("InventoryServiceGetRuntimeStateArgs(%+v)", *p)
+}
+
+var fieldIDToName_InventoryServiceGetRuntimeStateArgs = map[int16]string{
+	1: "req",
+}
+
+type InventoryServiceGetRuntimeStateResult struct {
+	Success *GetRuntimeStateResponse `thrift:"success,0,optional" frugal:"0,optional,GetRuntimeStateResponse" json:"success,omitempty"`
+	Biz     *common.BizException     `thrift:"biz,1,optional" frugal:"1,optional,common.BizException" json:"biz,omitempty"`
+}
+
+func NewInventoryServiceGetRuntimeStateResult() *InventoryServiceGetRuntimeStateResult {
+	return &InventoryServiceGetRuntimeStateResult{}
+}
+
+func (p *InventoryServiceGetRuntimeStateResult) InitDefault() {
+}
+
+var InventoryServiceGetRuntimeStateResult_Success_DEFAULT *GetRuntimeStateResponse
+
+func (p *InventoryServiceGetRuntimeStateResult) GetSuccess() (v *GetRuntimeStateResponse) {
+	if !p.IsSetSuccess() {
+		return InventoryServiceGetRuntimeStateResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var InventoryServiceGetRuntimeStateResult_Biz_DEFAULT *common.BizException
+
+func (p *InventoryServiceGetRuntimeStateResult) GetBiz() (v *common.BizException) {
+	if !p.IsSetBiz() {
+		return InventoryServiceGetRuntimeStateResult_Biz_DEFAULT
+	}
+	return p.Biz
+}
+func (p *InventoryServiceGetRuntimeStateResult) SetSuccess(x interface{}) {
+	p.Success = x.(*GetRuntimeStateResponse)
+}
+func (p *InventoryServiceGetRuntimeStateResult) SetBiz(val *common.BizException) {
+	p.Biz = val
+}
+
+func (p *InventoryServiceGetRuntimeStateResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *InventoryServiceGetRuntimeStateResult) IsSetBiz() bool {
+	return p.Biz != nil
+}
+
+func (p *InventoryServiceGetRuntimeStateResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("InventoryServiceGetRuntimeStateResult(%+v)", *p)
+}
+
+var fieldIDToName_InventoryServiceGetRuntimeStateResult = map[int16]string{
 	0: "success",
 	1: "biz",
 }

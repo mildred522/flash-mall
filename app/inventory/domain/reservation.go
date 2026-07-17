@@ -14,3 +14,10 @@ type Reservation struct {
 	Quantity  int64
 	Status    ReservationStatus
 }
+
+type ReservationStats struct {
+	Active     int64
+	Expired    int64
+	Processing int64
+	DeadLetter int64
+}

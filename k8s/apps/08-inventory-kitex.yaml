@@ -33,7 +33,15 @@ spec:
             - name: INVENTORY_STOCK_SHARD_COUNT
               value: "4"
             - name: INVENTORY_FINAL_DEDUCT_ENABLED
-              value: "false"
+              value: "true"
+            - name: INVENTORY_RESERVATION_LEDGER_MODE
+              value: "enforce"
+            - name: INVENTORY_RESERVATION_RECOVERY_INTERVAL
+              value: "1m"
+            - name: INVENTORY_RESERVATION_RECOVERY_BATCH_SIZE
+              value: "100"
+            - name: INVENTORY_RESERVATION_METRICS_INTERVAL
+              value: "15s"
           ports:
             - name: rpc
               containerPort: 8093

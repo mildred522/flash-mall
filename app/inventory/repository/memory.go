@@ -13,6 +13,8 @@ type MemoryStockRepository struct {
 	reservations map[string]domain.Reservation
 }
 
+func (r *MemoryStockRepository) CheckRuntime(context.Context) error { return nil }
+
 func NewMemoryStockRepository() *MemoryStockRepository {
 	return &MemoryStockRepository{
 		stocks:       map[int64]domain.Stock{},
@@ -87,6 +89,9 @@ func (r *MemoryStockRepository) ReserveStock(ctx context.Context, orderID string
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if existing, ok := r.reservations[orderID]; ok {
+		if existing.ProductID != productID || existing.Quantity != quantity {
+			return domain.ErrReservationConflict
+		}
 		if existing.Status == domain.ReservationReleased {
 			return nil
 		}
@@ -155,6 +160,22 @@ func (r *MemoryStockRepository) ReleaseStock(ctx context.Context, orderID string
 	reservation.Status = domain.ReservationReleased
 	r.reservations[orderID] = reservation
 	return nil
+}
+
+func (r *MemoryStockRepository) ReleaseExpiredReservations(context.Context, int, domain.StockChangeMeta) (int, error) {
+	return 0, nil
+}
+
+func (r *MemoryStockRepository) ReservationStats(context.Context) (domain.ReservationStats, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var active int64
+	for _, reservation := range r.reservations {
+		if reservation.Status == domain.ReservationReserved {
+			active++
+		}
+	}
+	return domain.ReservationStats{Active: active}, nil
 }
 
 func (r *MemoryStockRepository) ReconcileStock(ctx context.Context, productID int64, meta domain.StockChangeMeta) (domain.Stock, domain.Stock, bool, error) {

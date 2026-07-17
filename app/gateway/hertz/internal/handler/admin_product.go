@@ -112,6 +112,7 @@ func AdminProductCardSnapshotRefreshHandler(svcCtx *svc.ServiceContext) app.Hand
 				return
 			}
 			affected += rows
+			invalidateProductReadCaches(ctx, svcCtx, productID, 0)
 		}
 		ok(ctx, c, AdminProductCardSnapshotRefreshResp{
 			ProductCount:  int64(len(productIDs)),
@@ -245,6 +246,7 @@ func AdminProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, req.ProductID)
+		invalidateProductReadCaches(ctx, svcCtx, req.ProductID, 0)
 		recordGatewayAdminAuditEvent(c, svcCtx, productUpdateAuditEvent(req.Status), fmt.Sprintf("product:%d", req.ProductID))
 		ok(ctx, c, map[string]any{"ok": true})
 	}
@@ -437,6 +439,7 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, productID)
+		invalidateProductReadCaches(ctx, svcCtx, productID, req.MerchantID)
 		recordGatewayAdminAuditEvent(c, svcCtx, adminAuditProductCreated, fmt.Sprintf("product:%d merchant:%d name:%s", productID, req.MerchantID, req.Name))
 		ok(ctx, c, AdminProductCreateResp{ProductID: productID})
 	}
@@ -470,6 +473,7 @@ func AdminProductStockAdjustHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, req.ProductID)
+		invalidateProductReadCaches(ctx, svcCtx, req.ProductID, 0)
 		recordGatewayAdminAuditEvent(c, svcCtx, adminAuditProductStockAdjusted, fmt.Sprintf("product:%d delta:%d bucket:%d", req.ProductID, req.Delta, req.BucketIdx))
 		ok(ctx, c, AdminProductStockAdjustResp{ProductID: req.ProductID, StockAvailable: after.Total})
 	}

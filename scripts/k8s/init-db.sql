@@ -556,6 +556,23 @@ CREATE TABLE IF NOT EXISTS product_stock_snapshot (
   KEY ix_update_time (update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS inventory_reservation (
+  order_id varchar(64) NOT NULL,
+  product_id bigint NOT NULL,
+  quantity bigint NOT NULL,
+  shard_index int NOT NULL,
+  status varchar(16) NOT NULL,
+  expires_at datetime(6) NOT NULL,
+  version bigint NOT NULL DEFAULT 0,
+  request_id varchar(64) NOT NULL DEFAULT '',
+  trace_id varchar(64) NOT NULL DEFAULT '',
+  create_time datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  update_time datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  PRIMARY KEY (order_id),
+  KEY ix_status_expires (status, expires_at),
+  KEY ix_product_status (product_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS product_card_snapshot (
   product_id bigint NOT NULL,
   name varchar(255) NOT NULL DEFAULT '',

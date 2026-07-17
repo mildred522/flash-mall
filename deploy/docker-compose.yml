@@ -20,7 +20,7 @@ services:
     container_name: etcd
     environment:
       - ALLOW_NONE_AUTHENTICATION=yes
-      - ETCD_ADVERTISE_CLIENT_URLS=http://127.0.0.1:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
       - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
     ports:
       - "2379:2379"
@@ -132,6 +132,34 @@ services:
       - "4318:4318"
       - "14268:14268"
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: flash-mall-prometheus
+    profiles: ["observability"]
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9099:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: flash-mall-grafana
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${FLASH_MALL_GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${FLASH_MALL_GRAFANA_PASSWORD:-flashmall}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
   mysql-init:
     image: mysql:5.7
     pull_policy: never
@@ -242,6 +270,10 @@ services:
       INVENTORY_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       INVENTORY_STOCK_SHARD_COUNT: 4
       INVENTORY_FINAL_DEDUCT_ENABLED: ${FLASH_MALL_INVENTORY_FINAL_DEDUCT_ENABLED:-true}
+      INVENTORY_RESERVATION_LEDGER_MODE: ${FLASH_MALL_INVENTORY_RESERVATION_LEDGER_MODE:-enforce}
+      INVENTORY_RESERVATION_RECOVERY_INTERVAL: ${FLASH_MALL_INVENTORY_RESERVATION_RECOVERY_INTERVAL:-1m}
+      INVENTORY_RESERVATION_RECOVERY_BATCH_SIZE: ${FLASH_MALL_INVENTORY_RESERVATION_RECOVERY_BATCH_SIZE:-100}
+      INVENTORY_RESERVATION_METRICS_INTERVAL: ${FLASH_MALL_INVENTORY_RESERVATION_METRICS_INTERVAL:-15s}
     ports:
       - "8093:8093"
       - "9093:9093"
@@ -306,6 +338,7 @@ services:
       FLASH_MALL_AUTH_SERVICE_BASE_URL: http://auth-api:8890
       FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
       FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
+      FLASH_MALL_CACHE_REDIS_ADDR: redis:6379
     volumes:
       - ./config/gateway.yaml:/etc/flash-mall/gateway.yaml:ro
       - ../.runtime/uploads:/data/flash-mall/uploads
@@ -327,3 +360,5 @@ services:
 volumes:
   mysql-data:
   redis-data:
+  prometheus-data:
+  grafana-data:

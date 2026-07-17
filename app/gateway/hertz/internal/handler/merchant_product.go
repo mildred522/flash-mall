@@ -140,6 +140,7 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, productID)
+		invalidateProductReadCaches(ctx, svcCtx, productID, merchantID)
 		ok(ctx, c, AdminProductCreateResp{ProductID: productID})
 	}
 }
@@ -191,6 +192,7 @@ func MerchantProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, req.ProductID)
+		invalidateProductReadCaches(ctx, svcCtx, req.ProductID, merchantID)
 		ok(ctx, c, map[string]any{"ok": true})
 	}
 }
@@ -253,6 +255,7 @@ func MerchantProductStockAdjustHandler(svcCtx *svc.ServiceContext) app.HandlerFu
 			return
 		}
 		refreshProductCardSnapshotsBestEffort(ctx, svcCtx, req.ProductID)
+		invalidateProductReadCaches(ctx, svcCtx, req.ProductID, merchantID)
 		ok(ctx, c, AdminProductStockAdjustResp{ProductID: req.ProductID, StockAvailable: after.Total})
 	}
 }

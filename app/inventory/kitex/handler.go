@@ -75,7 +75,6 @@ func (s *InventoryServiceImpl) ReserveStock(ctx context.Context, req *inventory.
 	if err != nil {
 		return nil, toBizException(err, req.GetMeta())
 	}
-	s.metrics.reservationStarted(req.GetOrderId())
 	return &common.Empty{}, nil
 }
 
@@ -86,7 +85,6 @@ func (s *InventoryServiceImpl) ConfirmDeduct(ctx context.Context, req *inventory
 	if err != nil {
 		return nil, toBizException(err, req.GetMeta())
 	}
-	s.metrics.reservationFinished(req.GetOrderId())
 	return &common.Empty{}, nil
 }
 
@@ -97,7 +95,6 @@ func (s *InventoryServiceImpl) ReleaseStock(ctx context.Context, req *inventory.
 	if err != nil {
 		return nil, toBizException(err, req.GetMeta())
 	}
-	s.metrics.reservationFinished(req.GetOrderId())
 	return &common.Empty{}, nil
 }
 
@@ -110,6 +107,21 @@ func (s *InventoryServiceImpl) ReconcileStock(ctx context.Context, req *inventor
 		s.metrics.inconsistentStocks.Inc()
 	}
 	return &inventory.ReconcileStockResponse{Before: toStockDTO(before), After: toStockDTO(after), Changed: changed}, nil
+}
+
+func (s *InventoryServiceImpl) GetRuntimeState(ctx context.Context, _ *inventory.GetRuntimeStateRequest) (*inventory.GetRuntimeStateResponse, error) {
+	if err := s.svc.CheckRuntime(ctx); err != nil {
+		return nil, toBizException(err, nil)
+	}
+	state := s.svc.GetRuntimeState(ctx)
+	return &inventory.GetRuntimeStateResponse{State: &inventory.RuntimeStateDTO{
+		FinalDeductEnabled:       state.FinalDeductEnabled,
+		RedisConfigured:          state.RedisConfigured,
+		MysqlConfigured:          state.MySQLConfigured,
+		ShardCount:               int32(state.ShardCount),
+		ReservationLedgerMode:    state.ReservationLedgerMode,
+		ReservationLedgerEnabled: state.ReservationLedgerMode != "off",
+	}}, nil
 }
 
 func toStockDTO(stock domain.Stock) *inventory.StockDTO {

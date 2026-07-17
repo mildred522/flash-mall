@@ -62,8 +62,9 @@ type OutboxPublisher struct {
 
 	rabbit *RabbitPublisher
 
-	leaderID    string
-	leaderOwned bool
+	leaderID           string
+	leaderOwned        bool
+	lastMetricsRefresh time.Time
 }
 
 func NewOutboxPublisher(svcCtx *svc.ServiceContext) *OutboxPublisher {
@@ -201,6 +202,7 @@ func parseRedisInt(v any) int64 {
 }
 
 func (p *OutboxPublisher) processOnce(ctx context.Context) error {
+	defer p.refreshStateMetrics(ctx)
 	if err := p.recoverTimeoutPublishing(ctx); err != nil {
 		return err
 	}
@@ -214,7 +216,9 @@ func (p *OutboxPublisher) processOnce(ctx context.Context) error {
 	}
 
 	for _, evt := range events {
+		started := time.Now()
 		if err := p.publishOne(ctx, evt); err != nil {
+			recordOutboxPublish(evt.EventType, "publish_error", time.Since(started))
 			p.Errorf("outbox publish failed: id=%d event_id=%s err=%v", evt.ID, evt.EventID, err)
 			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			if markErr := p.markRetry(writeCtx, evt, err); markErr != nil {
@@ -225,7 +229,10 @@ func (p *OutboxPublisher) processOnce(ctx context.Context) error {
 		}
 		writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if err := p.markPublished(writeCtx, evt.ID); err != nil {
+			recordOutboxPublish(evt.EventType, "state_update_error", time.Since(started))
 			p.Errorf("outbox mark published failed: id=%d err=%v", evt.ID, err)
+		} else {
+			recordOutboxPublish(evt.EventType, "success", time.Since(started))
 		}
 		cancel()
 	}
@@ -340,9 +347,40 @@ WHERE id = ? AND status = ?
 	}
 
 	if nextStatus == outboxStatusDead {
+		recordOutboxPublish(evt.EventType, "dead_letter", 0)
 		p.Errorf("outbox moved to dead status: id=%d event_id=%s", evt.ID, evt.EventID)
+	} else {
+		recordOutboxPublish(evt.EventType, "retry_scheduled", 0)
 	}
 	return nil
+}
+
+func (p *OutboxPublisher) refreshStateMetrics(ctx context.Context) {
+	if time.Since(p.lastMetricsRefresh) < 10*time.Second {
+		return
+	}
+	p.lastMetricsRefresh = time.Now()
+	db, err := p.svcCtx.SqlConn.RawDB()
+	if err != nil {
+		return
+	}
+	rows, err := db.QueryContext(ctx, "SELECT status, COUNT(*) FROM order_outbox WHERE status IN (?, ?, ?) GROUP BY status", outboxStatusPending, outboxStatusPublishing, outboxStatusDead)
+	if err != nil {
+		return
+	}
+	defer func() { _ = rows.Close() }()
+	counts := map[int]int64{}
+	for rows.Next() {
+		var status int
+		var count int64
+		if err := rows.Scan(&status, &count); err != nil {
+			return
+		}
+		counts[status] = count
+	}
+	outboxState.WithLabelValues("pending").Set(float64(counts[outboxStatusPending]))
+	outboxState.WithLabelValues("publishing").Set(float64(counts[outboxStatusPublishing]))
+	outboxState.WithLabelValues("dead").Set(float64(counts[outboxStatusDead]))
 }
 
 func (p *OutboxPublisher) recoverTimeoutPublishing(ctx context.Context) error {

@@ -70,6 +70,13 @@ var serviceMethods = map[string]kitex.MethodInfo{
 		false,
 		kitex.WithStreamingMode(kitex.StreamingNone),
 	),
+	"GetRuntimeState": kitex.NewMethodInfo(
+		getRuntimeStateHandler,
+		newInventoryServiceGetRuntimeStateArgs,
+		newInventoryServiceGetRuntimeStateResult,
+		false,
+		kitex.WithStreamingMode(kitex.StreamingNone),
+	),
 }
 
 var (
@@ -328,6 +335,30 @@ func newInventoryServiceReconcileStockResult() interface{} {
 	return inventory.NewInventoryServiceReconcileStockResult()
 }
 
+func getRuntimeStateHandler(ctx context.Context, handler interface{}, arg, result interface{}) error {
+	realArg := arg.(*inventory.InventoryServiceGetRuntimeStateArgs)
+	realResult := result.(*inventory.InventoryServiceGetRuntimeStateResult)
+	success, err := handler.(inventory.InventoryService).GetRuntimeState(ctx, realArg.Req)
+	if err != nil {
+		switch v := err.(type) {
+		case *common.BizException:
+			realResult.Biz = v
+		default:
+			return err
+		}
+	} else {
+		realResult.Success = success
+	}
+	return nil
+}
+func newInventoryServiceGetRuntimeStateArgs() interface{} {
+	return inventory.NewInventoryServiceGetRuntimeStateArgs()
+}
+
+func newInventoryServiceGetRuntimeStateResult() interface{} {
+	return inventory.NewInventoryServiceGetRuntimeStateResult()
+}
+
 type kClient struct {
 	c client.Client
 }
@@ -441,6 +472,20 @@ func (p *kClient) ReconcileStock(ctx context.Context, req *inventory.ReconcileSt
 	_args.Req = req
 	var _result inventory.InventoryServiceReconcileStockResult
 	if err = p.c.Call(ctx, "ReconcileStock", &_args, &_result); err != nil {
+		return
+	}
+	switch {
+	case _result.Biz != nil:
+		return r, _result.Biz
+	}
+	return _result.GetSuccess(), nil
+}
+
+func (p *kClient) GetRuntimeState(ctx context.Context, req *inventory.GetRuntimeStateRequest) (r *inventory.GetRuntimeStateResponse, err error) {
+	var _args inventory.InventoryServiceGetRuntimeStateArgs
+	_args.Req = req
+	var _result inventory.InventoryServiceGetRuntimeStateResult
+	if err = p.c.Call(ctx, "GetRuntimeState", &_args, &_result); err != nil {
 		return
 	}
 	switch {

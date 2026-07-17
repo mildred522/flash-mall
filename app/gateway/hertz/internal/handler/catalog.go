@@ -85,37 +85,42 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		db, err := svcCtx.SqlConn.RawDB()
+		detail, _, err := loadCachedJSON(ctx, svcCtx, productDetailCacheKey(productID), func(loadCtx context.Context) (ProductDetailResp, error) {
+			db, dbErr := svcCtx.SqlConn.RawDB()
+			if dbErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			}
+			if dbErr = ensureMerchantStoreProfileTable(loadCtx, db); dbErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
+			}
+			meta := loadProductMeta(loadCtx, svcCtx, []int64{productID})
+			mainMeta, exists := meta[productID]
+			if !exists || !productMetaPubliclyVisible(mainMeta) {
+				return ProductDetailResp{}, apperror.New(apperror.CodeProductNotFound, "product not found")
+			}
+			relatedIDs, _, loadErr := loadStoreProductIDs(loadCtx, db, mainMeta.MerchantID, "", 1, 5)
+			if loadErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "related product query failed", loadErr)
+			}
+			relatedIDs = excludeProductID(relatedIDs, productID, 4)
+			allIDs := append([]int64{productID}, relatedIDs...)
+			resp, rpcErr := svcCtx.ProductRpc.ListProducts(loadCtx, &productclient.ListProductsReq{ProductIds: allIDs})
+			if rpcErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product service unavailable", rpcErr)
+			}
+			cards := buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, allIDs), nil)
+			detail, exists := buildProductDetailResp(productID, relatedIDs, cards)
+			if !exists {
+				return ProductDetailResp{}, apperror.New(apperror.CodeProductNotFound, "product not found")
+			}
+			return detail, nil
+		})
+		if apperror.CodeOf(err) == apperror.CodeProductNotFound {
+			fail(ctx, c, consts.StatusNotFound, err)
+			return
+		}
 		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
-			return
-		}
-		if err = ensureMerchantStoreProfileTable(ctx, db); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", err))
-			return
-		}
-		meta := loadProductMeta(ctx, svcCtx, []int64{productID})
-		mainMeta, exists := meta[productID]
-		if !exists || !productMetaPubliclyVisible(mainMeta) {
-			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeProductNotFound, "product not found"))
-			return
-		}
-		relatedIDs, _, err := loadStoreProductIDs(ctx, db, mainMeta.MerchantID, "", 1, 5)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "related product query failed", err))
-			return
-		}
-		relatedIDs = excludeProductID(relatedIDs, productID, 4)
-		allIDs := append([]int64{productID}, relatedIDs...)
-		resp, err := svcCtx.ProductRpc.ListProducts(ctx, &productclient.ListProductsReq{ProductIds: allIDs})
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product service unavailable", err))
-			return
-		}
-		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, allIDs), nil)
-		detail, exists := buildProductDetailResp(productID, relatedIDs, cards)
-		if !exists {
-			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeProductNotFound, "product not found"))
+			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
 		ok(ctx, c, detail)

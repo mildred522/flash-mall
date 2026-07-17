@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/paymentstatus"
@@ -40,6 +41,9 @@ func NewMarkOrderPaidLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Mar
 }
 
 func (l *MarkOrderPaidLogic) MarkPaid(in *order.MarkOrderPaidReq) (*order.MarkOrderPaidResp, error) {
+	started := time.Now()
+	result := "error"
+	defer func() { recordPaymentTransition(result, time.Since(started)) }()
 	if in.OrderId == "" {
 		return nil, status.Error(codes.InvalidArgument, "order_id is required")
 	}
@@ -80,6 +84,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 	}
 
 	if callback.PaidAmountFen != payableAmountFen {
+		result = "amount_mismatch"
 		if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "FAILED_AMOUNT_MISMATCH", "paid amount does not match payable amount"); err != nil {
 			return nil, err
 		}
@@ -99,9 +104,11 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		if err := l.confirmInventoryDeduct(in.OrderId); err != nil {
 			return nil, err
 		}
+		result = "idempotent"
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "PAID"}, nil
 	}
 	if orderStatus == orderstatus.Closed {
+		result = "closed"
 		if err := insertPaymentCallbackEvent(l.ctx, tx, in, callback, "CLOSED", ""); err != nil {
 			return nil, err
 		}
@@ -122,6 +129,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, err
 	}
 	if orderRows == 0 {
+		result = "not_payable"
 		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
@@ -139,6 +147,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, err
 	}
 	if paymentRows == 0 {
+		result = "not_payable"
 		return nil, status.Error(codes.FailedPrecondition, "payment order is not payable")
 	}
 	if _, err := tx.ExecContext(l.ctx,
@@ -162,6 +171,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, err
 	}
 
+	result = "success"
 	return &order.MarkOrderPaidResp{Updated: true, OrderStatus: "PAID"}, nil
 }
 

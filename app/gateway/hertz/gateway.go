@@ -21,6 +21,7 @@ func main() {
 	conf.MustLoad(*configFile, &c, conf.UseEnv())
 
 	svcCtx := svc.NewServiceContext(c)
+	defer svcCtx.Close()
 	h := server.Default(server.WithHostPorts(c.NormalizedListenOn()))
 	handler.RegisterRoutes(h, svcCtx, time.Now())
 	h.Spin()

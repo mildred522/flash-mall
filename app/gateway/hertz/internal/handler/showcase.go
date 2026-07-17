@@ -290,41 +290,58 @@ func ShowcaseCatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		result := "error"
 		var observedLayout ShowcaseResp
 		defer func() { recordShowcaseRead("public", result, observedLayout, time.Since(startedAt)) }()
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
-			return
-		}
-		if err = ensureStorefrontSchema(ctx, db); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", err))
-			return
-		}
-		layout, err := loadShowcaseLayout(ctx, db)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase query failed", err))
-			return
-		}
-		observedLayout = layout
-		productIDs := make([]int64, 0, 12)
-		for _, slot := range layout.Items {
-			if slot.Valid {
-				productIDs = append(productIDs, slot.ProductID)
+		catalog, source, err := loadCachedJSON(ctx, svcCtx, showcaseCatalogCacheKey, func(loadCtx context.Context) (ProductListResp, error) {
+			db, dbErr := svcCtx.SqlConn.RawDB()
+			if dbErr != nil {
+				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
 			}
-		}
-		if len(productIDs) == 0 {
-			result = "success"
-			ok(ctx, c, buildPublicShowcaseCatalog(layout, map[int64]ProductCard{}))
-			return
-		}
-		resp, err := svcCtx.ProductRpc.ListProducts(ctx, &productclient.ListProductsReq{ProductIds: productIDs})
+			if dbErr = ensureStorefrontSchema(loadCtx, db); dbErr != nil {
+				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", dbErr)
+			}
+			layout, loadErr := loadShowcaseLayout(loadCtx, db)
+			if loadErr != nil {
+				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "showcase query failed", loadErr)
+			}
+			observedLayout = layout
+			productIDs := make([]int64, 0, 12)
+			for _, slot := range layout.Items {
+				if slot.Valid {
+					productIDs = append(productIDs, slot.ProductID)
+				}
+			}
+			if len(productIDs) == 0 {
+				return buildPublicShowcaseCatalog(layout, map[int64]ProductCard{}), nil
+			}
+			resp, rpcErr := svcCtx.ProductRpc.ListProducts(loadCtx, &productclient.ListProductsReq{ProductIds: productIDs})
+			if rpcErr != nil {
+				return ProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product service unavailable", rpcErr)
+			}
+			cards := buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, productIDs), nil)
+			return buildPublicShowcaseCatalog(layout, cards), nil
+		})
 		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product service unavailable", err))
+			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
-		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, productIDs), nil)
+		if source != "origin" {
+			observedLayout = showcaseLayoutFromCatalog(catalog)
+		}
 		result = "success"
-		ok(ctx, c, buildPublicShowcaseCatalog(layout, cards))
+		ok(ctx, c, catalog)
 	}
+}
+
+func showcaseLayoutFromCatalog(catalog ProductListResp) ShowcaseResp {
+	layout := ShowcaseResp{Items: make([]ShowcaseSlot, 12)}
+	for index := range layout.Items {
+		layout.Items[index] = ShowcaseSlot{SlotNo: int64(index + 1), Empty: true}
+	}
+	for _, card := range catalog.Items {
+		if card.SlotNo >= 1 && card.SlotNo <= 12 {
+			layout.Items[card.SlotNo-1] = ShowcaseSlot{SlotNo: card.SlotNo, ProductID: card.ProductID, Valid: true}
+		}
+	}
+	return layout
 }
 
 func loadAdminShowcase(ctx context.Context, svcCtx *svc.ServiceContext, db *sql.DB) (ShowcaseResp, error) {
@@ -430,7 +447,14 @@ func AdminShowcasePublishHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		publishResult = "success"
-		defaultShowcaseCandidateCache.invalidate()
+		if svcCtx.Cache != nil {
+			if cacheErr := svcCtx.Cache.Invalidate(ctx, showcaseCatalogCacheKey); cacheErr != nil {
+				logx.WithContext(ctx).Errorf("gateway showcase cache invalidation failed: %v", cacheErr)
+			}
+			if cacheErr := svcCtx.Cache.InvalidatePrefix(ctx, "showcase:candidates:"); cacheErr != nil {
+				logx.WithContext(ctx).Errorf("gateway showcase candidate cache invalidation failed: %v", cacheErr)
+			}
+		}
 		productIDs := make([]string, 0, len(req.Items))
 		for _, item := range req.Items {
 			productIDs = append(productIDs, fmt.Sprintf("%d", item.ProductID))

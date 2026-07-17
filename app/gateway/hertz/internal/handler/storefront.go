@@ -97,16 +97,16 @@ func StoreDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "merchant_id required"))
 			return
 		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
-			return
-		}
-		if err = ensureMerchantStoreProfileTable(ctx, db); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", err))
-			return
-		}
-		detail, err := loadPublicStoreDetail(ctx, db, merchantID)
+		detail, _, err := loadCachedJSON(ctx, svcCtx, storeDetailCacheKey(merchantID), func(loadCtx context.Context) (PublicStoreDetail, error) {
+			db, dbErr := svcCtx.SqlConn.RawDB()
+			if dbErr != nil {
+				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			}
+			if dbErr = ensureMerchantStoreProfileTable(loadCtx, db); dbErr != nil {
+				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
+			}
+			return loadPublicStoreDetail(loadCtx, db, merchantID)
+		})
 		if err == sql.ErrNoRows {
 			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeMerchantNotFound, "merchant store not found"))
 			return
@@ -143,35 +143,38 @@ func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		if pageSize > 100 {
 			pageSize = 100
 		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
-			return
-		}
-		if _, err = loadPublicStoreDetail(ctx, db, merchantID); err == sql.ErrNoRows {
+		keyword := c.Query("keyword")
+		products, _, err := loadCachedJSON(ctx, svcCtx, storeProductsCacheKey(merchantID, page, pageSize, keyword), func(loadCtx context.Context) (StoreProductListResp, error) {
+			db, dbErr := svcCtx.SqlConn.RawDB()
+			if dbErr != nil {
+				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			}
+			if _, dbErr = loadPublicStoreDetail(loadCtx, db, merchantID); dbErr != nil {
+				return StoreProductListResp{}, dbErr
+			}
+			ids, total, loadErr := loadStoreProductIDs(loadCtx, db, merchantID, keyword, page, pageSize)
+			if loadErr != nil {
+				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "store product query failed", loadErr)
+			}
+			if len(ids) == 0 {
+				return StoreProductListResp{Items: []ProductCard{}, Total: total, Page: page, PageSize: pageSize}, nil
+			}
+			resp, rpcErr := svcCtx.ProductRpc.ListProducts(loadCtx, &productclient.ListProductsReq{ProductIds: ids})
+			if rpcErr != nil {
+				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product service unavailable", rpcErr)
+			}
+			cards := buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, ids), nil)
+			return StoreProductListResp{Items: orderProductCards(ids, cards), Total: total, Page: page, PageSize: pageSize}, nil
+		})
+		if err == sql.ErrNoRows {
 			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeMerchantNotFound, "merchant store not found"))
 			return
-		} else if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant store query failed", err))
-			return
 		}
-		ids, total, err := loadStoreProductIDs(ctx, db, merchantID, c.Query("keyword"), page, pageSize)
 		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "store product query failed", err))
+			fail(ctx, c, consts.StatusBadGateway, err)
 			return
 		}
-		if len(ids) == 0 {
-			result = "success"
-			ok(ctx, c, StoreProductListResp{Items: []ProductCard{}, Total: total, Page: page, PageSize: pageSize})
-			return
-		}
-		resp, err := svcCtx.ProductRpc.ListProducts(ctx, &productclient.ListProductsReq{ProductIds: ids})
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product service unavailable", err))
-			return
-		}
-		cards := buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, ids), nil)
 		result = "success"
-		ok(ctx, c, StoreProductListResp{Items: orderProductCards(ids, cards), Total: total, Page: page, PageSize: pageSize})
+		ok(ctx, c, products)
 	}
 }

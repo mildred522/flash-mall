@@ -6,7 +6,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
+	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
@@ -137,11 +139,16 @@ func TestCatalogHandlerReadsPublishedShowcase(t *testing.T) {
 			ProductId: 105, Name: "新商品", FinalPriceFen: 9900, StockAvailable: 5,
 		}}}, nil
 	}}
-	svcCtx := &svc.ServiceContext{SqlConn: sqlx.NewSqlConnFromDB(db), ProductRpc: client}
-	c := app.NewContext(0)
-	CatalogHandler(svcCtx)(context.Background(), c)
-	if c.Response.StatusCode() != 200 || !strings.Contains(string(c.Response.Body()), `"product_id":105`) || !strings.Contains(string(c.Response.Body()), `"slot_no":3`) {
-		t.Fatalf("status=%d body=%s", c.Response.StatusCode(), c.Response.Body())
+	svcCtx := &svc.ServiceContext{
+		SqlConn: sqlx.NewSqlConnFromDB(db), ProductRpc: client,
+		Cache: gatewaycache.New(gatewaycache.Config{EnableL1: true, L1TTL: time.Minute}, nil),
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		c := app.NewContext(0)
+		CatalogHandler(svcCtx)(context.Background(), c)
+		if c.Response.StatusCode() != 200 || !strings.Contains(string(c.Response.Body()), `"product_id":105`) || !strings.Contains(string(c.Response.Body()), `"slot_no":3`) {
+			t.Fatalf("attempt=%d status=%d body=%s", attempt, c.Response.StatusCode(), c.Response.Body())
+		}
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

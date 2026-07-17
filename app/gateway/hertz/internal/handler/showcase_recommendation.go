@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"flash-mall/app/common/apperror"
@@ -16,8 +15,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
-
-var defaultShowcaseCandidateCache = newShowcaseCandidateCache(time.Minute)
 
 type showcaseCandidateQuery struct {
 	Keyword    string
@@ -201,43 +198,6 @@ func rankShowcaseCandidates(features []showcaseCandidateFeature) []ShowcaseCandi
 	return result
 }
 
-type showcaseCandidateCacheEntry struct {
-	value     ShowcaseCandidatesResp
-	expiresAt time.Time
-}
-
-type showcaseCandidateCache struct {
-	mu      sync.RWMutex
-	ttl     time.Duration
-	entries map[string]showcaseCandidateCacheEntry
-}
-
-func newShowcaseCandidateCache(ttl time.Duration) *showcaseCandidateCache {
-	return &showcaseCandidateCache{ttl: ttl, entries: make(map[string]showcaseCandidateCacheEntry)}
-}
-
-func (cache *showcaseCandidateCache) get(key string, now time.Time) (ShowcaseCandidatesResp, bool) {
-	cache.mu.RLock()
-	entry, ok := cache.entries[key]
-	cache.mu.RUnlock()
-	if !ok || !now.Before(entry.expiresAt) {
-		return ShowcaseCandidatesResp{}, false
-	}
-	return entry.value, true
-}
-
-func (cache *showcaseCandidateCache) put(key string, value ShowcaseCandidatesResp, now time.Time) {
-	cache.mu.Lock()
-	cache.entries[key] = showcaseCandidateCacheEntry{value: value, expiresAt: now.Add(cache.ttl)}
-	cache.mu.Unlock()
-}
-
-func (cache *showcaseCandidateCache) invalidate() {
-	cache.mu.Lock()
-	cache.entries = make(map[string]showcaseCandidateCacheEntry)
-	cache.mu.Unlock()
-}
-
 func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		startedAt := time.Now()
@@ -262,62 +222,59 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 			return
 		}
 		keyword := strings.TrimSpace(c.Query("keyword"))
-		cacheKey := fmt.Sprintf("page=%d&size=%d&merchant=%d&keyword=%s", page, pageSize, merchantID, keyword)
-		if cached, found := defaultShowcaseCandidateCache.get(cacheKey, time.Now()); found {
+		result, source, err := loadCachedJSON(ctx, svcCtx, showcaseCandidatesCacheKey(page, pageSize, merchantID, keyword), func(loadCtx context.Context) (ShowcaseCandidatesResp, error) {
+			db, dbErr := svcCtx.SqlConn.RawDB()
+			if dbErr != nil {
+				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			}
+			if dbErr = ensureStorefrontSchema(loadCtx, db); dbErr != nil {
+				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", dbErr)
+			}
+			features, loadErr := loadShowcaseCandidateFeatures(loadCtx, db, showcaseCandidateQuery{Keyword: keyword, MerchantID: merchantID})
+			if loadErr != nil {
+				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "showcase candidate query failed", loadErr)
+			}
+			productIDs := make([]int64, 0, len(features))
+			for _, feature := range features {
+				productIDs = append(productIDs, feature.Product.ProductID)
+			}
+			cards := make(map[int64]ProductCard)
+			if len(productIDs) > 0 {
+				resp, rpcErr := svcCtx.ProductRpc.ListProducts(loadCtx, &productclient.ListProductsReq{ProductIds: productIDs})
+				if rpcErr != nil {
+					return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "product service unavailable", rpcErr)
+				}
+				cards = buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, productIDs), nil)
+			}
+			hydrated := make([]showcaseCandidateFeature, 0, len(features))
+			for _, feature := range features {
+				card, exists := cards[feature.Product.ProductID]
+				if exists {
+					feature.Product = card
+					hydrated = append(hydrated, feature)
+				}
+			}
+			ranked := rankShowcaseCandidates(hydrated)
+			total := int64(len(ranked))
+			start, end := (page-1)*pageSize, page*pageSize
+			if start > total {
+				start = total
+			}
+			if end > total {
+				end = total
+			}
+			return ShowcaseCandidatesResp{Items: ranked[int(start):int(end)], Total: total, Page: page, PageSize: pageSize}, nil
+		})
+		if err != nil {
+			showcaseCandidateCacheTotal.WithLabelValues("miss").Inc()
+			fail(ctx, c, consts.StatusBadGateway, err)
+			return
+		}
+		if source == "origin" {
+			showcaseCandidateCacheTotal.WithLabelValues("miss").Inc()
+		} else {
 			showcaseCandidateCacheTotal.WithLabelValues("hit").Inc()
-			metricResult = "success"
-			ok(ctx, c, cached)
-			return
 		}
-		showcaseCandidateCacheTotal.WithLabelValues("miss").Inc()
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", err))
-			return
-		}
-		if err = ensureStorefrontSchema(ctx, db); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", err))
-			return
-		}
-		features, err := loadShowcaseCandidateFeatures(ctx, db, showcaseCandidateQuery{Keyword: keyword, MerchantID: merchantID})
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "showcase candidate query failed", err))
-			return
-		}
-		productIDs := make([]int64, 0, len(features))
-		for _, feature := range features {
-			productIDs = append(productIDs, feature.Product.ProductID)
-		}
-		cards := make(map[int64]ProductCard)
-		if len(productIDs) > 0 {
-			resp, err := svcCtx.ProductRpc.ListProducts(ctx, &productclient.ListProductsReq{ProductIds: productIDs})
-			if err != nil {
-				fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product service unavailable", err))
-				return
-			}
-			cards = buildProductCards(resp.Items, loadProductMeta(ctx, svcCtx, productIDs), nil)
-		}
-		hydrated := make([]showcaseCandidateFeature, 0, len(features))
-		for _, feature := range features {
-			card, exists := cards[feature.Product.ProductID]
-			if !exists {
-				continue
-			}
-			feature.Product = card
-			hydrated = append(hydrated, feature)
-		}
-		ranked := rankShowcaseCandidates(hydrated)
-		total := int64(len(ranked))
-		start := (page - 1) * pageSize
-		end := start + pageSize
-		if start > total {
-			start = total
-		}
-		if end > total {
-			end = total
-		}
-		result := ShowcaseCandidatesResp{Items: ranked[int(start):int(end)], Total: total, Page: page, PageSize: pageSize}
-		defaultShowcaseCandidateCache.put(cacheKey, result, time.Now())
 		metricResult = "success"
 		ok(ctx, c, result)
 	}

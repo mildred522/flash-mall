@@ -20,6 +20,7 @@ type Client interface {
 	ConfirmDeduct(ctx context.Context, req *inventory.ConfirmDeductRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
 	ReleaseStock(ctx context.Context, req *inventory.ReleaseStockRequest, callOptions ...callopt.Option) (r *common.Empty, err error)
 	ReconcileStock(ctx context.Context, req *inventory.ReconcileStockRequest, callOptions ...callopt.Option) (r *inventory.ReconcileStockResponse, err error)
+	GetRuntimeState(ctx context.Context, req *inventory.GetRuntimeStateRequest, callOptions ...callopt.Option) (r *inventory.GetRuntimeStateResponse, err error)
 }
 
 // NewClient creates a client for the service defined in IDL.
@@ -89,4 +90,9 @@ func (p *kInventoryServiceClient) ReleaseStock(ctx context.Context, req *invento
 func (p *kInventoryServiceClient) ReconcileStock(ctx context.Context, req *inventory.ReconcileStockRequest, callOptions ...callopt.Option) (r *inventory.ReconcileStockResponse, err error) {
 	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
 	return p.kClient.ReconcileStock(ctx, req)
+}
+
+func (p *kInventoryServiceClient) GetRuntimeState(ctx context.Context, req *inventory.GetRuntimeStateRequest, callOptions ...callopt.Option) (r *inventory.GetRuntimeStateResponse, err error) {
+	ctx = client.NewCtxWithCallOptions(ctx, callOptions)
+	return p.kClient.GetRuntimeState(ctx, req)
 }

@@ -67,16 +67,11 @@ func TestRankShowcaseCandidatesUsesTieBreakers(t *testing.T) {
 	}
 }
 
-func TestShowcaseCandidateCacheInvalidatesAfterPublish(t *testing.T) {
-	cache := newShowcaseCandidateCache(time.Minute)
-	now := time.Now()
-	cache.put("page=1", ShowcaseCandidatesResp{Total: 1}, now)
-	if got, ok := cache.get("page=1", now.Add(time.Second)); !ok || got.Total != 1 {
-		t.Fatalf("cache miss: %#v %v", got, ok)
-	}
-	cache.invalidate()
-	if _, ok := cache.get("page=1", now.Add(time.Second)); ok {
-		t.Fatal("cache should be empty after publish")
+func TestShowcaseCandidateCacheKeyNormalizesKeyword(t *testing.T) {
+	left := showcaseCandidatesCacheKey(1, 20, 7, " 风衣 ")
+	right := showcaseCandidatesCacheKey(1, 20, 7, "风衣")
+	if left != right {
+		t.Fatalf("candidate keys differ: %q %q", left, right)
 	}
 }
 

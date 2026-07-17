@@ -52,8 +52,8 @@ tree and deployment manifests, not from archived plans or logs.
   remain visible to administrators with a reason but are hidden publicly.
 - Candidate recommendation is deterministic and advisory. It scores recent
   sales, available stock, active promotions, freshness, and merchant diversity,
-  returns human-readable reasons, caches reads for 60 seconds, and invalidates
-  the cache after a successful publish.
+  returns human-readable reasons, and uses the shared Hertz read-cache policy
+  described below.
 - Store images use `/uploads/stores/{merchant_id}/...`; uploaded product images
   use `/uploads/products/...`. Compose mounts both through the persistent local
   upload directory so a Hertz container rebuild does not remove them.
@@ -73,6 +73,102 @@ canonical Hertz handlers. Merchant application administration is included:
 `entry-api` remains as a compatibility profile and as the Go-zero baseline for
 the project's architecture-evolution narrative. Removing it is not required
 for the Hertz/Kitex branch to be considered complete.
+
+## P0 reliability architecture
+
+### Authoritative inventory and durable reservations
+
+- `inventory-kitex` is the only owner of reserve, release, confirm, adjust, and
+  reconciliation commands. Compose and Kubernetes both enable final MySQL
+  deduction and set `INVENTORY_RESERVATION_LEDGER_MODE=enforce` by default.
+- Every successful Redis reservation is mirrored into
+  `mall_product.inventory_reservation`. The order ID is the durable idempotency
+  identity; a replay with a different product or quantity is rejected instead
+  of consuming stock again.
+- Redis keeps active reservation hashes for 48 hours and indexes them with a
+  24-hour logical expiry. The recovery worker claims expired reservations in
+  batches every minute, reclaims abandoned processing entries, retries three
+  times, and then exposes the item through a dead-letter index.
+- Release accepts an empty or repeated compensation. If the volatile Redis
+  reservation is missing, it reconstructs the release from the MySQL ledger;
+  an already released ledger record is a no-op.
+- Reconciliation never overwrites available stock with the raw database total.
+  In `enforce` mode it subtracts durable ledger reservations; `shadow` mode is
+  retained as a rollout fallback and uses the larger of Redis and ledger
+  reservations.
+- `GetRuntimeState` is a Kitex capability and liveness probe. Hertz `/health`
+  rejects traffic when final deduction, Redis/MySQL configuration, shard count,
+  or the reservation ledger is unsafe, and the RPC now actively checks both
+  Redis and MySQL reachability before reporting ready.
+
+### Hertz multi-level read cache
+
+- Public homepage catalog, product detail, store detail/product lists, and
+  administrator showcase candidates use a common cache coordinator.
+- L1 is a bounded in-process cache (512 entries, 2-second TTL). L2 is Redis
+  with a 30-second soft TTL, 120-second hard TTL, deterministic jitter,
+  singleflight request collapse, stale-while-revalidate, and stale-on-origin
+  error behavior.
+- Cache reads and writes have a 200-millisecond operation budget. Redis cache
+  failure never turns a successful origin read into an HTTP failure: Hertz
+  bypasses L2, returns the database/RPC result, and records `write_error`.
+- Product, store, snapshot, and homepage mutations invalidate exact keys plus
+  affected prefixes. Redis Pub/Sub removes peer-replica L1 entries; product
+  mutation also invalidates other product details because they contain
+  same-store recommendations.
+- The consistency boundary remains explicit: cache and product snapshots are
+  display data only. Checkout correctness is determined by the synchronous
+  Kitex reservation result.
+
+### Metrics and dashboards
+
+Start the optional local observation stack without enabling the legacy entry:
+
+```bash
+docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
+```
+
+- Prometheus: `http://127.0.0.1:9099`, seven-day local retention.
+- Grafana: `http://127.0.0.1:3000`, local default `admin / flashmall`.
+- Provisioned dashboards: `Flash Mall / 总览`, `Flash Mall / 库存一致性`, and
+  `Flash Mall / 支付与 Outbox`.
+- Bounded-label metrics cover cache layer/result, Kitex command success and
+  duration, active/expired/processing/dead-letter reservations, recovery,
+  payment callback/state-transition idempotency, and outbox publish/state.
+
+### Rollback controls
+
+- Set `FLASH_MALL_INVENTORY_RESERVATION_LEDGER_MODE=shadow` to keep durable
+  writes observable without making them a command prerequisite. `off` is only
+  an emergency compatibility mode and makes Hertz readiness fail by design.
+- `FLASH_MALL_INVENTORY_FINAL_DEDUCT_ENABLED=false` is retained for legacy
+  comparison only and also makes Hertz readiness fail; it is not a valid
+  production mode after Kitex inventory ownership.
+- L1 or L2 can be disabled independently through the gateway cache config.
+  Disabling both preserves origin reads; no checkout correctness rule changes.
+
+### P0 runtime acceptance (2026-07-17)
+
+- Rebuilt and ran the WSL Ubuntu Compose stack. `/health` returned 200 with
+  final deduction enabled, four shards, live Redis/MySQL checks, and the ledger
+  in `enforce` mode.
+- Repeated create-order requests with one request ID returned the same order
+  and one reservation. Repeated sandbox QR payment confirmation returned
+  `paid`; MySQL stock changed once, the ledger became `CONFIRMED`, and both
+  `order.created` and `order.paid` outbox events published once.
+- An enforce-mode create/cancel exercise moved the ledger to `RELEASED` and
+  restored stock exactly. A forced-expiry exercise was claimed by the recovery
+  worker, restored stock, left all hanging-state gauges at zero, and incremented
+  the recovery-success counter.
+- During a controlled Redis outage, cached catalog traffic fell back to the
+  origin with HTTP 200 while `/health` returned 503 in about 0.8 seconds. After
+  Redis restart, readiness returned to 200 without manual data repair.
+- Warm homepage sampling produced 300/300 successful requests with p50
+  0.592 ms, p95 1.067 ms, and p99 3.080 ms. A 2,000-request run at concurrency
+  20 completed with zero errors at approximately 4,676 requests/second. These
+  are local WSL baselines for regression detection, not cross-framework claims.
+- Prometheus reported all four application targets up. Grafana health was OK
+  and all three provisioned dashboards were discoverable through its API.
 
 ## Deliberately local or internal surfaces
 

@@ -6,14 +6,17 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/inventory/domain"
 )
 
 const (
-	reservationTTLSeconds          = 24 * 60 * 60
+	reservationExpirySeconds       = 24 * 60 * 60
+	reservationKeyTTLSeconds       = 48 * 60 * 60
 	confirmedReservationTTLSeconds = 180 * 24 * 60 * 60
+	reservationExpiryIndexKey      = "inventory:reservation:expirations"
 )
 
 type RedisClient interface {
@@ -21,14 +24,17 @@ type RedisClient interface {
 }
 
 type RedisMySQLRepository struct {
-	redis              RedisClient
-	db                 *sql.DB
-	shardCount         int
-	finalDeductEnabled bool
-	changeLogOnce      sync.Once
-	changeLogErr       error
-	snapshotOnce       sync.Once
-	snapshotErr        error
+	redis                 RedisClient
+	db                    *sql.DB
+	shardCount            int
+	finalDeductEnabled    bool
+	changeLogOnce         sync.Once
+	changeLogErr          error
+	snapshotOnce          sync.Once
+	snapshotErr           error
+	reservationLedgerMode string
+	reservationLedgerOnce sync.Once
+	reservationLedgerErr  error
 }
 
 func NewRedisMySQLRepository(redis RedisClient, db *sql.DB, shardCount int) *RedisMySQLRepository {
@@ -38,6 +44,18 @@ func NewRedisMySQLRepository(redis RedisClient, db *sql.DB, shardCount int) *Red
 func (r *RedisMySQLRepository) WithFinalDeductEnabled(enabled bool) *RedisMySQLRepository {
 	r.finalDeductEnabled = enabled
 	return r
+}
+
+func (r *RedisMySQLRepository) CheckRuntime(ctx context.Context) error {
+	if _, err := r.redis.EvalCtx(ctx, "return 1", nil); err != nil {
+		return apperror.Wrap(apperror.CodeInternal, "inventory redis unavailable", err)
+	}
+	if r.db != nil {
+		if err := r.db.PingContext(ctx); err != nil {
+			return apperror.Wrap(apperror.CodeInternal, "inventory mysql unavailable", err)
+		}
+	}
+	return nil
 }
 
 func (r *RedisMySQLRepository) GetStock(ctx context.Context, productID int64) (domain.Stock, error) {
@@ -143,13 +161,29 @@ func (r *RedisMySQLRepository) AdjustStock(ctx context.Context, productID int64,
 
 func (r *RedisMySQLRepository) ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64, meta domain.StockChangeMeta) error {
 	before, _ := r.GetStock(ctx, productID)
-	keys := append(StockShardKeys(productID, r.shardCount), reservationKey(orderID), reservedStockKey(productID))
-	ret, err := evalInt64(ctx, r.redis, reserveStockLuaScript, keys, quantity, reservationTTLSeconds, r.shardCount, StockShardStartIndex(orderID, r.shardCount), productID, orderID)
+	keys := append(StockShardKeys(productID, r.shardCount), reservationKey(orderID), reservedStockKey(productID), reservationExpiryIndexKey)
+	ret, err := evalInt64(ctx, r.redis, reserveStockLuaScript, keys, quantity, reservationKeyTTLSeconds, r.shardCount, StockShardStartIndex(orderID, r.shardCount), productID, orderID, reservationExpirySeconds)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeStockReserveFailed, "reserve stock failed", err)
 	}
 	switch ret {
 	case 1:
+		reservation, readErr := evalReservation(ctx, r.redis, getReservationLuaScript, []string{reservationKey(orderID)})
+		if readErr != nil {
+			return apperror.Wrap(apperror.CodeStockReserveFailed, "read reserved stock identity failed", readErr)
+		}
+		if err := r.recordReservation(ctx, reservationLedgerRecord{
+			OrderID:    orderID,
+			ProductID:  productID,
+			Quantity:   quantity,
+			ShardIndex: reservation.ShardIndex,
+			Status:     domain.ReservationReserved,
+			ExpiresAt:  time.Now().Add(time.Duration(reservationExpirySeconds) * time.Second),
+			RequestID:  meta.RequestID,
+			TraceID:    meta.TraceID,
+		}); err != nil {
+			return err
+		}
 		after, _ := r.GetStock(ctx, productID)
 		_ = r.insertStockChangeLog(ctx, "RESERVE", productID, orderID, -quantity, -1, before, after, meta)
 		_ = r.upsertStockSnapshot(ctx, after)
@@ -158,6 +192,8 @@ func (r *RedisMySQLRepository) ReserveStock(ctx context.Context, orderID string,
 		return domain.ErrStockNotFound
 	case -2:
 		return domain.ErrStockInsufficient
+	case -3:
+		return domain.ErrReservationConflict
 	default:
 		return apperror.New(apperror.CodeStockReserveFailed, fmt.Sprintf("unexpected reserve result %d", ret))
 	}
@@ -173,7 +209,7 @@ func (r *RedisMySQLRepository) ConfirmDeduct(ctx context.Context, orderID string
 	if r.finalDeductEnabled && r.db != nil {
 		finalDeductFlag = 1
 	}
-	ret, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds, finalDeductFlag)
+	ret, err := evalInt64(ctx, r.redis, confirmDeductLuaScript, []string{reservationKey(orderID), reservationExpiryIndexKey}, confirmedReservationTTLSeconds, finalDeductFlag, orderID)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "confirm stock deduction failed", err)
 	}
@@ -186,6 +222,11 @@ func (r *RedisMySQLRepository) ConfirmDeduct(ctx context.Context, orderID string
 		}
 		if _, err := evalInt64(ctx, r.redis, markMySQLDeductedLuaScript, []string{reservationKey(orderID)}, confirmedReservationTTLSeconds); err != nil {
 			return apperror.Wrap(apperror.CodeInternal, "mark mysql stock deduction failed", err)
+		}
+	}
+	if reservation.ProductID > 0 {
+		if err := r.transitionReservationLedger(ctx, orderID, domain.ReservationConfirmed, domain.ReservationReserved); err != nil {
+			return err
 		}
 	}
 	if (ret == 2 || ret == 3) && reservation.ProductID > 0 {
@@ -203,7 +244,19 @@ func (r *RedisMySQLRepository) ReleaseStock(ctx context.Context, orderID string,
 		return apperror.Wrap(apperror.CodeInternal, "read stock reservation failed", err)
 	}
 	if reservation.ProductID <= 0 || reservation.Quantity <= 0 {
-		return nil
+		ledgerRecord, ok, err := r.loadReservationLedger(ctx, orderID)
+		if err != nil {
+			return err
+		}
+		if !ok || ledgerRecord.ProductID <= 0 || ledgerRecord.Quantity <= 0 || ledgerRecord.Status == domain.ReservationReleased {
+			return nil
+		}
+		if _, err := evalInt64(ctx, r.redis, hydrateReservationLuaScript, []string{reservationKey(orderID)},
+			string(ledgerRecord.Status), ledgerRecord.ProductID, ledgerRecord.Quantity, ledgerRecord.ShardIndex, orderID, reservationKeyTTLSeconds,
+		); err != nil {
+			return apperror.Wrap(apperror.CodeInternal, "restore stock reservation from ledger failed", err)
+		}
+		reservation = redisReservation{ProductID: ledgerRecord.ProductID, Quantity: ledgerRecord.Quantity, ShardIndex: ledgerRecord.ShardIndex}
 	}
 	before, _ := r.GetStock(ctx, reservation.ProductID)
 	if r.finalDeductEnabled && r.db != nil {
@@ -211,10 +264,13 @@ func (r *RedisMySQLRepository) ReleaseStock(ctx context.Context, orderID string,
 			return err
 		}
 	}
-	keys := append(StockShardKeys(reservation.ProductID, r.shardCount), reservationKey(orderID), reservedStockKey(reservation.ProductID))
-	_, err = evalInt64(ctx, r.redis, releaseStockLuaScript, keys, reservationTTLSeconds, r.shardCount)
+	keys := append(StockShardKeys(reservation.ProductID, r.shardCount), reservationKey(orderID), reservedStockKey(reservation.ProductID), reservationExpiryIndexKey)
+	_, err = evalInt64(ctx, r.redis, releaseStockLuaScript, keys, confirmedReservationTTLSeconds, r.shardCount)
 	if err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "release stock failed", err)
+	}
+	if err := r.transitionReservationLedger(ctx, orderID, domain.ReservationReleased, domain.ReservationReserved, domain.ReservationConfirmed); err != nil {
+		return err
 	}
 	after, _ := r.GetStock(ctx, reservation.ProductID)
 	_ = r.insertStockChangeLog(ctx, "RELEASE", reservation.ProductID, orderID, reservation.Quantity, -1, before, after, meta)
@@ -237,10 +293,20 @@ func (r *RedisMySQLRepository) ReconcileStock(ctx context.Context, productID int
 	if !ok {
 		return before, before, false, domain.ErrStockNotFound
 	}
-	after := domain.Stock{ProductID: productID, Available: total, Total: total}
-	changed := before.Available != after.Available
+	ledgerReserved, err := r.activeReservationTotal(ctx, productID)
+	if err != nil {
+		return before, before, false, err
+	}
+	reserved := expectedReserved(before.Reserved, ledgerReserved, r.reservationLedgerMode)
+	after := domain.Stock{
+		ProductID: productID,
+		Available: expectedAvailable(total, before.Reserved, ledgerReserved, r.reservationLedgerMode),
+		Reserved:  reserved,
+		Total:     total,
+	}
+	changed := before.Available != after.Available || before.Reserved != after.Reserved
 	if changed {
-		if err := r.seedRedis(ctx, productID, total, r.shardCount); err != nil {
+		if err := r.seedRedisState(ctx, productID, after.Available, after.Reserved, r.shardCount); err != nil {
 			return before, after, false, err
 		}
 		_ = r.insertStockChangeLog(ctx, "RECONCILE", productID, "", after.Available-before.Available, -1, before, after, meta)
@@ -312,8 +378,12 @@ func (r *RedisMySQLRepository) redisBatchStocks(ctx context.Context, productIDs 
 }
 
 func (r *RedisMySQLRepository) seedRedis(ctx context.Context, productID int64, total int64, shardCount int) error {
+	return r.seedRedisState(ctx, productID, total, 0, shardCount)
+}
+
+func (r *RedisMySQLRepository) seedRedisState(ctx context.Context, productID int64, available int64, reserved int64, shardCount int) error {
 	keys := StockShardKeys(productID, shardCount)
-	values := SplitStockAcrossShards(total, shardCount)
+	values := SplitStockAcrossShards(available, shardCount)
 	args := make([]any, 0, len(values))
 	for _, value := range values {
 		args = append(args, value)
@@ -321,7 +391,7 @@ func (r *RedisMySQLRepository) seedRedis(ctx context.Context, productID int64, t
 	if _, err := r.redis.EvalCtx(ctx, seedStockLuaScript, keys, args...); err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "seed redis stock failed", err)
 	}
-	if _, err := r.redis.EvalCtx(ctx, resetReservedStockLuaScript, []string{reservedStockKey(productID)}); err != nil {
+	if _, err := r.redis.EvalCtx(ctx, resetReservedStockLuaScript, []string{reservedStockKey(productID)}, reserved); err != nil {
 		return apperror.Wrap(apperror.CodeInternal, "reset redis reserved stock failed", err)
 	}
 	return nil
@@ -684,8 +754,9 @@ func stockDeductBucketLogType(bucketIdx int) string {
 }
 
 type redisReservation struct {
-	ProductID int64
-	Quantity  int64
+	ProductID  int64
+	Quantity   int64
+	ShardIndex int
 }
 
 func reservationKey(orderID string) string {
@@ -746,7 +817,11 @@ func evalReservation(ctx context.Context, redis RedisClient, script string, keys
 	if len(parts) < 2 {
 		return redisReservation{}, fmt.Errorf("unexpected reservation result %v", val)
 	}
-	return redisReservation{ProductID: parts[0], Quantity: parts[1]}, nil
+	reservation := redisReservation{ProductID: parts[0], Quantity: parts[1]}
+	if len(parts) > 2 {
+		reservation.ShardIndex = int(parts[2])
+	}
+	return reservation, nil
 }
 
 func toInt64(val any) (int64, error) {
@@ -790,7 +865,7 @@ return 1
 `
 
 const resetReservedStockLuaScript = `
-redis.call("set", KEYS[1], 0)
+redis.call("set", KEYS[1], ARGV[1] or 0)
 return 1
 `
 
@@ -921,12 +996,19 @@ const reserveStockLuaScript = `
 local shardCount = tonumber(ARGV[3])
 local reservationKey = KEYS[shardCount + 1]
 local reservedKey = KEYS[shardCount + 2]
+local expiryIndexKey = KEYS[shardCount + 3]
 local status = redis.call("hget", reservationKey, "status")
-if status and status ~= "released" then
+if status then
+  local existingProductID = redis.call("hget", reservationKey, "product_id")
+  local existingQuantity = tonumber(redis.call("hget", reservationKey, "quantity") or "0")
+  if tostring(existingProductID) ~= tostring(ARGV[5]) or existingQuantity ~= tonumber(ARGV[1]) then
+    return -3
+  end
   return 1
 end
 local amount = tonumber(ARGV[1])
 local ttl = tonumber(ARGV[2])
+local expirySeconds = tonumber(ARGV[7])
 local start = tonumber(ARGV[4])
 local productID = ARGV[5]
 local orderID = ARGV[6]
@@ -944,6 +1026,8 @@ for i = 0, shardCount - 1 do
       redis.call("hset", reservationKey, "status", "reserved", "product_id", productID, "quantity", amount, "shard_index", idx, "order_id", orderID)
       if ttl and ttl > 0 then
         redis.call("expire", reservationKey, ttl)
+        local now = tonumber(redis.call("time")[1])
+        redis.call("zadd", expiryIndexKey, now + expirySeconds, orderID)
       end
       return 1
     end
@@ -984,6 +1068,9 @@ local ttl = tonumber(ARGV[1])
 if ttl and ttl > 0 then
   redis.call("expire", reservationKey, ttl)
 end
+if KEYS[2] and ARGV[3] then
+  redis.call("zrem", KEYS[2], ARGV[3])
+end
 local finalDeductEnabled = tonumber(ARGV[2])
 local mysqlDeducted = redis.call("hget", reservationKey, "mysql_deducted")
 if finalDeductEnabled == 1 and mysqlDeducted ~= "1" then
@@ -1010,15 +1097,34 @@ local reservationKey = KEYS[1]
 local productID = redis.call("hget", reservationKey, "product_id")
 local quantity = redis.call("hget", reservationKey, "quantity")
 if not productID or not quantity then
-  return {0, 0}
+  return {0, 0, 0}
 end
-return {tonumber(productID), tonumber(quantity)}
+local shardIndex = redis.call("hget", reservationKey, "shard_index") or "0"
+return {tonumber(productID), tonumber(quantity), tonumber(shardIndex)}
+`
+
+const hydrateReservationLuaScript = `
+if redis.call("hget", KEYS[1], "status") then
+  return 1
+end
+redis.call("hset", KEYS[1],
+  "status", ARGV[1],
+  "product_id", ARGV[2],
+  "quantity", ARGV[3],
+  "shard_index", ARGV[4],
+  "order_id", ARGV[5])
+local ttl = tonumber(ARGV[6])
+if ttl and ttl > 0 then
+  redis.call("expire", KEYS[1], ttl)
+end
+return 1
 `
 
 const releaseStockLuaScript = `
 local shardCount = tonumber(ARGV[2])
 local reservationKey = KEYS[shardCount + 1]
 local reservedKey = KEYS[shardCount + 2]
+local expiryIndexKey = KEYS[shardCount + 3]
 local status = redis.call("hget", reservationKey, "status")
 if not status or status == "released" then
   return 1
@@ -1038,6 +1144,10 @@ if status == "reserved" and quantity and quantity > 0 then
   redis.call("set", reservedKey, nextValue)
 end
 redis.call("hset", reservationKey, "status", "released")
+local orderID = redis.call("hget", reservationKey, "order_id")
+if expiryIndexKey and orderID then
+  redis.call("zrem", expiryIndexKey, orderID)
+end
 local ttl = tonumber(ARGV[1])
 if ttl and ttl > 0 then
   redis.call("expire", reservationKey, ttl)

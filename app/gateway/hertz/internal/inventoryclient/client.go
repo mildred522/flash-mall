@@ -20,6 +20,15 @@ type Stock struct {
 	Total     int64
 }
 
+type RuntimeState struct {
+	FinalDeductEnabled       bool
+	RedisConfigured          bool
+	MySQLConfigured          bool
+	ShardCount               int32
+	ReservationLedgerMode    string
+	ReservationLedgerEnabled bool
+}
+
 type Client interface {
 	GetStock(ctx context.Context, productID int64, meta *common.RequestMeta) (Stock, error)
 	BatchGetStock(ctx context.Context, productIDs []int64, meta *common.RequestMeta) (map[int64]Stock, error)
@@ -28,6 +37,7 @@ type Client interface {
 	ReserveStock(ctx context.Context, orderID string, productID int64, quantity int64, meta *common.RequestMeta) error
 	ConfirmDeduct(ctx context.Context, orderID string, meta *common.RequestMeta) error
 	ReleaseStock(ctx context.Context, orderID string, reason string, meta *common.RequestMeta) error
+	GetRuntimeState(ctx context.Context, meta *common.RequestMeta) (RuntimeState, error)
 }
 
 type KitexClient struct {
@@ -161,6 +171,25 @@ func (c *KitexClient) ReleaseStock(ctx context.Context, orderID string, reason s
 	}
 	_, err := c.client.ReleaseStock(ctx, req)
 	return toAppError(err)
+}
+
+func (c *KitexClient) GetRuntimeState(ctx context.Context, meta *common.RequestMeta) (RuntimeState, error) {
+	resp, err := c.client.GetRuntimeState(ctx, &inventory.GetRuntimeStateRequest{Meta: meta})
+	if err != nil {
+		return RuntimeState{}, toAppError(err)
+	}
+	if resp == nil || resp.GetState() == nil {
+		return RuntimeState{}, apperror.New(apperror.CodeInternal, "inventory runtime state unavailable")
+	}
+	state := resp.GetState()
+	return RuntimeState{
+		FinalDeductEnabled:       state.GetFinalDeductEnabled(),
+		RedisConfigured:          state.GetRedisConfigured(),
+		MySQLConfigured:          state.GetMysqlConfigured(),
+		ShardCount:               state.GetShardCount(),
+		ReservationLedgerMode:    state.GetReservationLedgerMode(),
+		ReservationLedgerEnabled: state.GetReservationLedgerEnabled(),
+	}, nil
 }
 
 func toAppError(err error) error {

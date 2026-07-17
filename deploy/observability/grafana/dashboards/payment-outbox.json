@@ -1,0 +1,33 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "type": "timeseries", "title": "支付状态迁移（含幂等回放）", "id": 1,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (result) (rate(flashmall_payment_state_transition_total[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "type": "timeseries", "title": "支付回调入口结果", "id": 2,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (result) (rate(flashmall_payment_callback_total[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "stat", "title": "Outbox 当前积压", "id": 3,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "flashmall_outbox_events", "legendFormat": "{{state}}"}],
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries", "title": "Outbox 投递结果", "id": 4,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (event_type, result) (rate(flashmall_outbox_publish_total[5m]))", "legendFormat": "{{event_type}} / {{result}}"}],
+      "gridPos": {"h": 7, "w": 16, "x": 8, "y": 8}
+    }
+  ],
+  "refresh": "10s", "schemaVersion": 39, "tags": ["flash-mall", "payment", "outbox"],
+  "templating": {"list": []}, "time": {"from": "now-1h", "to": "now"},
+  "title": "Flash Mall / 支付与 Outbox", "uid": "flashmall-payment-outbox", "version": 1
+}

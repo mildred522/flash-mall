@@ -76,6 +76,23 @@ struct ReconcileStockResponse {
   3: bool changed,
 }
 
+struct GetRuntimeStateRequest {
+  1: common.RequestMeta meta,
+}
+
+struct RuntimeStateDTO {
+  1: bool final_deduct_enabled,
+  2: bool redis_configured,
+  3: bool mysql_configured,
+  4: i32 shard_count,
+  5: string reservation_ledger_mode,
+  6: bool reservation_ledger_enabled,
+}
+
+struct GetRuntimeStateResponse {
+  1: RuntimeStateDTO state,
+}
+
 service InventoryService {
   GetStockResponse GetStock(1: GetStockRequest req) throws (1: common.BizException biz),
   BatchGetStockResponse BatchGetStock(1: BatchGetStockRequest req) throws (1: common.BizException biz),
@@ -85,4 +102,5 @@ service InventoryService {
   common.Empty ConfirmDeduct(1: ConfirmDeductRequest req) throws (1: common.BizException biz),
   common.Empty ReleaseStock(1: ReleaseStockRequest req) throws (1: common.BizException biz),
   ReconcileStockResponse ReconcileStock(1: ReconcileStockRequest req) throws (1: common.BizException biz),
+  GetRuntimeStateResponse GetRuntimeState(1: GetRuntimeStateRequest req) throws (1: common.BizException biz),
 }
