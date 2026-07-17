@@ -13,18 +13,25 @@ import (
 )
 
 type (
-	PreDeductReq       = order.PreDeductReq
-	CreateOrderReq     = order.CreateOrderReq
-	CreateOrderResp    = order.CreateOrderResp
-	MarkOrderPaidReq   = order.MarkOrderPaidReq
-	MarkOrderPaidResp  = order.MarkOrderPaidResp
-	GetOrderDetailReq  = order.GetOrderDetailReq
-	GetOrderDetailResp = order.GetOrderDetailResp
-	RequestRefundReq   = order.RequestRefundReq
-	RequestRefundResp  = order.RequestRefundResp
-	AuditRefundReq     = order.AuditRefundReq
-	AuditRefundResp    = order.AuditRefundResp
-	Empty              = order.Empty
+	PreDeductReq         = order.PreDeductReq
+	CreateOrderReq       = order.CreateOrderReq
+	CreateOrderResp      = order.CreateOrderResp
+	MarkOrderPaidReq     = order.MarkOrderPaidReq
+	MarkOrderPaidResp    = order.MarkOrderPaidResp
+	GetOrderDetailReq    = order.GetOrderDetailReq
+	GetOrderDetailResp   = order.GetOrderDetailResp
+	RequestRefundReq     = order.RequestRefundReq
+	RequestRefundResp    = order.RequestRefundResp
+	AuditRefundReq       = order.AuditRefundReq
+	AuditRefundResp      = order.AuditRefundResp
+	OrderCommandMeta     = order.OrderCommandMeta
+	CancelUserOrderReq   = order.CancelUserOrderReq
+	CloseAdminOrderReq   = order.CloseAdminOrderReq
+	ShipAdminOrderReq    = order.ShipAdminOrderReq
+	ShipMerchantOrderReq = order.ShipMerchantOrderReq
+	ConfirmReceiptReq    = order.ConfirmReceiptReq
+	OrderCommandResp     = order.OrderCommandResp
+	Empty                = order.Empty
 
 	Order interface {
 		// Redis 预扣库存（正向）
@@ -39,6 +46,11 @@ type (
 		GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
 		RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error)
 		AuditRefund(ctx context.Context, in *AuditRefundReq, opts ...grpc.CallOption) (*AuditRefundResp, error)
+		CancelUserOrder(ctx context.Context, in *CancelUserOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+		CloseAdminOrder(ctx context.Context, in *CloseAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+		ShipAdminOrder(ctx context.Context, in *ShipAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+		ShipMerchantOrder(ctx context.Context, in *ShipMerchantOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+		ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
 	}
 
 	defaultOrder struct {
@@ -90,4 +102,29 @@ func (m *defaultOrder) RequestRefund(ctx context.Context, in *RequestRefundReq, 
 func (m *defaultOrder) AuditRefund(ctx context.Context, in *AuditRefundReq, opts ...grpc.CallOption) (*AuditRefundResp, error) {
 	client := order.NewOrderClient(m.cli.Conn())
 	return client.AuditRefund(ctx, in, opts...)
+}
+
+func (m *defaultOrder) CancelUserOrder(ctx context.Context, in *CancelUserOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.CancelUserOrder(ctx, in, opts...)
+}
+
+func (m *defaultOrder) CloseAdminOrder(ctx context.Context, in *CloseAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.CloseAdminOrder(ctx, in, opts...)
+}
+
+func (m *defaultOrder) ShipAdminOrder(ctx context.Context, in *ShipAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.ShipAdminOrder(ctx, in, opts...)
+}
+
+func (m *defaultOrder) ShipMerchantOrder(ctx context.Context, in *ShipMerchantOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.ShipMerchantOrder(ctx, in, opts...)
+}
+
+func (m *defaultOrder) ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.ConfirmReceipt(ctx, in, opts...)
 }

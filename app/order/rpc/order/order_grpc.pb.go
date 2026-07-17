@@ -27,6 +27,11 @@ const (
 	Order_GetOrderDetail_FullMethodName      = "/order.Order/GetOrderDetail"
 	Order_RequestRefund_FullMethodName       = "/order.Order/RequestRefund"
 	Order_AuditRefund_FullMethodName         = "/order.Order/AuditRefund"
+	Order_CancelUserOrder_FullMethodName     = "/order.Order/CancelUserOrder"
+	Order_CloseAdminOrder_FullMethodName     = "/order.Order/CloseAdminOrder"
+	Order_ShipAdminOrder_FullMethodName      = "/order.Order/ShipAdminOrder"
+	Order_ShipMerchantOrder_FullMethodName   = "/order.Order/ShipMerchantOrder"
+	Order_ConfirmReceipt_FullMethodName      = "/order.Order/ConfirmReceipt"
 )
 
 // OrderClient is the client API for Order service.
@@ -45,6 +50,13 @@ type OrderClient interface {
 	GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
 	RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error)
 	AuditRefund(ctx context.Context, in *AuditRefundReq, opts ...grpc.CallOption) (*AuditRefundResp, error)
+	// 用户取消待支付订单；重复调用仍会重试幂等库存释放。
+	CancelUserOrder(ctx context.Context, in *CancelUserOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+	// 管理员关闭待支付订单；重复调用仍会重试幂等库存释放。
+	CloseAdminOrder(ctx context.Context, in *CloseAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+	ShipAdminOrder(ctx context.Context, in *ShipAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+	ShipMerchantOrder(ctx context.Context, in *ShipMerchantOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
+	ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*OrderCommandResp, error)
 }
 
 type orderClient struct {
@@ -135,6 +147,56 @@ func (c *orderClient) AuditRefund(ctx context.Context, in *AuditRefundReq, opts 
 	return out, nil
 }
 
+func (c *orderClient) CancelUserOrder(ctx context.Context, in *CancelUserOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderCommandResp)
+	err := c.cc.Invoke(ctx, Order_CancelUserOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) CloseAdminOrder(ctx context.Context, in *CloseAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderCommandResp)
+	err := c.cc.Invoke(ctx, Order_CloseAdminOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) ShipAdminOrder(ctx context.Context, in *ShipAdminOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderCommandResp)
+	err := c.cc.Invoke(ctx, Order_ShipAdminOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) ShipMerchantOrder(ctx context.Context, in *ShipMerchantOrderReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderCommandResp)
+	err := c.cc.Invoke(ctx, Order_ShipMerchantOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) ConfirmReceipt(ctx context.Context, in *ConfirmReceiptReq, opts ...grpc.CallOption) (*OrderCommandResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderCommandResp)
+	err := c.cc.Invoke(ctx, Order_ConfirmReceipt_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OrderServer is the server API for Order service.
 // All implementations must embed UnimplementedOrderServer
 // for forward compatibility.
@@ -151,6 +213,13 @@ type OrderServer interface {
 	GetOrderDetail(context.Context, *GetOrderDetailReq) (*GetOrderDetailResp, error)
 	RequestRefund(context.Context, *RequestRefundReq) (*RequestRefundResp, error)
 	AuditRefund(context.Context, *AuditRefundReq) (*AuditRefundResp, error)
+	// 用户取消待支付订单；重复调用仍会重试幂等库存释放。
+	CancelUserOrder(context.Context, *CancelUserOrderReq) (*OrderCommandResp, error)
+	// 管理员关闭待支付订单；重复调用仍会重试幂等库存释放。
+	CloseAdminOrder(context.Context, *CloseAdminOrderReq) (*OrderCommandResp, error)
+	ShipAdminOrder(context.Context, *ShipAdminOrderReq) (*OrderCommandResp, error)
+	ShipMerchantOrder(context.Context, *ShipMerchantOrderReq) (*OrderCommandResp, error)
+	ConfirmReceipt(context.Context, *ConfirmReceiptReq) (*OrderCommandResp, error)
 	mustEmbedUnimplementedOrderServer()
 }
 
@@ -184,6 +253,21 @@ func (UnimplementedOrderServer) RequestRefund(context.Context, *RequestRefundReq
 }
 func (UnimplementedOrderServer) AuditRefund(context.Context, *AuditRefundReq) (*AuditRefundResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuditRefund not implemented")
+}
+func (UnimplementedOrderServer) CancelUserOrder(context.Context, *CancelUserOrderReq) (*OrderCommandResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelUserOrder not implemented")
+}
+func (UnimplementedOrderServer) CloseAdminOrder(context.Context, *CloseAdminOrderReq) (*OrderCommandResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CloseAdminOrder not implemented")
+}
+func (UnimplementedOrderServer) ShipAdminOrder(context.Context, *ShipAdminOrderReq) (*OrderCommandResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ShipAdminOrder not implemented")
+}
+func (UnimplementedOrderServer) ShipMerchantOrder(context.Context, *ShipMerchantOrderReq) (*OrderCommandResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ShipMerchantOrder not implemented")
+}
+func (UnimplementedOrderServer) ConfirmReceipt(context.Context, *ConfirmReceiptReq) (*OrderCommandResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ConfirmReceipt not implemented")
 }
 func (UnimplementedOrderServer) mustEmbedUnimplementedOrderServer() {}
 func (UnimplementedOrderServer) testEmbeddedByValue()               {}
@@ -350,6 +434,96 @@ func _Order_AuditRefund_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Order_CancelUserOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelUserOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).CancelUserOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_CancelUserOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).CancelUserOrder(ctx, req.(*CancelUserOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_CloseAdminOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CloseAdminOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).CloseAdminOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_CloseAdminOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).CloseAdminOrder(ctx, req.(*CloseAdminOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_ShipAdminOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShipAdminOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).ShipAdminOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_ShipAdminOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).ShipAdminOrder(ctx, req.(*ShipAdminOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_ShipMerchantOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShipMerchantOrderReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).ShipMerchantOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_ShipMerchantOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).ShipMerchantOrder(ctx, req.(*ShipMerchantOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_ConfirmReceipt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ConfirmReceiptReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).ConfirmReceipt(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_ConfirmReceipt_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).ConfirmReceipt(ctx, req.(*ConfirmReceiptReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Order_ServiceDesc is the grpc.ServiceDesc for Order service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -388,6 +562,26 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AuditRefund",
 			Handler:    _Order_AuditRefund_Handler,
+		},
+		{
+			MethodName: "CancelUserOrder",
+			Handler:    _Order_CancelUserOrder_Handler,
+		},
+		{
+			MethodName: "CloseAdminOrder",
+			Handler:    _Order_CloseAdminOrder_Handler,
+		},
+		{
+			MethodName: "ShipAdminOrder",
+			Handler:    _Order_ShipAdminOrder_Handler,
+		},
+		{
+			MethodName: "ShipMerchantOrder",
+			Handler:    _Order_ShipMerchantOrder_Handler,
+		},
+		{
+			MethodName: "ConfirmReceipt",
+			Handler:    _Order_ConfirmReceipt_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

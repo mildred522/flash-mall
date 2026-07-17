@@ -84,6 +84,52 @@ message AuditRefundResp {
   bool repeated = 5;
 }
 
+message OrderCommandMeta {
+  string request_id = 1;
+  string trace_id = 2;
+  int64 user_id = 3;
+  int64 merchant_id = 4;
+  string role = 5;
+}
+
+message CancelUserOrderReq {
+  string order_id = 1;
+  string reason = 2;
+  int64 user_id = 3;
+  OrderCommandMeta meta = 4;
+}
+
+message CloseAdminOrderReq {
+  string order_id = 1;
+  string reason = 2;
+  int64 operator_id = 3;
+  OrderCommandMeta meta = 4;
+}
+
+message ShipAdminOrderReq {
+  string order_id = 1;
+  int64 operator_id = 2;
+  OrderCommandMeta meta = 3;
+}
+
+message ShipMerchantOrderReq {
+  string order_id = 1;
+  int64 merchant_id = 2;
+  OrderCommandMeta meta = 3;
+}
+
+message ConfirmReceiptReq {
+  string order_id = 1;
+  int64 user_id = 2;
+  OrderCommandMeta meta = 3;
+}
+
+message OrderCommandResp {
+  string order_id = 1;
+  int64 order_status = 2;
+  bool repeated = 3;
+}
+
 message Empty {}
 
 service Order {
@@ -99,4 +145,11 @@ service Order {
   rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailResp);
   rpc RequestRefund(RequestRefundReq) returns (RequestRefundResp);
   rpc AuditRefund(AuditRefundReq) returns (AuditRefundResp);
+  // 用户取消待支付订单；重复调用仍会重试幂等库存释放。
+  rpc CancelUserOrder(CancelUserOrderReq) returns (OrderCommandResp);
+  // 管理员关闭待支付订单；重复调用仍会重试幂等库存释放。
+  rpc CloseAdminOrder(CloseAdminOrderReq) returns (OrderCommandResp);
+  rpc ShipAdminOrder(ShipAdminOrderReq) returns (OrderCommandResp);
+  rpc ShipMerchantOrder(ShipMerchantOrderReq) returns (OrderCommandResp);
+  rpc ConfirmReceipt(ConfirmReceiptReq) returns (OrderCommandResp);
 }

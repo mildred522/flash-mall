@@ -105,6 +105,22 @@ func (o *closeOrderOrderRPC) AuditRefund(context.Context, *orderclient.AuditRefu
 	panic("unexpected AuditRefund call")
 }
 
+func (o *closeOrderOrderRPC) CancelUserOrder(context.Context, *orderclient.CancelUserOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CancelUserOrder call")
+}
+func (o *closeOrderOrderRPC) CloseAdminOrder(context.Context, *orderclient.CloseAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CloseAdminOrder call")
+}
+func (o *closeOrderOrderRPC) ShipAdminOrder(context.Context, *orderclient.ShipAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipAdminOrder call")
+}
+func (o *closeOrderOrderRPC) ShipMerchantOrder(context.Context, *orderclient.ShipMerchantOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipMerchantOrder call")
+}
+func (o *closeOrderOrderRPC) ConfirmReceipt(context.Context, *orderclient.ConfirmReceiptReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ConfirmReceipt call")
+}
+
 func TestCloseOrderJob_HandleCloseOrder_SkipsWhenPaymentWinsRace(t *testing.T) {
 	sqlConn := sqlx.NewMysql(closeOrderTestDSN)
 	orderID := "o-close-race"

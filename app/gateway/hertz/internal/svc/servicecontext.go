@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"flash-mall/app/gateway/hertz/internal/adapters/inventorykitex"
-	"flash-mall/app/gateway/hertz/internal/adapters/legacyorder"
+	"flash-mall/app/gateway/hertz/internal/adapters/orderrpc"
 	"flash-mall/app/gateway/hertz/internal/adapters/productmysql"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
@@ -44,6 +44,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		OrderRpc:     orderclient.NewOrder(zrpc.MustNewClient(c.OrderRpcConf)),
 		ProductRpc:   productclient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf)),
 	}
+	svcCtx.OrderCommands = orderrpc.New(svcCtx.OrderRpc)
 	if c.InventoryKitexEndpoint != "" {
 		client, err := inventorykitex.New(c.InventoryKitexEndpoint)
 		if err != nil {
@@ -51,12 +52,6 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		} else {
 			svcCtx.InventoryRpc = client
 		}
-	}
-	orderDB, err := svcCtx.OrderSqlConn.RawDB()
-	if err != nil {
-		logx.Errorf("hertz legacy order adapter init failed: %v", err)
-	} else {
-		svcCtx.OrderCommands = legacyorder.New(orderDB, svcCtx.InventoryRpc)
 	}
 	productDB, err := svcCtx.SqlConn.RawDB()
 	if err != nil {

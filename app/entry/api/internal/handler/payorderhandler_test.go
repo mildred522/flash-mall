@@ -55,6 +55,22 @@ func (s *stubOrderRPC) AuditRefund(context.Context, *orderclient.AuditRefundReq,
 	panic("unexpected AuditRefund call")
 }
 
+func (s *stubOrderRPC) CancelUserOrder(context.Context, *orderclient.CancelUserOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CancelUserOrder call")
+}
+func (s *stubOrderRPC) CloseAdminOrder(context.Context, *orderclient.CloseAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CloseAdminOrder call")
+}
+func (s *stubOrderRPC) ShipAdminOrder(context.Context, *orderclient.ShipAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipAdminOrder call")
+}
+func (s *stubOrderRPC) ShipMerchantOrder(context.Context, *orderclient.ShipMerchantOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipMerchantOrder call")
+}
+func (s *stubOrderRPC) ConfirmReceipt(context.Context, *orderclient.ConfirmReceiptReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ConfirmReceipt call")
+}
+
 func TestPaymentCallbackHandler_DelegatesToOrderRPC(t *testing.T) {
 	orderRPC := &stubOrderRPC{
 		resp: &orderclient.MarkOrderPaidResp{

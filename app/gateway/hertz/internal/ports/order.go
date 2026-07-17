@@ -19,16 +19,19 @@ type CloseAdminOrderCommand struct {
 type ShipAdminOrderCommand struct {
 	OrderID    string
 	OperatorID int64
+	Meta       RequestMeta
 }
 
 type ShipMerchantOrderCommand struct {
 	OrderID    string
 	MerchantID int64
+	Meta       RequestMeta
 }
 
 type ConfirmReceiptCommand struct {
 	OrderID string
 	UserID  int64
+	Meta    RequestMeta
 }
 
 type OrderCommands interface {

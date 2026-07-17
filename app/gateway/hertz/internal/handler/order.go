@@ -279,7 +279,9 @@ func ConfirmReceiptHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 
 		commands, err := requireOrderCommands(svcCtx)
 		if err == nil {
-			err = commands.ConfirmReceipt(ctx, ports.ConfirmReceiptCommand{OrderID: req.OrderID, UserID: identity.UserID})
+			err = commands.ConfirmReceipt(ctx, ports.ConfirmReceiptCommand{
+				OrderID: req.OrderID, UserID: identity.UserID, Meta: inventoryRequestMeta(ctx),
+			})
 		}
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)

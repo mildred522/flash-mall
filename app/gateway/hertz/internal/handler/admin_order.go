@@ -92,7 +92,9 @@ func AdminShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		operatorID := gatewayOperatorID(ctx)
 		commands, err := requireOrderCommands(svcCtx)
 		if err == nil {
-			err = commands.ShipAdmin(ctx, ports.ShipAdminOrderCommand{OrderID: req.OrderID, OperatorID: operatorID})
+			err = commands.ShipAdmin(ctx, ports.ShipAdminOrderCommand{
+				OrderID: req.OrderID, OperatorID: operatorID, Meta: inventoryRequestMeta(ctx),
+			})
 		}
 		if err != nil {
 			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditOrderShipped, fmt.Sprintf("order:%s reason:%s", req.OrderID, adminAuditReasonInvalidStatus))

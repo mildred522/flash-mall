@@ -87,9 +87,9 @@ handler package before the next Kitex migration phase:
   models at the boundary; handlers and health checks no longer depend on
   generated `RequestMeta` or inventory DTOs.
 - User cancellation/receipt, administrator shipping/closure, and merchant
-  shipping call the `OrderCommands` port. Their existing SQL implementation is
-  isolated in `adapters/legacyorder`; it is deliberately named as temporary
-  migration debt rather than presented as the final ownership model.
+  shipping call the `OrderCommands` port. P1 now implements that port through
+  `adapters/orderrpc`; Hertz no longer opens an order write transaction for
+  these commands.
 - The unused public reserve/release/confirm handler functions and DTOs were
   removed. The only public inventory route in that group is the read-only
   summary; order inventory effects remain internal commands.
@@ -112,14 +112,9 @@ handler package before the next Kitex migration phase:
   back-office/compatibility and product/order/merchant/admin/inventory domains.
   The duplicate merchant-order route registration was removed.
 - Architecture tests now reject Kitex generated imports outside the adapter,
-  runtime DDL, order-table DML outside `legacyorder`, infrastructure imports in
-  ports, and RPC/persistence imports in transport.
-
-The remaining P1 boundary is explicit: `legacyorder` still performs five order
-status writes and invokes inventory release during cancellation/closure. P1
-must add matching order-rpc commands and replace this adapter with an
-`orderrpc` adapter. The current isolation makes that replacement local and
-prevents new handlers from adding another direct SQL/Kitex path.
+  runtime DDL, every Hertz order-table/status-log write, infrastructure imports
+  in ports, and RPC/persistence imports in transport. They also assert that the
+  temporary `legacyorder` source is absent.
 
 ### R0 deployed acceptance
 
@@ -135,6 +130,51 @@ prevents new handlers from adding another direct SQL/Kitex path.
   rebuild. A real administrator login reached the new seed-retry route and a
   nonexistent task returned the expected `404 PRODUCT_NOT_FOUND` without
   changing inventory. The deployed read-only smoke script passed.
+
+## P1 order ownership completion (2026-07-17)
+
+- The order protobuf now exposes five explicit lifecycle commands:
+  `CancelUserOrder`, `CloseAdminOrder`, `ShipAdminOrder`,
+  `ShipMerchantOrder`, and `ConfirmReceipt`. Requests carry bounded actor data
+  plus request/trace metadata; the order-rpc forwards that context into the
+  Kitex inventory command.
+- `order-rpc` owns the row lock, state-machine check, order update, timestamp,
+  and status-log transaction for every command. User and merchant commands
+  scope the locking query by owner; administrator commands carry the audited
+  operator ID.
+- Lifecycle commands are naturally idempotent on their target status. A replay
+  returns success without inserting another status log. Cancellation and
+  administrator closure commit the closed state first and then release the
+  reservation. If Kitex release fails, the caller receives `Unavailable`; a
+  replay sees the closed state and retries the idempotent release. This avoids
+  the old failure mode where stock could be released before an order
+  transaction later rolled back.
+- Hertz constructs `OrderCommands` only from its Go-zero order-rpc client. The
+  `legacyorder` adapter was deleted, while `OrderSqlConn` remains read-only for
+  current order list/detail projections.
+
+### P1 deployed acceptance
+
+- `go test ./...` passed, including SQL transaction tests for ownership,
+  transition rules, repeated commands, trace propagation, and release retry;
+  the Hertz architecture guards passed and `git diff --check` was clean.
+- Rebuilt only `order-rpc:dev` and `hertz-gateway:dev`, recreated those two
+  services, and retained the existing MySQL, Redis, RabbitMQ, and inventory
+  state. `/api/system/health` returned 200 with the reservation ledger in
+  `enforce` mode.
+- Exercised all five commands over real Hertz HTTP -> Go-zero order-rpc calls:
+  user cancel, administrator close, administrator ship, merchant ship, and
+  buyer confirm receipt. Every command was replayed; final order states were
+  correct and MySQL contained one status-log row per transition rather than
+  one per request.
+- The two paid orders ended with `CONFIRMED` reservations; both closed orders
+  ended with `RELEASED` reservations. Inventory metrics recorded successful
+  confirm/release calls, and the order-rpc access log showed request ID, trace
+  ID, actor, and RPC method for each command.
+- During a controlled Inventory Kitex outage, replaying a closed-order cancel
+  returned HTTP 503. After restarting Inventory Kitex, replaying the identical
+  command returned HTTP 200 and the reservation remained `RELEASED`, proving
+  the P1 compensation retry path against the deployed stack.
 
 ## P0 reliability architecture
 

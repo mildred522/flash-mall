@@ -60,19 +60,28 @@ func TestHertzRuntimeDoesNotExecuteDDL(t *testing.T) {
 	}
 }
 
-func TestOrderTableWritesAreIsolatedInLegacyAdapter(t *testing.T) {
+func TestHertzDoesNotWriteOrderTables(t *testing.T) {
 	t.Parallel()
 
 	internalRoot := internalPackageRoot(t)
 	violations := filesContaining(t, internalRoot, func(relative string, content string) bool {
-		if strings.HasSuffix(relative, "_test.go") || strings.HasPrefix(relative, "adapters/legacyorder/") {
+		if strings.HasSuffix(relative, "_test.go") {
 			return false
 		}
 		upper := strings.ToUpper(content)
-		return strings.Contains(upper, "UPDATE ORDERS") || strings.Contains(upper, "INSERT INTO ORDERS") || strings.Contains(upper, "DELETE FROM ORDERS")
+		return strings.Contains(upper, "UPDATE ORDERS") || strings.Contains(upper, "INSERT INTO ORDERS") ||
+			strings.Contains(upper, "DELETE FROM ORDERS") || strings.Contains(upper, "INSERT INTO ORDER_STATUS_LOG")
 	})
 	if len(violations) > 0 {
-		t.Fatalf("order table writes must stay in adapters/legacyorder until order-rpc owns them: %s", strings.Join(violations, ", "))
+		t.Fatalf("Hertz must delegate order writes to order-rpc: %s", strings.Join(violations, ", "))
+	}
+}
+
+func TestLegacyOrderAdapterWasRemoved(t *testing.T) {
+	t.Parallel()
+	legacyPath := filepath.Join(internalPackageRoot(t), "adapters", "legacyorder", "command.go")
+	if _, err := os.Stat(legacyPath); err == nil || !os.IsNotExist(err) {
+		t.Fatalf("temporary legacy order adapter source must not exist after P1: %s", legacyPath)
 	}
 }
 

@@ -65,3 +65,28 @@ func (s *OrderServer) AuditRefund(ctx context.Context, in *order.AuditRefundReq)
 	l := logic.NewAuditRefundLogic(ctx, s.svcCtx)
 	return l.AuditRefund(in)
 }
+
+func (s *OrderServer) CancelUserOrder(ctx context.Context, in *order.CancelUserOrderReq) (*order.OrderCommandResp, error) {
+	l := logic.NewCancelUserOrderLogic(ctx, s.svcCtx)
+	return l.CancelUserOrder(in)
+}
+
+func (s *OrderServer) CloseAdminOrder(ctx context.Context, in *order.CloseAdminOrderReq) (*order.OrderCommandResp, error) {
+	l := logic.NewCloseAdminOrderLogic(ctx, s.svcCtx)
+	return l.CloseAdminOrder(in)
+}
+
+func (s *OrderServer) ShipAdminOrder(ctx context.Context, in *order.ShipAdminOrderReq) (*order.OrderCommandResp, error) {
+	l := logic.NewShipAdminOrderLogic(ctx, s.svcCtx)
+	return l.ShipAdminOrder(in)
+}
+
+func (s *OrderServer) ShipMerchantOrder(ctx context.Context, in *order.ShipMerchantOrderReq) (*order.OrderCommandResp, error) {
+	l := logic.NewShipMerchantOrderLogic(ctx, s.svcCtx)
+	return l.ShipMerchantOrder(in)
+}
+
+func (s *OrderServer) ConfirmReceipt(ctx context.Context, in *order.ConfirmReceiptReq) (*order.OrderCommandResp, error) {
+	l := logic.NewConfirmReceiptLogic(ctx, s.svcCtx)
+	return l.ConfirmReceipt(in)
+}

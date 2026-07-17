@@ -89,7 +89,9 @@ func MerchantShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 		commands, err := requireOrderCommands(svcCtx)
 		if err == nil {
-			err = commands.ShipMerchant(ctx, ports.ShipMerchantOrderCommand{OrderID: req.OrderID, MerchantID: merchantID})
+			err = commands.ShipMerchant(ctx, ports.ShipMerchantOrderCommand{
+				OrderID: req.OrderID, MerchantID: merchantID, Meta: inventoryRequestMeta(ctx),
+			})
 		}
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)

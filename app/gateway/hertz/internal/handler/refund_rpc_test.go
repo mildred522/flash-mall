@@ -51,6 +51,22 @@ func (s *refundOrderRPCStub) AuditRefund(_ context.Context, in *orderclient.Audi
 	return &orderclient.AuditRefundResp{RefundId: in.RefundId, OrderId: "order-1", OrderStatus: 6, RefundStatus: 2}, nil
 }
 
+func (*refundOrderRPCStub) CancelUserOrder(context.Context, *orderclient.CancelUserOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CancelUserOrder call")
+}
+func (*refundOrderRPCStub) CloseAdminOrder(context.Context, *orderclient.CloseAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected CloseAdminOrder call")
+}
+func (*refundOrderRPCStub) ShipAdminOrder(context.Context, *orderclient.ShipAdminOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipAdminOrder call")
+}
+func (*refundOrderRPCStub) ShipMerchantOrder(context.Context, *orderclient.ShipMerchantOrderReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ShipMerchantOrder call")
+}
+func (*refundOrderRPCStub) ConfirmReceipt(context.Context, *orderclient.ConfirmReceiptReq, ...grpc.CallOption) (*orderclient.OrderCommandResp, error) {
+	panic("unexpected ConfirmReceipt call")
+}
+
 func TestRequestUserRefundDelegatesToOrderRPC(t *testing.T) {
 	stub := &refundOrderRPCStub{}
 	svcCtx := &svc.ServiceContext{OrderRpc: stub}
