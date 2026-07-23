@@ -53,7 +53,7 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - `order_id` 是预占幂等身份；相同订单不同商品或数量必须拒绝。
 - Release 支持空补偿和重复调用；Redis 数据缺失时可依据 MySQL 账本恢复。
 - 恢复任务处理过期预占、重试和死信；对账不能用数据库总量覆盖仍被预占的可用量。
-- Hertz 健康检查校验 Kitex、Redis、MySQL、最终扣减开关和账本模式。
+- `/live` 只表示 Hertz 进程存活；`/ready`、`/health` 和 `/api/system/health` 校验 Kitex、Redis、MySQL、最终扣减开关、账本模式及上传存储就绪状态。
 
 ### 订单和支付
 
@@ -74,8 +74,10 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - 根目录旧 `web` 工程不再继续开发，清理后不得重新作为 Entry API 的构建来源。
 - 构建产物统一放在中立目录 `artifacts/web`，由 Hertz 和 Go-zero Entry API 分别复制或嵌入。
 - 商品和店铺上传素材存储在显式命名卷 `flash-mall-uploads`，不属于前端编译产物，也不随 worktree、源码清理或镜像重建消失。
-- 新素材以内容 SHA-256 命名，通过同目录临时文件、`fsync` 和原子重命名写入；同内容重复上传复用同一 URL，静态响应使用 immutable 缓存头。
-- Hertz 健康接口同时检查上传目录可写性和数据库中 `/uploads/` 引用的文件完整性；管理员、商家、商城图片组件均提供加载失败降级。
+- 新素材以内容 SHA-256 命名，通过同目录临时文件、文件和父目录 `fsync`、原子重命名写入；已存在的同名文件会先校验内容哈希，损坏文件不会被错误复用。
+- 素材上传 Handler 只依赖可注入的 `assetstore.Store` 写边界，本地文件系统是当前适配器，后续接入 MinIO 不需要修改上传业务 Handler。
+- 启动阶段只执行廉价的上传目录可写探测，数据库引用、缺失文件、非法路径和内容哈希由后台审计并缓存；历史素材缺失使就绪响应进入 `degraded`，不再导致网关 503。审计结果同时暴露为 `flash_mall_upload_integrity_*` Prometheus 指标。
+- 管理员、商家、商城图片组件均提供加载失败降级；管理员缩略图在 URL 变化后会清除旧失败状态并重新加载。
 - 订单价格快照保存 `product_image_url`，订单列表和详情不再依赖商品当前图片或前端硬编码映射。
 
 ## 开发边界
@@ -107,8 +109,10 @@ pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
 ./scripts/local/migrate-uploads-to-volume.sh /path/to/old/.runtime/uploads
 
 # 用真实管理员/用户链路验证哈希上传、中文/emoji 订单快照和图片读取
-node scripts/local/verify-durable-assets.mjs /path/to/image.png 106
+node scripts/local/verify-durable-assets.mjs --allow-mutation /path/to/image.png 106
 ```
+
+素材持久化验收脚本只允许连接本机回环地址，必须显式传入 `--allow-mutation`。脚本结束时会取消验收订单以释放库存，并恢复商品原始名称、图片、价格、供应商和状态；账号密码可用 `FLASH_MALL_VERIFY_*` 环境变量覆盖。
 
 Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代按服务重建，缓存超过预算后保留近期热缓存；任何自动清理都不得删除 MySQL、Redis 或 RabbitMQ 数据卷。
 
@@ -150,8 +154,8 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - `shared/src/types.ts` 已从 543 行混合声明改为公共 barrel，认证、商城、订单、商家及管理员领域类型分别维护；现有 `@flash-mall/shared` 导入方式保持兼容。
 - 管理员商品页已进一步拆成薄页面、`useProductManagement` 页面控制器和独立商品 API；筛选、详情、创建、编辑、上下架、图片上传与库存调整不再堆积在页面组件中。
 - 仓库内已确认没有前端、脚本或服务继续消费 `/api/gateway/*` 与 `/api/catalog` 旧别名，因此兼容路由已删除；公开 API 只保留当前规范路由，路由回归测试会阻止旧别名重新注册。
-- MySQL Compose 默认字符集和排序规则显式固定为 `utf8mb4/utf8mb4_unicode_ci`；Auth、Product、Order 和 Hertz 在启动时拒绝未显式携带 `charset=utf8mb4` 的 DSN，防止配置回退再次把中文写成问号。
-- 历史订单乱码修复只处理名称含连续三个问号、且规范商品名有效的快照；修复前原值和十六进制字节进入 `order_snapshot_repair_audit`，脚本可重复执行。
+- MySQL Compose 默认字符集和排序规则显式固定为 `utf8mb4/utf8mb4_unicode_ci`；Auth、Product、Order 和 Hertz 拒绝未显式携带 `charset=utf8mb4` 的 DSN，Hertz 还会在真实连接建立后验证 product、order、auth 三个会话的 client/connection/results 字符集。
+- 历史订单乱码修复只处理名称含连续三个问号、且规范商品名有效的快照；修复前原值和十六进制字节进入 `order_snapshot_repair_audit`，迁移版本 `20260723_order_snapshot_utf8_asset_repair` 成功记录后不再重复扫描历史订单。
 - 商品 RPC 卡片同时返回图片 URL 和商家 ID，Order RPC 下单直接写入名称/图片/商家快照；Hertz 用户、管理员和商家订单查询统一返回 `image_url`。
 
 本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
@@ -177,3 +181,6 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 历史 40 条问号商品名快照全部先写入审计表再修复，修复后连续问号残留为 0；包含验收订单在内已有 55 条订单保存商品图片快照。
 - 真实订单 `durable-assets-1784792738791` 保存了 `持久化验收商品🧥-1784792738713` 的完整 utf8mb4 字节和内容寻址图片 URL。
 - Windows 本机 Google Chrome 对管理员商品、管理员订单和商城首页做真实渲染：商品与订单中文名可见，所有图片 `naturalWidth > 0`，无 4xx 响应或失败请求。
+- 素材可靠性优化后再次完成 Go 全仓测试、Hertz `go vet`、前端 37 个测试文件/60 个用例和三套生产构建；版本化数据库修复已在现有 MySQL 卷登记且保留 40 条历史审计记录。
+- 新 Hertz 镜像已在 Ubuntu WSL Docker Engine 重建并运行：`/live` 与 `/ready` 分离，后台审计报告 3 个引用、0 缺失、0 损坏、0 非法路径，六项 `flash_mall_upload_integrity_*` 指标可采集。
+- 验收订单 `durable-assets-1784795832540` 验证了中文/emoji 快照和 WebP 内容哈希，随后通过用户取消链路进入 `closed`；商品 106 的原名称、图片和总库存均已恢复。

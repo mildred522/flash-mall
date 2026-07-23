@@ -18,6 +18,8 @@ func registerSystemRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt
 	h.GET("/admin/*any", StaticPageHandler("admin.html"))
 	h.GET("/merchant", StaticPageHandler("merchant.html"))
 	h.GET("/merchant/*any", StaticPageHandler("merchant.html"))
+	h.GET("/live", LivenessHandler(svcCtx, startedAt))
+	h.GET("/ready", HealthHandler(svcCtx, startedAt))
 	h.GET("/health", HealthHandler(svcCtx, startedAt))
 	h.GET("/api/system/health", HealthHandler(svcCtx, startedAt))
 	h.GET("/api/system/migration/routes", RouteMigrationStatusHandler())

@@ -13,6 +13,7 @@ import (
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
 	"flash-mall/app/gateway/hertz/internal/application/merchantquery"
+	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -112,6 +113,7 @@ func TestMerchantStoreAssetUploadStoresImageUnderMerchantDirectory(t *testing.T)
 
 	svcCtx := &svc.ServiceContext{
 		Config:          config.Config{UploadDir: t.TempDir()},
+		AssetStore:      assetstore.NewFilesystem(t.TempDir()),
 		MerchantQueries: merchantquery.NewService(ordermysql.NewMerchantProfileRepository(db)),
 	}
 	h := server.Default()

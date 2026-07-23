@@ -4,12 +4,21 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 
-const baseURL = process.env.FLASH_MALL_BASE_URL || 'http://127.0.0.1:8889';
-const imagePath = resolve(process.argv[2] || '');
-const productID = Number(process.argv[3] || 106);
+import { assertLocalMutationTarget } from './lib/local-mutation-guard.mjs';
 
-if (!process.argv[2] || !Number.isSafeInteger(productID) || productID <= 0) {
-  throw new Error('usage: node scripts/local/verify-durable-assets.mjs IMAGE_PATH [PRODUCT_ID]');
+const args = process.argv.slice(2);
+const allowMutation = args.includes('--allow-mutation');
+const positional = args.filter((arg) => arg !== '--allow-mutation');
+const target = assertLocalMutationTarget(
+  process.env.FLASH_MALL_BASE_URL || 'http://127.0.0.1:8889',
+  allowMutation,
+);
+const baseURL = target.origin;
+const imagePath = resolve(positional[0] || '');
+const productID = Number(positional[1] || 106);
+
+if (!positional[0] || !Number.isSafeInteger(productID) || productID <= 0) {
+  throw new Error('usage: node scripts/local/verify-durable-assets.mjs --allow-mutation IMAGE_PATH [PRODUCT_ID]');
 }
 
 async function jsonRequest(path, options = {}) {
@@ -53,7 +62,10 @@ const mimeType = mimeTypes[extension];
 if (!mimeType) throw new Error(`unsupported image extension: ${extension}`);
 const expectedHash = createHash('sha256').update(image).digest('hex');
 
-const adminToken = await login('13800000002', 'admin123');
+const adminToken = await login(
+  process.env.FLASH_MALL_VERIFY_ADMIN_PHONE || '13800000002',
+  process.env.FLASH_MALL_VERIFY_ADMIN_PASSWORD || 'admin123',
+);
 const original = await jsonRequest(`/api/admin/products/detail?product_id=${productID}`, {
   headers: bearer(adminToken),
 });
@@ -77,7 +89,7 @@ const updateProduct = (overrides) => jsonRequest('/api/admin/products/update', {
   json: {
     product_id: original.product_id,
     name: original.name,
-    image_url: imageURL,
+    image_url: original.image_url,
     origin_price_fen: original.origin_price_fen,
     sale_price_fen: original.sale_price_fen,
     supplier_id: original.supplier_id,
@@ -87,9 +99,14 @@ const updateProduct = (overrides) => jsonRequest('/api/admin/products/update', {
 });
 
 let order;
+let userToken;
+let primaryError;
 try {
-  await updateProduct({ name: verificationName, status: 1 });
-  const userToken = await login('13800000001', 'flashmall123');
+  await updateProduct({ name: verificationName, image_url: imageURL, status: 1 });
+  userToken = await login(
+    process.env.FLASH_MALL_VERIFY_USER_PHONE || '13800000001',
+    process.env.FLASH_MALL_VERIFY_USER_PASSWORD || 'flashmall123',
+  );
   order = await jsonRequest('/api/order/create', {
     method: 'POST',
     headers: bearer(userToken),
@@ -114,14 +131,46 @@ try {
   if (servedHash !== expectedHash) {
     throw new Error(`served image hash mismatch: expected ${expectedHash}, got ${servedHash}`);
   }
+} catch (error) {
+  primaryError = error;
 } finally {
-  await updateProduct({});
+  const cleanupErrors = [];
+  if (order?.order_id && userToken) {
+    try {
+      await jsonRequest('/api/order/cancel', {
+        method: 'POST',
+        headers: bearer(userToken),
+        json: {
+          order_id: order.order_id,
+          reason: 'durable asset verification cleanup',
+        },
+      });
+    } catch (error) {
+      cleanupErrors.push(new Error(`cancel verification order: ${error.message}`, { cause: error }));
+    }
+  }
+  try {
+    await updateProduct({});
+  } catch (error) {
+    cleanupErrors.push(new Error(`restore verification product: ${error.message}`, { cause: error }));
+  }
+  if (cleanupErrors.length > 0) {
+    const cleanupError = new AggregateError(cleanupErrors, 'durable asset verification cleanup failed');
+    if (primaryError) {
+      throw new AggregateError([primaryError, cleanupError], 'verification and cleanup failed');
+    }
+    throw cleanupError;
+  }
+}
+
+if (primaryError) {
+  throw primaryError;
 }
 
 console.log(JSON.stringify({
   status: 'ok',
   product_id: productID,
-  order_id: order.order_id,
+  order_id: order?.order_id,
   product_name: verificationName,
   image_url: imageURL,
   sha256: expectedHash,

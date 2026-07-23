@@ -19,6 +19,18 @@ type runtimeStateClient interface {
 	GetRuntimeState(context.Context, ports.RequestMeta) (ports.InventoryRuntimeState, error)
 }
 
+func LivenessHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		ok(ctx, c, map[string]any{
+			"name":        svcCtx.Config.Name,
+			"status":      "ok",
+			"service":     "hertz-gateway",
+			"uptime_ms":   time.Since(startedAt).Milliseconds(),
+			"server_time": time.Now().Unix(),
+		})
+	}
+}
+
 func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		if svcCtx.Config.InventoryKitexEndpoint != "" && svcCtx.InventoryRpc == nil {
@@ -35,22 +47,26 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 			inventoryRuntime = state
 		}
 		var uploadStorage any
+		status := "ok"
+		if svcCtx.AssetStore != nil && svcCtx.UploadIntegrity == nil {
+			fail(ctx, c, consts.StatusServiceUnavailable, apperror.New(apperror.CodeInternal, "upload integrity monitor unavailable"))
+			return
+		}
 		if svcCtx.UploadIntegrity != nil {
-			report, err := svcCtx.UploadIntegrity.Check(ctx)
-			if err != nil {
-				fail(ctx, c, consts.StatusServiceUnavailable, apperror.Wrap(apperror.CodeInternal, "upload storage check failed", err))
-				return
-			}
-			if !report.Healthy() {
+			snapshot := svcCtx.UploadIntegrity.Snapshot()
+			if !snapshot.Ready() {
 				fail(ctx, c, consts.StatusServiceUnavailable, apperror.New(apperror.CodeInternal,
-					fmt.Sprintf("upload storage is not healthy: writable=%t missing_files=%d", report.Writable, report.MissingFiles)))
+					fmt.Sprintf("upload storage is not ready: error=%s writable=%t", snapshot.Error, snapshot.Report.Writable)))
 				return
 			}
-			uploadStorage = report
+			if snapshot.Degraded() {
+				status = "degraded"
+			}
+			uploadStorage = snapshot
 		}
 		ok(ctx, c, map[string]any{
 			"name":                       svcCtx.Config.Name,
-			"status":                     "ok",
+			"status":                     status,
 			"service":                    "hertz-gateway",
 			"uptime_ms":                  time.Since(startedAt).Milliseconds(),
 			"server_time":                time.Now().Unix(),

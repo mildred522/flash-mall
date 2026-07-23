@@ -24,4 +24,9 @@ for (const path of modules) {
   if (lines > 400) throw new Error(`${path} is still too large (${lines} lines)`);
 }
 
+const dataRepair = readFileSync(resolve(root, 'scripts/k8s/sql/22-data-repair.sql'), 'utf8');
+if (!dataRepair.includes('schema_migrations') || !dataRepair.includes('20260723_order_snapshot_utf8_asset_repair')) {
+  throw new Error('22-data-repair.sql must be guarded by a versioned schema migration');
+}
+
 console.log(`init-db modules verified: ${modules.length} files`);

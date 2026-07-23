@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"time"
 
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
@@ -70,4 +71,11 @@ func (c Config) NormalizedListenOn() string {
 		return ":8889"
 	}
 	return c.ListenOn
+}
+
+func (c Config) NormalizedUploadDir() string {
+	if dir := strings.TrimSpace(c.UploadDir); dir != "" {
+		return dir
+	}
+	return ".runtime/uploads"
 }

@@ -10,7 +10,6 @@ import (
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
-	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -73,7 +72,12 @@ func productImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		asset, err := assetstore.NewFilesystem(productUploadDir(svcCtx)).Save(
+		if svcCtx.AssetStore == nil {
+			fail(ctx, c, consts.StatusServiceUnavailable, apperror.New(apperror.CodeInternal, "asset store unavailable"))
+			return
+		}
+		asset, err := svcCtx.AssetStore.Save(
+			ctx,
 			"products",
 			ext,
 			file,
@@ -110,10 +114,7 @@ func ProductUploadStaticHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 }
 
 func productUploadDir(svcCtx *svc.ServiceContext) string {
-	if dir := strings.TrimSpace(svcCtx.Config.UploadDir); dir != "" {
-		return dir
-	}
-	return filepath.Join(".runtime", "uploads")
+	return svcCtx.Config.NormalizedUploadDir()
 }
 
 func productImageExt(contentType, originalExt string) string {

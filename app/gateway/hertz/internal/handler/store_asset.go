@@ -12,7 +12,6 @@ import (
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
-	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -63,7 +62,12 @@ func MerchantStoreAssetUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc
 			return
 		}
 		namespace := "stores/" + strconv.FormatInt(merchantID, 10)
-		asset, err := assetstore.NewFilesystem(productUploadDir(svcCtx)).Save(
+		if svcCtx.AssetStore == nil {
+			fail(ctx, c, consts.StatusServiceUnavailable, apperror.New(apperror.CodeInternal, "asset store unavailable"))
+			return
+		}
+		asset, err := svcCtx.AssetStore.Save(
+			ctx,
 			namespace,
 			ext,
 			file,

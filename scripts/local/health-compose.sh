@@ -65,7 +65,7 @@ check_redis_stock() {
 
 check_gateway_health_once() {
   body=$(curl --noproxy "*" -fsS -m 5 "$health_url" 2>/tmp/flash-mall-health.err || true)
-  if printf '%s' "$body" | grep -Eq '"overall":true|"status":"ok"'; then
+  if printf '%s' "$body" | grep -Eq '"overall":true|"status":"(ok|degraded)"'; then
     echo "[OK] gateway health ready"
     printf '%s\n' "$body"
     return 0

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 type Props = {
   src?: string;
@@ -9,6 +9,10 @@ type Props = {
 
 export default function ProductThumbnail({ src, alt, width = 48, height = 48 }: Props) {
   const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
   if (!src || failed) {
     return (
       <span

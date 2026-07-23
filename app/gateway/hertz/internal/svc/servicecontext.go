@@ -2,6 +2,7 @@ package svc
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -65,9 +66,13 @@ type ServiceContext struct {
 	StockAudits        *stockaudit.Service
 	Suppliers          *supplier.Service
 	Cache              *gatewaycache.Coordinator
-	UploadIntegrity    *assetstore.IntegrityChecker
+	AssetStore         assetstore.Store
+	UploadIntegrity    assetstore.IntegrityReporter
 	cacheRedis         *redis.Client
+	uploadMonitor      *assetstore.IntegrityMonitor
 }
+
+const mysqlSessionGuardTimeout = 3 * time.Second
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	mysqlguard.MustUTF8MB4("hertz product", c.DataSource)
@@ -80,11 +85,13 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		AuthSqlConn:  sqlx.NewMysql(c.AuthDataSource),
 		OrderRpc:     orderclient.NewOrder(zrpc.MustNewClient(c.OrderRpcConf)),
 		ProductRpc:   productclient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf)),
+		AssetStore:   assetstore.NewFilesystem(c.NormalizedUploadDir()),
 	}
 	svcCtx.OrderCommands = orderrpc.New(svcCtx.OrderRpc)
 	if orderDB, err := svcCtx.OrderSqlConn.RawDB(); err != nil {
 		logx.Errorf("hertz order query adapter init failed: %v", err)
 	} else {
+		mustVerifyMySQLSession("hertz order", orderDB)
 		repository := ordermysql.NewQueryRepository(orderDB)
 		svcCtx.AdminOps = adminops.NewService(ordermysql.NewAdminOpsRepository(orderDB))
 		svcCtx.Reconciliation = reconciliation.NewService(ordermysql.NewReconciliationRepository(orderDB))
@@ -97,6 +104,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if authDB, err := svcCtx.AuthSqlConn.RawDB(); err != nil {
 		logx.Errorf("hertz auth adapters init failed: %v", err)
 	} else {
+		mustVerifyMySQLSession("hertz auth", authDB)
 		svcCtx.UserAddresses = useraddress.NewService(authmysql.NewUserAddressRepository(authDB))
 	}
 	if c.InventoryKitexEndpoint != "" {
@@ -111,6 +119,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if err != nil {
 		logx.Errorf("hertz product adapters init failed: %v", err)
 	} else {
+		mustVerifyMySQLSession("hertz product", productDB)
 		svcCtx.ProductInventory = productmysql.NewInventoryInitializer(productDB, svcCtx.InventoryRpc)
 		svcCtx.Campaigns = campaign.NewService(productmysql.NewCampaignRepository(productDB))
 		svcCtx.ProductCommands = productcommand.NewService(productmysql.NewProductCommandRepository(productDB))
@@ -122,7 +131,14 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		svcCtx.Suppliers = supplier.NewService(productmysql.NewSupplierRepository(productDB))
 	}
 	if orderDB, orderErr := svcCtx.OrderSqlConn.RawDB(); orderErr == nil && err == nil {
-		svcCtx.UploadIntegrity = assetstore.NewIntegrityChecker(c.UploadDir, productDB, orderDB)
+		monitor := assetstore.NewIntegrityMonitor(
+			assetstore.NewIntegrityChecker(c.NormalizedUploadDir(), productDB, orderDB),
+			5*time.Minute,
+		)
+		monitor.Prime(context.Background())
+		monitor.Start(context.Background())
+		svcCtx.UploadIntegrity = monitor
+		svcCtx.uploadMonitor = monitor
 	}
 	cacheConfig := c.CacheConfig()
 	var cacheRedis *redis.Client
@@ -141,7 +157,16 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	return svcCtx
 }
 
+func mustVerifyMySQLSession(name string, db *sql.DB) {
+	ctx, cancel := context.WithTimeout(context.Background(), mysqlSessionGuardTimeout)
+	defer cancel()
+	mysqlguard.MustSessionUTF8MB4(ctx, name, db)
+}
+
 func (s *ServiceContext) Close() {
+	if s.uploadMonitor != nil {
+		s.uploadMonitor.Close()
+	}
 	if s.Cache != nil {
 		_ = s.Cache.Close()
 	}
