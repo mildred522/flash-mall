@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -286,7 +287,6 @@ func TestReleaseStockRecoversMissingRedisReservationFromLedger(t *testing.T) {
 	if err := repo.seedRedisState(ctx, 100, 7, 3, 2); err != nil {
 		t.Fatal(err)
 	}
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT product_id, quantity, shard_index, status, expires_at, request_id, trace_id FROM inventory_reservation WHERE order_id = ?")).
 		WithArgs("order-ledger-recover").
 		WillReturnRows(sqlmock.NewRows([]string{"product_id", "quantity", "shard_index", "status", "expires_at", "request_id", "trace_id"}).
@@ -342,6 +342,33 @@ func TestRedisMySQLRepositoryRuntimeCheckReportsRedisFailure(t *testing.T) {
 	mr.Close()
 	if err := repo.CheckRuntime(context.Background()); err == nil {
 		t.Fatal("runtime check must fail when redis is unavailable")
+	}
+}
+
+func TestRedisMySQLRepositoryRuntimeCheckRejectsMissingSchema(t *testing.T) {
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mr.Close()
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	mock.ExpectPing()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT TABLE_NAME FROM information_schema.TABLES")).
+		WillReturnRows(sqlmock.NewRows([]string{"TABLE_NAME"}).
+			AddRow("product").
+			AddRow("stock_log").
+			AddRow("product_stock_bucket").
+			AddRow("product_stock_snapshot").
+			AddRow("inventory_reservation"))
+
+	repo := NewRedisMySQLRepository(redis.MustNewRedis(redis.RedisConf{Host: mr.Addr(), Type: redis.NodeType}), db, 2)
+	err = repo.CheckRuntime(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "inventory_stock_change_log") {
+		t.Fatalf("CheckRuntime error=%v, want missing inventory_stock_change_log", err)
 	}
 }
 
@@ -452,7 +479,6 @@ func TestReconcilePreservesActiveReservedStock(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT COALESCE(SUM(stock), 0), COUNT(*) FROM product_stock_bucket WHERE product_id = ?")).
 		WithArgs(int64(100)).
 		WillReturnRows(sqlmock.NewRows([]string{"total", "count"}).AddRow(int64(10), int64(2)))
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT COALESCE(SUM(quantity), 0) FROM inventory_reservation WHERE product_id = ? AND status = 'RESERVED'")).
 		WithArgs(int64(100)).
 		WillReturnRows(sqlmock.NewRows([]string{"reserved"}).AddRow(int64(3)))
@@ -487,7 +513,6 @@ func TestRedisMySQLRepositorySeedsMySQLBuckets(t *testing.T) {
 	mock.ExpectExec(upsert).WithArgs(int64(100), 0, int64(3)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(upsert).WithArgs(int64(100), 1, int64(2)).WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS product_stock_snapshot")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO product_stock_snapshot")).WithArgs(int64(100), int64(5), int64(0), int64(5)).WillReturnResult(sqlmock.NewResult(1, 1))
 	if err := repo.SeedStock(context.Background(), 100, 5, 2); err != nil {
 		t.Fatalf("SeedStock error: %v", err)
@@ -541,7 +566,6 @@ func TestInsertReservationLedgerPersistsReservationIdentity(t *testing.T) {
 	}
 	defer db.Close()
 	repo := NewRedisMySQLRepository(nil, db, 4).WithReservationLedgerMode("shadow")
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO inventory_reservation")).
 		WithArgs("order-ledger", int64(100), int64(2), 3, "RESERVED", sqlmock.AnyArg(), "req-1", "trace-1").
 		WillReturnResult(sqlmock.NewResult(1, 1))
@@ -571,7 +595,6 @@ func TestInsertReservationLedgerRejectsIdentityConflict(t *testing.T) {
 	}
 	defer db.Close()
 	repo := NewRedisMySQLRepository(nil, db, 4).WithReservationLedgerMode("enforce")
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("INSERT INTO inventory_reservation")).
 		WithArgs("order-conflict", int64(100), int64(2), 1, "RESERVED", sqlmock.AnyArg(), "req", "trace").
 		WillReturnResult(sqlmock.NewResult(0, 0))
@@ -612,7 +635,7 @@ func TestReservationLedgerModeControlsWriteFailure(t *testing.T) {
 			if err := repo.seedRedis(context.Background(), 100, 10, 2); err != nil {
 				t.Fatal(err)
 			}
-			mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).
+			mock.ExpectExec(regexp.QuoteMeta("INSERT INTO inventory_reservation")).
 				WillReturnError(errors.New("ledger unavailable"))
 
 			err = repo.ReserveStock(context.Background(), "order-ledger-failure", 100, 2, domain.StockChangeMeta{})
@@ -630,7 +653,6 @@ func TestTransitionReservationLedgerAdvancesVersion(t *testing.T) {
 	}
 	defer db.Close()
 	repo := NewRedisMySQLRepository(nil, db, 4).WithReservationLedgerMode("enforce")
-	mock.ExpectExec(regexp.QuoteMeta("CREATE TABLE IF NOT EXISTS inventory_reservation")).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec(regexp.QuoteMeta("UPDATE inventory_reservation SET status = ?, version = version + 1")).
 		WithArgs("CONFIRMED", "order-transition", "RESERVED").
 		WillReturnResult(sqlmock.NewResult(0, 1))

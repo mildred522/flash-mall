@@ -8,6 +8,8 @@ import (
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/paymentstatus"
+	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
+	"flash-mall/app/gateway/hertz/internal/application/orderquery"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -32,7 +34,11 @@ func TestPaymentMatchesTokenClaims(t *testing.T) {
 func TestSandboxPaymentEnforcesOwnerAndTokenBinding(t *testing.T) {
 	const dsn = "root:6494kj06@tcp(127.0.0.1:3307)/mall_order?charset=utf8mb4&parseTime=true&loc=Local"
 	conn := sqlx.NewMysql(dsn)
-	svcCtx := &svc.ServiceContext{OrderSqlConn: conn}
+	db, err := conn.RawDB()
+	if err != nil {
+		t.Fatalf("order db: %v", err)
+	}
+	svcCtx := &svc.ServiceContext{OrderQueries: orderquery.NewService(ordermysql.NewQueryRepository(db))}
 	unique := time.Now().UnixNano()
 	orderID := fmt.Sprintf("sandbox-test-%d", unique)
 	paymentID := "pay:" + orderID

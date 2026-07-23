@@ -1,82 +1,31 @@
 package handler
 
-type MerchantMeItem struct {
-	MerchantID int64  `json:"merchant_id"`
-	Name       string `json:"name"`
-	Role       string `json:"role"`
-	Status     int64  `json:"status"`
-}
+import (
+	"flash-mall/app/gateway/hertz/internal/application/merchantonboarding"
+	"flash-mall/app/gateway/hertz/internal/application/merchantquery"
+	"flash-mall/app/gateway/hertz/internal/application/merchantstore"
+)
 
-type MerchantMeResp struct {
-	Items []MerchantMeItem `json:"items"`
-}
+type MerchantMeItem = merchantquery.Merchant
 
-type MerchantStoreProfile struct {
-	MerchantID   int64  `json:"merchant_id"`
-	MerchantName string `json:"merchant_name"`
-	LogoURL      string `json:"logo_url"`
-	BannerURL    string `json:"banner_url"`
-	Description  string `json:"description"`
-	Version      int64  `json:"version"`
-}
+type MerchantMeResp = merchantquery.MeResponse
 
-type merchantStoreUpdateReq struct {
-	LogoURL         string `json:"logo_url"`
-	BannerURL       string `json:"banner_url"`
-	Description     string `json:"description"`
-	ExpectedVersion int64  `json:"expected_version"`
-}
+type MerchantStoreProfile = merchantstore.Profile
+type merchantStoreUpdateReq = merchantstore.UpdateInput
 
-type MerchantApplyReq struct {
-	MerchantName string `json:"merchant_name"`
-	ContactPhone string `json:"contact_phone,omitempty"`
-}
+type MerchantApplyReq = merchantonboarding.SubmitInput
 
 type MerchantApplyResp struct {
 	ApplyID int64  `json:"apply_id"`
 	Status  string `json:"status"`
 }
 
-type MerchantApplicationItem struct {
-	ApplyID      int64  `json:"apply_id"`
-	MerchantName string `json:"merchant_name"`
-	ContactPhone string `json:"contact_phone"`
-	Status       int64  `json:"status"`
-	StatusText   string `json:"status_text"`
-	MerchantID   int64  `json:"merchant_id"`
-	AuditRemark  string `json:"audit_remark"`
-	CreateTime   string `json:"create_time"`
-	AuditTime    string `json:"audit_time"`
-}
+type MerchantApplicationItem = merchantquery.Application
 
-type MerchantApplicationResp struct {
-	Application *MerchantApplicationItem `json:"application"`
-}
+type MerchantApplicationResp = merchantquery.ApplicationResponse
 
-type AdminMerchantApplicationListReq struct {
-	Status   int64 `json:"status"`
-	Page     int64 `json:"page"`
-	PageSize int64 `json:"page_size"`
-}
+type AdminMerchantApplicationListReq = merchantonboarding.ListQuery
+type AdminMerchantApplicationItem = merchantonboarding.Application
+type AdminMerchantApplicationListResp = merchantonboarding.ListResult
 
-type AdminMerchantApplicationItem struct {
-	MerchantApplicationItem
-	UserID     int64 `json:"user_id"`
-	OperatorID int64 `json:"operator_id"`
-}
-
-type AdminMerchantApplicationListResp struct {
-	Items    []AdminMerchantApplicationItem `json:"items"`
-	Total    int64                          `json:"total"`
-	Page     int64                          `json:"page"`
-	PageSize int64                          `json:"page_size"`
-}
-
-type MerchantDashboardStatsResp struct {
-	MerchantID       int64 `json:"merchant_id"`
-	OrderCount       int64 `json:"order_count"`
-	PaidOrderCount   int64 `json:"paid_order_count"`
-	ShipPendingCount int64 `json:"ship_pending_count"`
-	RefundPending    int64 `json:"refund_pending_count"`
-	SalesAmountFen   int64 `json:"sales_amount_fen"`
-}
+type MerchantDashboardStatsResp = merchantquery.DashboardStats

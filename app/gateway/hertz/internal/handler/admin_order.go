@@ -2,8 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -26,12 +24,12 @@ func AdminOrderListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, err)
 			return
 		}
-		db, err := orderDB(svcCtx)
+		service, err := backofficeOrderService(svcCtx)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
 			return
 		}
-		resp, err := loadAdminOrders(ctx, db, req)
+		resp, err := service.ListAdminOrders(ctx, req)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "admin order query failed", err))
 			return
@@ -47,12 +45,20 @@ func AdminOrderDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "order_id is required"))
 			return
 		}
-		resp, err := loadAdminOrderDetail(ctx, svcCtx, orderID)
+		service, err := backofficeOrderService(svcCtx)
+		if err == nil {
+			resp, queryErr := service.AdminDetail(ctx, orderID)
+			if queryErr != nil {
+				fail(ctx, c, createOrderStatusCode(queryErr), queryErr)
+				return
+			}
+			ok(ctx, c, resp)
+			return
+		}
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
-		ok(ctx, c, resp)
 	}
 }
 
@@ -63,12 +69,12 @@ func AdminOrderStatusLogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "order_id is required"))
 			return
 		}
-		db, err := orderDB(svcCtx)
+		service, err := backofficeOrderService(svcCtx)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
 			return
 		}
-		resp, err := loadAdminOrderStatusLogs(ctx, db, orderID)
+		resp, err := service.AdminStatusLogs(ctx, orderID)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "admin order status log query failed", err))
 			return
@@ -156,7 +162,7 @@ func AdminRefundOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			req.Reason = "admin refund"
 		}
 		operatorID := gatewayOperatorID(ctx)
-		if err := refundAdminOrder(ctx, svcCtx, nil, req, operatorID); err != nil {
+		if err := refundAdminOrder(ctx, svcCtx, req, operatorID); err != nil {
 			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditOrderRefunded, fmt.Sprintf("order:%s reason:%s", req.OrderID, adminAuditReasonInvalidStatus))
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -205,129 +211,7 @@ func adminOrderQueryFromRequest(c *app.RequestContext) (AdminOrderListReq, error
 	}, nil
 }
 
-func loadAdminOrders(ctx context.Context, db *sql.DB, req AdminOrderListReq) (AdminOrderListResp, error) {
-	where := "1=1"
-	args := []any{}
-	if req.Status >= 0 {
-		where += " AND o.status = ?"
-		args = append(args, req.Status)
-	}
-	if req.UserID > 0 {
-		where += " AND o.user_id = ?"
-		args = append(args, req.UserID)
-	}
-	if req.MerchantID > 0 {
-		where += " AND o.merchant_id = ?"
-		args = append(args, req.MerchantID)
-	}
-	if req.ProductID > 0 {
-		where += " AND o.product_id = ?"
-		args = append(args, req.ProductID)
-	}
-	if req.ProductName != "" {
-		where += " AND s.product_name LIKE ?"
-		args = append(args, "%"+req.ProductName+"%")
-	}
-	if req.CreatedFrom != "" {
-		where += " AND o.create_time >= ?"
-		args = append(args, normalizeAdminDateTimeLower(req.CreatedFrom))
-	}
-	if req.CreatedTo != "" {
-		where += " AND o.create_time <= ?"
-		args = append(args, normalizeAdminDateTimeUpper(req.CreatedTo))
-	}
-	if req.OrderID != "" {
-		where += " AND o.id = ?"
-		args = append(args, req.OrderID)
-	}
-
-	var total int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM orders o LEFT JOIN order_price_snapshot s ON s.order_id = o.id WHERE "+where, args...).Scan(&total); err != nil {
-		return AdminOrderListResp{}, err
-	}
-	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
-	rows, err := db.QueryContext(ctx, `SELECT o.id,
-       o.user_id,
-       o.merchant_id,
-       COALESCE(m.name, ''),
-       o.product_id,
-       COALESCE(s.product_name, ''),
-       o.amount,
-       o.status,
-       COALESCE(s.payable_amount_fen, 0),
-       DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s')
-FROM orders o
-LEFT JOIN order_price_snapshot s ON s.order_id = o.id
-LEFT JOIN merchant m ON m.id = o.merchant_id
-WHERE `+where+`
-ORDER BY o.create_time DESC
-LIMIT ? OFFSET ?`, queryArgs...)
-	if err != nil {
-		return AdminOrderListResp{}, err
-	}
-	defer func() { _ = rows.Close() }()
-	items := make([]AdminOrderItem, 0)
-	for rows.Next() {
-		var item AdminOrderItem
-		if err := rows.Scan(&item.OrderID, &item.UserID, &item.MerchantID, &item.MerchantName, &item.ProductID, &item.ProductName, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
-			return AdminOrderListResp{}, err
-		}
-		item.StatusText = orderstatus.Text(item.Status)
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return AdminOrderListResp{}, err
-	}
-	return AdminOrderListResp{Items: items, Total: total}, nil
-}
-
-func loadAdminOrderDetail(ctx context.Context, svcCtx *svc.ServiceContext, orderID string) (OrderDetailResp, error) {
-	db, err := orderDB(svcCtx)
-	if err != nil {
-		return OrderDetailResp{}, err
-	}
-	var userID int64
-	if err := db.QueryRowContext(ctx, "SELECT user_id FROM orders WHERE id = ? LIMIT 1", orderID).Scan(&userID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return OrderDetailResp{}, apperror.New(apperror.CodeOrderNotFound, "order not found")
-		}
-		return OrderDetailResp{}, err
-	}
-	return loadUserOrderDetail(ctx, svcCtx, orderID, userID)
-}
-
-func loadAdminOrderStatusLogs(ctx context.Context, db *sql.DB, orderID string) (AdminOrderStatusLogResp, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id,
-       order_id,
-       from_status,
-       to_status,
-       operator_id,
-       remark,
-       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s')
-FROM order_status_log
-WHERE order_id = ?
-ORDER BY id ASC`, orderID)
-	if err != nil {
-		return AdminOrderStatusLogResp{}, err
-	}
-	defer func() { _ = rows.Close() }()
-	items := make([]AdminOrderStatusLogItem, 0)
-	for rows.Next() {
-		var item AdminOrderStatusLogItem
-		if err := rows.Scan(&item.ID, &item.OrderID, &item.FromStatus, &item.ToStatus, &item.OperatorID, &item.Remark, &item.CreateTime); err != nil {
-			return AdminOrderStatusLogResp{}, err
-		}
-		item.FromStatusText = orderstatus.Text(item.FromStatus)
-		item.ToStatusText = orderstatus.Text(item.ToStatus)
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return AdminOrderStatusLogResp{}, err
-	}
-	return AdminOrderStatusLogResp{Items: items}, nil
-}
-
-func refundAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB, req RefundOrderReq, operatorID int64) error {
+func refundAdminOrder(ctx context.Context, svcCtx *svc.ServiceContext, req RefundOrderReq, operatorID int64) error {
 	requestID := tracectx.RequestIDFrom(ctx)
 	if requestID == "" {
 		requestID = req.OrderID + ":admin-refund"
@@ -351,22 +235,6 @@ func gatewayOperatorID(ctx context.Context) int64 {
 		return identity.UserID
 	}
 	return 0
-}
-
-func normalizeAdminDateTimeLower(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) == len("2006-01-02") {
-		return value + " 00:00:00"
-	}
-	return value
-}
-
-func normalizeAdminDateTimeUpper(value string) string {
-	value = strings.TrimSpace(value)
-	if len(value) == len("2006-01-02") {
-		return value + " 23:59:59"
-	}
-	return value
 }
 
 func normalizeAdminPageSize(pageSize int64) int64 {

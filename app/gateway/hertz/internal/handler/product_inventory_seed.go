@@ -43,12 +43,7 @@ func MerchantProductInventorySeedRetryHandler(svcCtx *svc.ServiceContext) app.Ha
 			fail(ctx, c, consts.StatusForbidden, err)
 			return
 		}
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, err)
-			return
-		}
-		owns, err := merchantOwnsGatewayProduct(ctx, db, merchantID, req.ProductID)
+		owns, err := merchantOwnsGatewayProduct(ctx, svcCtx, merchantID, req.ProductID)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, err)
 			return

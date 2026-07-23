@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/gateway/hertz/internal/application/orderquery"
 	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -22,7 +22,7 @@ func MerchantOrderListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		db, merchantID, ready := merchantOrderDB(ctx, c, svcCtx, identity)
+		service, merchantID, ready := merchantOrderAccess(ctx, c, svcCtx, identity)
 		if !ready {
 			return
 		}
@@ -31,7 +31,7 @@ func MerchantOrderListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, err)
 			return
 		}
-		resp, err := loadMerchantOrders(ctx, db, query)
+		resp, err := service.ListMerchantOrders(ctx, query)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant order query failed", err))
 			return
@@ -47,7 +47,7 @@ func MerchantRefundListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		db, merchantID, ready := merchantOrderDB(ctx, c, svcCtx, identity)
+		service, merchantID, ready := merchantOrderAccess(ctx, c, svcCtx, identity)
 		if !ready {
 			return
 		}
@@ -56,7 +56,7 @@ func MerchantRefundListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, err)
 			return
 		}
-		resp, err := loadMerchantRefunds(ctx, db, query)
+		resp, err := service.ListMerchantRefunds(ctx, query)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "merchant refund query failed", err))
 			return
@@ -72,7 +72,7 @@ func MerchantShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusUnauthorized, apperror.New(apperror.CodeUnauthorized, "merchant login required"))
 			return
 		}
-		_, merchantID, ready := merchantOrderDB(ctx, c, svcCtx, identity)
+		_, merchantID, ready := merchantOrderAccess(ctx, c, svcCtx, identity)
 		if !ready {
 			return
 		}
@@ -101,18 +101,17 @@ func MerchantShipOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	}
 }
 
-func merchantOrderDB(ctx context.Context, c *app.RequestContext, svcCtx *svc.ServiceContext, identity authctx.Identity) (*sql.DB, int64, bool) {
-	db, err := orderDB(svcCtx)
+func merchantOrderAccess(ctx context.Context, c *app.RequestContext, svcCtx *svc.ServiceContext, identity authctx.Identity) (*orderquery.BackofficeService, int64, bool) {
+	merchantID, ready := merchantScope(ctx, c, svcCtx, identity)
+	if !ready {
+		return nil, 0, false
+	}
+	service, err := backofficeOrderService(svcCtx)
 	if err != nil {
 		fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
 		return nil, 0, false
 	}
-	merchantID, err := selectedMerchantID(ctx, db, identity)
-	if err != nil {
-		fail(ctx, c, consts.StatusForbidden, err)
-		return nil, 0, false
-	}
-	return db, merchantID, true
+	return service, merchantID, true
 }
 
 func merchantOrderQueryFromRequest(c *app.RequestContext, merchantID int64) (MerchantOrderListReq, error) {
@@ -172,145 +171,6 @@ func merchantRefundQueryFromRequest(c *app.RequestContext, merchantID int64) (Me
 		UserID:     userID,
 		OrderID:    strings.TrimSpace(c.Query("order_id")),
 	}, nil
-}
-
-func loadMerchantOrders(ctx context.Context, db *sql.DB, req MerchantOrderListReq) (MerchantOrderListResp, error) {
-	where := "o.merchant_id = ?"
-	args := []any{req.MerchantID}
-	if req.Status >= 0 {
-		where += " AND o.status = ?"
-		args = append(args, req.Status)
-	}
-	if req.UserID > 0 {
-		where += " AND o.user_id = ?"
-		args = append(args, req.UserID)
-	}
-	if req.ProductID > 0 {
-		where += " AND o.product_id = ?"
-		args = append(args, req.ProductID)
-	}
-	if req.OrderID != "" {
-		where += " AND o.id = ?"
-		args = append(args, req.OrderID)
-	}
-
-	var total int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM orders o WHERE "+where, args...).Scan(&total); err != nil {
-		return MerchantOrderListResp{}, err
-	}
-	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
-	rows, err := db.QueryContext(ctx, `SELECT o.id,
-       o.user_id,
-       o.merchant_id,
-       COALESCE(m.name, ''),
-       o.product_id,
-       COALESCE(s.product_name, ''),
-       o.amount,
-       o.status,
-       COALESCE(s.payable_amount_fen, 0),
-       DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s')
-FROM orders o
-LEFT JOIN order_price_snapshot s ON s.order_id = o.id
-LEFT JOIN merchant m ON m.id = o.merchant_id
-WHERE `+where+`
-ORDER BY o.create_time DESC
-LIMIT ? OFFSET ?`, queryArgs...)
-	if err != nil {
-		return MerchantOrderListResp{}, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]MerchantOrderItem, 0)
-	for rows.Next() {
-		var item MerchantOrderItem
-		if err := rows.Scan(&item.OrderID, &item.UserID, &item.MerchantID, &item.MerchantName, &item.ProductID, &item.ProductName, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
-			return MerchantOrderListResp{}, err
-		}
-		item.StatusText = orderstatus.Text(item.Status)
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return MerchantOrderListResp{}, err
-	}
-	return MerchantOrderListResp{Items: items, Total: total}, nil
-}
-
-func loadMerchantRefunds(ctx context.Context, db *sql.DB, req MerchantRefundListReq) (MerchantRefundListResp, error) {
-	where := "r.merchant_id = ?"
-	args := []any{req.MerchantID}
-	if req.Status >= 0 {
-		where += " AND r.status = ?"
-		args = append(args, req.Status)
-	}
-	if req.UserID > 0 {
-		where += " AND r.user_id = ?"
-		args = append(args, req.UserID)
-	}
-	if req.OrderID != "" {
-		where += " AND r.order_id = ?"
-		args = append(args, req.OrderID)
-	}
-
-	var total int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM refund_order r WHERE "+where, args...).Scan(&total); err != nil {
-		return MerchantRefundListResp{}, err
-	}
-	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
-	rows, err := db.QueryContext(ctx, `SELECT r.id,
-       r.order_id,
-       r.payment_order_id,
-       r.user_id,
-       r.merchant_id,
-       COALESCE(m.name, ''),
-       r.product_id,
-       r.refund_amount_fen,
-       r.status,
-       r.reason,
-       r.audit_remark,
-       r.operator_id,
-       DATE_FORMAT(r.request_time, '%Y-%m-%d %H:%i:%s'),
-       COALESCE(DATE_FORMAT(r.audit_time, '%Y-%m-%d %H:%i:%s'), ''),
-       COALESCE(DATE_FORMAT(r.finish_time, '%Y-%m-%d %H:%i:%s'), '')
-FROM refund_order r
-LEFT JOIN merchant m ON m.id = r.merchant_id
-WHERE `+where+`
-ORDER BY r.create_time DESC
-LIMIT ? OFFSET ?`, queryArgs...)
-	if err != nil {
-		return MerchantRefundListResp{}, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]MerchantRefundItem, 0)
-	for rows.Next() {
-		var item MerchantRefundItem
-		if err := rows.Scan(&item.RefundID, &item.OrderID, &item.PaymentOrderID, &item.UserID, &item.MerchantID, &item.MerchantName, &item.ProductID, &item.RefundAmountFen, &item.Status, &item.Reason, &item.AuditRemark, &item.OperatorID, &item.RequestTime, &item.AuditTime, &item.FinishTime); err != nil {
-			return MerchantRefundListResp{}, err
-		}
-		item.StatusText = refundStatusText(item.Status)
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return MerchantRefundListResp{}, err
-	}
-	return MerchantRefundListResp{Items: items, Total: total}, nil
-}
-
-func refundStatusText(status int64) string {
-	switch status {
-	case 0:
-		return "requested"
-	case 1:
-		return "approved"
-	case 2:
-		return "success"
-	case 3:
-		return "rejected"
-	case 4:
-		return "failed"
-	default:
-		return "unknown"
-	}
 }
 
 func normalizePage(page int64) int64 {

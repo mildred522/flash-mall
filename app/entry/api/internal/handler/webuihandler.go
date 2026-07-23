@@ -1,32 +1,26 @@
 package handler
 
 import (
-	"embed"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 )
 
-// Rebuild this package when embedded storefront copy changes.
-//
-//go:embed web/*.html
-var webUIFS embed.FS
-
 func HomeUIHandler() http.HandlerFunc {
-	return serveHTML("web/index.html", "web/home.html")
+	return serveHTML("shop.html")
 }
 
 func ShopUIHandler() http.HandlerFunc {
-	return serveHTML("web/shop.html", "web/shop.html")
+	return serveHTML("shop.html")
 }
 
 func DebugUIHandler() http.HandlerFunc {
-	return serveHTML("web/debug.html", "web/debug.html")
+	return serveHTML("shop.html")
 }
 
 func AdminUIHandler() http.HandlerFunc {
-	return serveHTML("web/admin.html", "web/admin.html")
+	return serveHTML("admin.html")
 }
 
 func StaticWebAssetHandler(prefix string) http.HandlerFunc {
@@ -37,7 +31,7 @@ func StaticWebAssetHandler(prefix string) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
-		path := filepath.Join("web", strings.Trim(prefix, "/"), rel)
+		path := filepath.Join(resolveWebRoot(), strings.Trim(prefix, "/"), rel)
 		if _, err := os.Stat(path); err != nil {
 			http.NotFound(w, r)
 			return
@@ -46,14 +40,9 @@ func StaticWebAssetHandler(prefix string) http.HandlerFunc {
 	}
 }
 
-func serveHTML(diskPath string, embeddedPath string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if content, err := os.ReadFile(diskPath); err == nil {
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = w.Write(content)
-			return
-		}
-		content, err := webUIFS.ReadFile(embeddedPath)
+func serveHTML(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		content, err := os.ReadFile(filepath.Join(resolveWebRoot(), filepath.Base(name)))
 		if err != nil {
 			http.Error(w, "ui not found", http.StatusInternalServerError)
 			return
@@ -61,4 +50,16 @@ func serveHTML(diskPath string, embeddedPath string) http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write(content)
 	}
+}
+
+func resolveWebRoot() string {
+	if configured := strings.TrimSpace(os.Getenv("FLASH_MALL_WEB_ROOT")); configured != "" {
+		return configured
+	}
+	for _, candidate := range []string{"/app/web", "artifacts/web", "../../../../../artifacts/web"} {
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+	}
+	return "/app/web"
 }

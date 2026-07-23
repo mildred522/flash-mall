@@ -82,7 +82,7 @@ func TestRequestUserRefundDelegatesToOrderRPC(t *testing.T) {
 func TestAuditAdminRefundDelegatesToOrderRPC(t *testing.T) {
 	stub := &refundOrderRPCStub{}
 	svcCtx := &svc.ServiceContext{OrderRpc: stub}
-	statusText, err := auditAdminRefund(context.Background(), svcCtx, nil, AdminRefundAuditReq{
+	statusText, err := auditAdminRefund(context.Background(), svcCtx, AdminRefundAuditReq{
 		RefundID: "rf:order-1", Approve: true, Remark: "approved",
 	}, 9001)
 	if err != nil || statusText != "success" {
@@ -96,7 +96,7 @@ func TestAuditAdminRefundDelegatesToOrderRPC(t *testing.T) {
 func TestRefundAdminOrderUsesRequestThenAuditRPC(t *testing.T) {
 	stub := &refundOrderRPCStub{}
 	svcCtx := &svc.ServiceContext{OrderRpc: stub}
-	err := refundAdminOrder(context.Background(), svcCtx, nil, RefundOrderReq{OrderID: "order-1", Reason: "admin refund"}, 9001)
+	err := refundAdminOrder(context.Background(), svcCtx, RefundOrderReq{OrderID: "order-1", Reason: "admin refund"}, 9001)
 	if err != nil {
 		t.Fatalf("refund admin order: %v", err)
 	}

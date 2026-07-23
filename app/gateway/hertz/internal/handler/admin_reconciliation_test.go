@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
+
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
@@ -18,8 +20,6 @@ func TestScanGatewayReconciliationIssues_CoversStatusMismatchesWithoutDuplicates
 	if err != nil {
 		t.Fatalf("open order db: %v", err)
 	}
-	ensureReconciliationIssueKey(t, db)
-
 	prefix := fmt.Sprintf("reconcile-%d", time.Now().UnixNano())
 	cases := []struct {
 		orderID, issueType string
@@ -40,10 +40,11 @@ func TestScanGatewayReconciliationIssues_CoversStatusMismatchesWithoutDuplicates
 		}
 	})
 
-	if _, err = scanGatewayReconciliationIssues(context.Background(), db); err != nil {
+	repository := ordermysql.NewReconciliationRepository(db)
+	if _, err = repository.Scan(context.Background()); err != nil {
 		t.Fatalf("first reconciliation scan: %v", err)
 	}
-	if _, err = scanGatewayReconciliationIssues(context.Background(), db); err != nil {
+	if _, err = repository.Scan(context.Background()); err != nil {
 		t.Fatalf("second reconciliation scan: %v", err)
 	}
 	for _, tc := range cases {
@@ -55,30 +56,6 @@ func TestScanGatewayReconciliationIssues_CoversStatusMismatchesWithoutDuplicates
 		}
 		if count != 1 {
 			t.Errorf("issue %s count = %d, want 1", tc.issueType, count)
-		}
-	}
-}
-
-func ensureReconciliationIssueKey(t *testing.T, db *sql.DB) {
-	t.Helper()
-	var count int64
-	if err := db.QueryRow(`SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reconciliation_issue' AND COLUMN_NAME='issue_key'`).Scan(&count); err != nil {
-		t.Fatalf("inspect issue_key: %v", err)
-	}
-	if count == 0 {
-		if _, err := db.Exec("ALTER TABLE reconciliation_issue ADD COLUMN issue_key varchar(192) NULL AFTER id"); err != nil {
-			t.Fatalf("add issue_key: %v", err)
-		}
-	}
-	if _, err := db.Exec("UPDATE reconciliation_issue SET issue_key=CONCAT(issue_type, ':', order_id, ':', payment_order_id, ':', refund_order_id, ':legacy:', id) WHERE issue_key IS NULL OR issue_key = ''"); err != nil {
-		t.Fatalf("backfill issue_key: %v", err)
-	}
-	if err := db.QueryRow(`SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reconciliation_issue' AND INDEX_NAME='uniq_issue_key'`).Scan(&count); err != nil {
-		t.Fatalf("inspect issue key index: %v", err)
-	}
-	if count == 0 {
-		if _, err := db.Exec("ALTER TABLE reconciliation_issue ADD UNIQUE KEY uniq_issue_key (issue_key)"); err != nil {
-			t.Fatalf("add issue key index: %v", err)
 		}
 	}
 }

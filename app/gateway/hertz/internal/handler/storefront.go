@@ -2,9 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
-	"strings"
 	"time"
 
 	"flash-mall/app/common/apperror"
@@ -14,60 +11,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
-
-func loadPublicStoreDetail(ctx context.Context, db *sql.DB, merchantID int64) (PublicStoreDetail, error) {
-	var detail PublicStoreDetail
-	err := db.QueryRowContext(ctx, `
-SELECT m.id, m.name,
-       COALESCE(profile.logo_url, ''), COALESCE(profile.banner_url, ''),
-       COALESCE(profile.description, ''), m.status,
-       (SELECT COUNT(*) FROM mall_product.product p WHERE p.merchant_id = m.id AND p.status = 1)
-FROM mall_order.merchant m
-LEFT JOIN mall_order.merchant_store_profile profile ON profile.merchant_id = m.id
-WHERE m.id = ? AND m.status = 1`, merchantID).Scan(
-		&detail.MerchantID,
-		&detail.MerchantName,
-		&detail.LogoURL,
-		&detail.BannerURL,
-		&detail.Description,
-		&detail.Status,
-		&detail.ProductCount,
-	)
-	return detail, err
-}
-
-func loadStoreProductIDs(ctx context.Context, db *sql.DB, merchantID int64, keyword string, page, pageSize int64) ([]int64, int64, error) {
-	where := "p.merchant_id = ? AND p.status = ?"
-	args := []any{merchantID, int64(1)}
-	if keyword = strings.TrimSpace(keyword); keyword != "" {
-		where += " AND p.name LIKE ?"
-		args = append(args, "%"+keyword+"%")
-	}
-	var total int64
-	if err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM mall_product.product p WHERE %s", where), args...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	if total == 0 {
-		return []int64{}, 0, nil
-	}
-	offset := (page - 1) * pageSize
-	queryArgs := append(append([]any{}, args...), pageSize, offset)
-	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT p.id FROM mall_product.product p
-WHERE %s ORDER BY p.create_time DESC, p.id DESC LIMIT ? OFFSET ?`, where), queryArgs...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer func() { _ = rows.Close() }()
-	ids := make([]int64, 0, pageSize)
-	for rows.Next() {
-		var productID int64
-		if err := rows.Scan(&productID); err != nil {
-			return nil, 0, err
-		}
-		ids = append(ids, productID)
-	}
-	return ids, total, rows.Err()
-}
 
 func productMetaPubliclyVisible(meta productMeta) bool {
 	return meta.ProductStatus == 1 && meta.StoreStatus == 1
@@ -98,17 +41,14 @@ func StoreDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		detail, _, err := loadCachedJSON(ctx, svcCtx, storeDetailCacheKey(merchantID), func(loadCtx context.Context) (PublicStoreDetail, error) {
-			db, dbErr := svcCtx.SqlConn.RawDB()
-			if dbErr != nil {
-				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			service, serviceErr := catalogQueryService(svcCtx)
+			if serviceErr != nil {
+				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", serviceErr)
 			}
-			if dbErr = requireMerchantStoreProfileSchema(loadCtx, db); dbErr != nil {
-				return PublicStoreDetail{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
-			}
-			return loadPublicStoreDetail(loadCtx, db, merchantID)
+			return service.StoreDetail(loadCtx, merchantID)
 		})
-		if err == sql.ErrNoRows {
-			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeMerchantNotFound, "merchant store not found"))
+		if apperror.CodeOf(err) == apperror.CodeMerchantNotFound {
+			fail(ctx, c, consts.StatusNotFound, err)
 			return
 		}
 		if err != nil {
@@ -145,17 +85,18 @@ func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 		keyword := c.Query("keyword")
 		products, _, err := loadCachedJSON(ctx, svcCtx, storeProductsCacheKey(merchantID, page, pageSize, keyword), func(loadCtx context.Context) (StoreProductListResp, error) {
-			db, dbErr := svcCtx.SqlConn.RawDB()
-			if dbErr != nil {
-				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			service, serviceErr := catalogQueryService(svcCtx)
+			if serviceErr != nil {
+				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", serviceErr)
 			}
-			if _, dbErr = loadPublicStoreDetail(loadCtx, db, merchantID); dbErr != nil {
-				return StoreProductListResp{}, dbErr
+			if _, serviceErr = service.StoreDetail(loadCtx, merchantID); serviceErr != nil {
+				return StoreProductListResp{}, serviceErr
 			}
-			ids, total, loadErr := loadStoreProductIDs(loadCtx, db, merchantID, keyword, page, pageSize)
+			idPage, loadErr := service.StoreProductIDs(loadCtx, merchantID, keyword, page, pageSize)
 			if loadErr != nil {
 				return StoreProductListResp{}, apperror.Wrap(apperror.CodeInternal, "store product query failed", loadErr)
 			}
+			ids, total := idPage.ProductIDs, idPage.Total
 			if len(ids) == 0 {
 				return StoreProductListResp{Items: []ProductCard{}, Total: total, Page: page, PageSize: pageSize}, nil
 			}
@@ -166,8 +107,8 @@ func StoreProductListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			cards := buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, ids), nil)
 			return StoreProductListResp{Items: orderProductCards(ids, cards), Total: total, Page: page, PageSize: pageSize}, nil
 		})
-		if err == sql.ErrNoRows {
-			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeMerchantNotFound, "merchant store not found"))
+		if apperror.CodeOf(err) == apperror.CodeMerchantNotFound {
+			fail(ctx, c, consts.StatusNotFound, err)
 			return
 		}
 		if err != nil {

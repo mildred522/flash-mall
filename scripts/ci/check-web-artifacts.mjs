@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 
@@ -8,12 +8,22 @@ const files = process.argv.slice(2);
 const targets = files.length > 0
   ? files.map((file) => resolve(file))
   : [
-      resolve(repositoryRoot, 'app/entry/api/internal/handler/web/shop.html'),
-      resolve(repositoryRoot, 'app/entry/api/internal/handler/web/admin.html'),
-      resolve(repositoryRoot, 'app/entry/api/internal/handler/web/merchant.html'),
+      resolve(repositoryRoot, 'artifacts/web/shop.html'),
+      resolve(repositoryRoot, 'artifacts/web/admin.html'),
+      resolve(repositoryRoot, 'artifacts/web/merchant.html'),
     ];
 
 let failed = false;
+for (const legacyPath of [
+  resolve(repositoryRoot, 'web/package.json'),
+  resolve(repositoryRoot, 'app/entry/api/internal/handler/web/admin.html'),
+]) {
+  if (existsSync(legacyPath)) {
+    console.error(`[FAIL] legacy frontend path still exists: ${legacyPath}`);
+    failed = true;
+  }
+}
+
 for (const target of targets) {
   let html;
   try {

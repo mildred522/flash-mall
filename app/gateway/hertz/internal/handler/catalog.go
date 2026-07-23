@@ -2,38 +2,15 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"fmt"
-	"strconv"
-	"strings"
 
 	"flash-mall/app/common/apperror"
-	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/zeromicro/go-zero/core/logx"
 )
-
-const (
-	defaultProductPage     int64 = 1
-	defaultProductPageSize int64 = 20
-	maxProductPageSize     int64 = 100
-)
-
-type productListQuery struct {
-	Page       int64
-	PageSize   int64
-	Keyword    string
-	ProductID  int64
-	MerchantID int64
-	SupplierID int64
-	CategoryID int64
-	Status     int64
-}
 
 func CatalogHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 	return ShowcaseCatalogHandler(svcCtx)
@@ -86,22 +63,20 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 
 		detail, _, err := loadCachedJSON(ctx, svcCtx, productDetailCacheKey(productID), func(loadCtx context.Context) (ProductDetailResp, error) {
-			db, dbErr := svcCtx.SqlConn.RawDB()
-			if dbErr != nil {
-				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
-			}
-			if dbErr = requireMerchantStoreProfileSchema(loadCtx, db); dbErr != nil {
-				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "merchant store schema unavailable", dbErr)
-			}
 			meta := loadProductMeta(loadCtx, svcCtx, []int64{productID})
 			mainMeta, exists := meta[productID]
 			if !exists || !productMetaPubliclyVisible(mainMeta) {
 				return ProductDetailResp{}, apperror.New(apperror.CodeProductNotFound, "product not found")
 			}
-			relatedIDs, _, loadErr := loadStoreProductIDs(loadCtx, db, mainMeta.MerchantID, "", 1, 5)
+			service, loadErr := catalogQueryService(svcCtx)
+			if loadErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", loadErr)
+			}
+			relatedPage, loadErr := service.StoreProductIDs(loadCtx, mainMeta.MerchantID, "", 1, 5)
 			if loadErr != nil {
 				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "related product query failed", loadErr)
 			}
+			relatedIDs := relatedPage.ProductIDs
 			relatedIDs = excludeProductID(relatedIDs, productID, 4)
 			allIDs := append([]int64{productID}, relatedIDs...)
 			resp, rpcErr := svcCtx.ProductRpc.ListProducts(loadCtx, &productclient.ListProductsReq{ProductIds: allIDs})
@@ -141,292 +116,14 @@ func excludeProductID(ids []int64, excluded int64, limit int) []int64 {
 	return result
 }
 
-func parseProductListQuery(c *app.RequestContext, activeOnly bool) (productListQuery, *apperror.Error) {
-	page, err := parseInt64Default(c.Query("page"), defaultProductPage)
-	if err != nil || page <= 0 {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "page must be positive")
-	}
-	pageSize, err := parseInt64Default(c.Query("page_size"), defaultProductPageSize)
-	if err != nil || pageSize <= 0 {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "page_size must be positive")
-	}
-	if pageSize > maxProductPageSize {
-		pageSize = maxProductPageSize
-	}
-	productID, err := parseOptionalInt64(c.Query("product_id"))
-	if err != nil {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "product_id must be numeric")
-	}
-	merchantID, err := parseOptionalInt64(c.Query("merchant_id"))
-	if err != nil {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "merchant_id must be numeric")
-	}
-	supplierID, err := parseOptionalInt64(c.Query("supplier_id"))
-	if err != nil {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "supplier_id must be numeric")
-	}
-	categoryID, err := parseOptionalInt64(c.Query("category_id"))
-	if err != nil {
-		return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "category_id must be numeric")
-	}
-	status := int64(1)
-	if !activeOnly {
-		status, err = parseInt64Default(c.Query("status"), -1)
-		if err != nil {
-			return productListQuery{}, apperror.New(apperror.CodeInvalidArgument, "status must be numeric")
-		}
-	}
-	return productListQuery{
-		Page:       page,
-		PageSize:   pageSize,
-		Keyword:    strings.TrimSpace(c.Query("keyword")),
-		ProductID:  productID,
-		MerchantID: merchantID,
-		SupplierID: supplierID,
-		CategoryID: categoryID,
-		Status:     status,
-	}, nil
-}
-
-func (q productListQuery) hasNoFilters() bool {
-	return q.Keyword == "" &&
-		q.ProductID == 0 &&
-		q.MerchantID == 0 &&
-		q.SupplierID == 0 &&
-		q.CategoryID == 0
-}
-
 func loadProductIDs(ctx context.Context, svcCtx *svc.ServiceContext, req productListQuery) ([]int64, int64, error) {
-	db, err := svcCtx.SqlConn.RawDB()
+	service, err := catalogQueryService(svcCtx)
 	if err != nil {
 		return nil, 0, err
 	}
-	where, args, err := productWhereClause(ctx, db, req)
+	page, err := service.ProductIDs(ctx, req)
 	if err != nil {
 		return nil, 0, err
 	}
-
-	var total int64
-	if err := db.QueryRowContext(ctx, fmt.Sprintf("SELECT COUNT(*) FROM mall_product.product p WHERE %s", where), args...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-	if total == 0 {
-		return nil, 0, nil
-	}
-
-	offset := (req.Page - 1) * req.PageSize
-	queryArgs := append(append([]any{}, args...), req.PageSize, offset)
-	rows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT p.id FROM mall_product.product p WHERE %s ORDER BY p.id DESC LIMIT ? OFFSET ?", where), queryArgs...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	productIDs := make([]int64, 0, req.PageSize)
-	for rows.Next() {
-		var productID int64
-		if err := rows.Scan(&productID); err != nil {
-			return nil, 0, err
-		}
-		productIDs = append(productIDs, productID)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
-	}
-	return productIDs, total, nil
-}
-
-func productWhereClause(ctx context.Context, db *sql.DB, req productListQuery) (string, []any, error) {
-	where := "1=1"
-	args := make([]any, 0, 5)
-	if req.Status >= 0 {
-		where += " AND p.status = ?"
-		args = append(args, req.Status)
-	}
-	if req.ProductID > 0 {
-		where += " AND p.id = ?"
-		args = append(args, req.ProductID)
-	}
-	if req.MerchantID > 0 {
-		where += " AND p.merchant_id = ?"
-		args = append(args, req.MerchantID)
-	}
-	if req.SupplierID > 0 {
-		where += " AND p.supplier_id = ?"
-		args = append(args, req.SupplierID)
-	}
-	if req.Keyword != "" {
-		where += " AND p.name LIKE ?"
-		args = append(args, "%"+req.Keyword+"%")
-	}
-	if req.CategoryID > 0 {
-		ok, err := productColumnExists(ctx, db, "category_id")
-		if err != nil {
-			return "", nil, err
-		}
-		if !ok {
-			return "", nil, apperror.New(apperror.CodeInvalidArgument, "category filter is not available")
-		}
-		where += " AND p.category_id = ?"
-		args = append(args, req.CategoryID)
-	}
-	return where, args, nil
-}
-
-type productMeta struct {
-	ImageURL      string
-	SupplierName  string
-	MerchantID    int64
-	MerchantName  string
-	MerchantLogo  string
-	StoreStatus   int64
-	ProductStatus int64
-}
-
-func loadProductMeta(ctx context.Context, svcCtx *svc.ServiceContext, productIDs []int64) map[int64]productMeta {
-	result := make(map[int64]productMeta, len(productIDs))
-	if len(productIDs) == 0 {
-		return result
-	}
-	db, err := svcCtx.SqlConn.RawDB()
-	if err != nil {
-		logx.WithContext(ctx).Errorf("gateway product meta db failed: %v", err)
-		return result
-	}
-	if err := requireMerchantStoreProfileSchema(ctx, db); err != nil {
-		logx.WithContext(ctx).Errorf("gateway merchant store schema failed: %v", err)
-		return result
-	}
-
-	placeholders := make([]string, 0, len(productIDs))
-	args := make([]any, 0, len(productIDs))
-	for _, productID := range productIDs {
-		placeholders = append(placeholders, "?")
-		args = append(args, productID)
-	}
-	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
-SELECT p.id, COALESCE(p.image_url, ''), COALESCE(s.name, ''),
-       p.merchant_id, COALESCE(m.name, ''), COALESCE(profile.logo_url, ''),
-       COALESCE(m.status, 0), p.status
-FROM mall_product.product p
-LEFT JOIN mall_product.supplier s ON s.id = p.supplier_id
-LEFT JOIN mall_order.merchant m ON m.id = p.merchant_id
-LEFT JOIN mall_order.merchant_store_profile profile ON profile.merchant_id = p.merchant_id
-WHERE p.id IN (%s)`, strings.Join(placeholders, ",")), args...)
-	if err != nil {
-		logx.WithContext(ctx).Errorf("gateway product meta query failed: %v", err)
-		return result
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var productID int64
-		var meta productMeta
-		if err := rows.Scan(&productID, &meta.ImageURL, &meta.SupplierName, &meta.MerchantID,
-			&meta.MerchantName, &meta.MerchantLogo, &meta.StoreStatus, &meta.ProductStatus); err == nil {
-			result[productID] = meta
-		}
-	}
-	return result
-}
-
-func buildProductCards(items []*productclient.GetProductCardResp, meta map[int64]productMeta, stocks map[int64]ports.Stock) map[int64]ProductCard {
-	cards := make(map[int64]ProductCard, len(items))
-	for _, item := range items {
-		if item == nil {
-			continue
-		}
-		m := meta[item.ProductId]
-		stockAvailable := item.StockAvailable
-		var stockReserved int64
-		var stockTotal int64
-		stockSource := "product-rpc"
-		if stock, ok := stocks[item.ProductId]; ok {
-			stockAvailable = stock.Available
-			stockReserved = stock.Reserved
-			stockTotal = stock.Total
-			stockSource = stockSourceInventoryKitex
-		}
-		cards[item.ProductId] = ProductCard{
-			ProductID:      item.ProductId,
-			Name:           item.Name,
-			ImageURL:       m.ImageURL,
-			OriginPriceFen: item.OriginPriceFen,
-			FinalPriceFen:  item.FinalPriceFen,
-			SupplierID:     item.SupplierId,
-			SupplierName:   m.SupplierName,
-			PromotionTag:   item.PromotionTag,
-			StockAvailable: stockAvailable,
-			StockReserved:  stockReserved,
-			StockTotal:     stockTotal,
-			StockSource:    stockSource,
-			MerchantID:     m.MerchantID,
-			MerchantName:   m.MerchantName,
-			MerchantLogo:   m.MerchantLogo,
-			StoreURL:       fmt.Sprintf("/store/%d", m.MerchantID),
-			StoreStatus:    m.StoreStatus,
-		}
-	}
-	return cards
-}
-
-func loadCatalogInventoryStocks(ctx context.Context, svcCtx *svc.ServiceContext, productIDs []int64) map[int64]ports.Stock {
-	result := make(map[int64]ports.Stock, len(productIDs))
-	if !svcCtx.Config.EnableLiveStockOverlay || svcCtx.InventoryRpc == nil || len(productIDs) == 0 {
-		return result
-	}
-	stocks, err := svcCtx.InventoryRpc.BatchGetStock(ctx, productIDs, inventoryRequestMeta(ctx))
-	if err != nil {
-		logx.WithContext(ctx).Errorf("gateway batch inventory stock query failed: count=%d err=%v", len(productIDs), err)
-		return result
-	}
-	return stocks
-}
-
-func orderProductCards(productIDs []int64, cards map[int64]ProductCard) []ProductCard {
-	ordered := make([]ProductCard, 0, len(cards))
-	for _, productID := range productIDs {
-		if card, ok := cards[productID]; ok {
-			ordered = append(ordered, card)
-		}
-	}
-	return ordered
-}
-
-func productColumnExists(ctx context.Context, db *sql.DB, column string) (bool, error) {
-	var exists int64
-	err := db.QueryRowContext(ctx, `
-SELECT COUNT(*)
-FROM information_schema.COLUMNS
-WHERE TABLE_SCHEMA = 'mall_product'
-  AND TABLE_NAME = 'product'
-  AND COLUMN_NAME = ?`, column).Scan(&exists)
-	return exists > 0, err
-}
-
-func parsePositiveInt64(raw string) (int64, error) {
-	value, err := parseOptionalInt64(raw)
-	if err != nil {
-		return 0, err
-	}
-	if value <= 0 {
-		return 0, strconv.ErrSyntax
-	}
-	return value, nil
-}
-
-func parseOptionalInt64(raw string) (int64, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, nil
-	}
-	return strconv.ParseInt(raw, 10, 64)
-}
-
-func parseInt64Default(raw string, fallback int64) (int64, error) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return fallback, nil
-	}
-	return strconv.ParseInt(raw, 10, 64)
+	return page.ProductIDs, page.Total, nil
 }

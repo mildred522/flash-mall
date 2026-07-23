@@ -78,8 +78,11 @@ func invalidateProductReadCaches(ctx context.Context, svcCtx *svc.ServiceContext
 		return
 	}
 	if merchantID <= 0 {
-		if db, err := svcCtx.SqlConn.RawDB(); err == nil {
-			_ = db.QueryRowContext(ctx, "SELECT merchant_id FROM mall_product.product WHERE id = ?", productID).Scan(&merchantID)
+		if svcCtx.CatalogQueries != nil {
+			metadata, err := svcCtx.CatalogQueries.ProductMetadata(ctx, []int64{productID})
+			if err == nil {
+				merchantID = metadata[productID].MerchantID
+			}
 		}
 	}
 	if err := svcCtx.Cache.Invalidate(ctx, showcaseCatalogCacheKey, productDetailCacheKey(productID)); err != nil {

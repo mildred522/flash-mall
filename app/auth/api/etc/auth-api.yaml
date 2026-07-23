@@ -6,6 +6,7 @@ Timeout: 8000
 JwtAuthSecret: ${FLASH_MALL_JWT_AUTH_SECRET}
 JwtExpireSeconds: 7200
 DemoPassword: ${FLASH_MALL_DEMO_PASSWORD}
+StorageMode: mysql
 DataSource: ${FLASH_MALL_AUTH_DATASOURCE}
 RedisConf:
   Host: 127.0.0.1:6379

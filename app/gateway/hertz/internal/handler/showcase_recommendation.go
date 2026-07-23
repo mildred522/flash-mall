@@ -2,24 +2,19 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
 	"flash-mall/app/common/apperror"
+	showcaseapp "flash-mall/app/gateway/hertz/internal/application/showcase"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 )
-
-type showcaseCandidateQuery struct {
-	Keyword    string
-	MerchantID int64
-}
 
 type showcaseCandidateFeature struct {
 	Product              ProductCard
@@ -29,63 +24,6 @@ type showcaseCandidateFeature struct {
 	CreatedAt            time.Time
 	AgeDays              int
 	CurrentMerchantSlots int
-}
-
-func loadShowcaseCandidateFeatures(ctx context.Context, db *sql.DB, req showcaseCandidateQuery) ([]showcaseCandidateFeature, error) {
-	where := []string{
-		"product.status = 1",
-		"merchant.status = 1",
-		"COALESCE(stock.available, product.stock, 0) > 0",
-		"existing.product_id IS NULL",
-	}
-	args := make([]any, 0, 3)
-	if keyword := strings.TrimSpace(req.Keyword); keyword != "" {
-		where = append(where, "(product.name LIKE ? OR merchant.name LIKE ?)")
-		args = append(args, "%"+keyword+"%", "%"+keyword+"%")
-	}
-	if req.MerchantID > 0 {
-		where = append(where, "product.merchant_id = ?")
-		args = append(args, req.MerchantID)
-	}
-	rows, err := db.QueryContext(ctx, fmt.Sprintf(`SELECT product.id, product.merchant_id,
-       (SELECT COALESCE(SUM(orders.amount), 0) FROM mall_order.orders orders
-        WHERE orders.product_id = product.id AND orders.status IN (1,3,4,5,6)
-          AND orders.create_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS sales_7d,
-       COALESCE(stock.available, product.stock, 0) AS stock_available,
-       IF(EXISTS(SELECT 1 FROM mall_product.promotion_rule promotion
-                 WHERE promotion.product_id = product.id AND promotion.status = 1
-                   AND promotion.starts_at <= NOW() AND promotion.ends_at >= NOW()), 1, 0) AS has_promotion,
-       product.create_time, GREATEST(DATEDIFF(NOW(), product.create_time), 0) AS age_days,
-       (SELECT COUNT(*) FROM mall_product.homepage_showcase_item current_item
-        JOIN mall_product.product current_product ON current_product.id = current_item.product_id AND current_product.status = 1
-        JOIN mall_order.merchant current_merchant ON current_merchant.id = current_product.merchant_id AND current_merchant.status = 1
-        LEFT JOIN mall_product.product_stock_snapshot current_stock ON current_stock.product_id = current_product.id
-        WHERE current_item.showcase_id = 1 AND current_product.merchant_id = product.merchant_id
-          AND COALESCE(current_stock.available, current_product.stock, 0) > 0) AS current_slots
-FROM mall_product.product product
-JOIN mall_order.merchant merchant ON merchant.id = product.merchant_id
-LEFT JOIN mall_product.product_stock_snapshot stock ON stock.product_id = product.id
-LEFT JOIN mall_product.homepage_showcase_item existing
-  ON existing.showcase_id = 1 AND existing.product_id = product.id
-WHERE %s
-HAVING current_slots < 2`, strings.Join(where, " AND ")), args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-	features := make([]showcaseCandidateFeature, 0)
-	for rows.Next() {
-		var feature showcaseCandidateFeature
-		var hasPromotion int64
-		if err := rows.Scan(&feature.Product.ProductID, &feature.Product.MerchantID, &feature.Sales7d,
-			&feature.StockAvailable, &hasPromotion, &feature.CreatedAt, &feature.AgeDays,
-			&feature.CurrentMerchantSlots); err != nil {
-			return nil, err
-		}
-		feature.HasPromotion = hasPromotion == 1
-		features = append(features, feature)
-	}
-	return features, rows.Err()
 }
 
 func salesScore(sales7d int64) int {
@@ -223,20 +161,16 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 		}
 		keyword := strings.TrimSpace(c.Query("keyword"))
 		result, source, err := loadCachedJSON(ctx, svcCtx, showcaseCandidatesCacheKey(page, pageSize, merchantID, keyword), func(loadCtx context.Context) (ShowcaseCandidatesResp, error) {
-			db, dbErr := svcCtx.SqlConn.RawDB()
-			if dbErr != nil {
-				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", dbErr)
+			if svcCtx.Showcases == nil {
+				return ShowcaseCandidatesResp{}, apperror.New(apperror.CodeInternal, "showcase service unavailable")
 			}
-			if dbErr = requireStorefrontSchema(loadCtx, db); dbErr != nil {
-				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "showcase schema unavailable", dbErr)
-			}
-			features, loadErr := loadShowcaseCandidateFeatures(loadCtx, db, showcaseCandidateQuery{Keyword: keyword, MerchantID: merchantID})
+			features, loadErr := svcCtx.Showcases.CandidateFeatures(loadCtx, showcaseapp.CandidateQuery{Keyword: keyword, MerchantID: merchantID})
 			if loadErr != nil {
 				return ShowcaseCandidatesResp{}, apperror.Wrap(apperror.CodeInternal, "showcase candidate query failed", loadErr)
 			}
 			productIDs := make([]int64, 0, len(features))
 			for _, feature := range features {
-				productIDs = append(productIDs, feature.Product.ProductID)
+				productIDs = append(productIDs, feature.ProductID)
 			}
 			cards := make(map[int64]ProductCard)
 			if len(productIDs) > 0 {
@@ -248,10 +182,13 @@ func AdminShowcaseCandidatesHandler(svcCtx *svc.ServiceContext) app.HandlerFunc 
 			}
 			hydrated := make([]showcaseCandidateFeature, 0, len(features))
 			for _, feature := range features {
-				card, exists := cards[feature.Product.ProductID]
+				card, exists := cards[feature.ProductID]
 				if exists {
-					feature.Product = card
-					hydrated = append(hydrated, feature)
+					hydrated = append(hydrated, showcaseCandidateFeature{
+						Product: card, Sales7d: feature.Sales7d, StockAvailable: feature.StockAvailable,
+						HasPromotion: feature.HasPromotion, CreatedAt: feature.CreatedAt, AgeDays: feature.AgeDays,
+						CurrentMerchantSlots: feature.CurrentMerchantSlots,
+					})
 				}
 			}
 			ranked := rankShowcaseCandidates(hydrated)

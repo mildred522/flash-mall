@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"flash-mall/app/gateway/hertz/internal/adapters/productmysql"
+	showcaseapp "flash-mall/app/gateway/hertz/internal/application/showcase"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -88,11 +90,11 @@ func TestLoadShowcaseCandidateFeaturesFiltersEligibleProducts(t *testing.T) {
 			"product_id", "merchant_id", "sales_7d", "stock_available", "has_promotion", "create_time", "age_days", "current_slots",
 		}).AddRow(105, 1000, 12, 30, 1, createdAt, 3, 1))
 
-	got, err := loadShowcaseCandidateFeatures(context.Background(), db, showcaseCandidateQuery{Keyword: "风衣", MerchantID: 1000})
+	got, err := productmysql.NewShowcaseRepository(db).CandidateFeatures(context.Background(), showcaseapp.CandidateQuery{Keyword: "风衣", MerchantID: 1000})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Product.ProductID != 105 || got[0].Sales7d != 12 || !got[0].HasPromotion || got[0].CurrentMerchantSlots != 1 {
+	if len(got) != 1 || got[0].ProductID != 105 || got[0].Sales7d != 12 || !got[0].HasPromotion || got[0].CurrentMerchantSlots != 1 {
 		t.Fatalf("unexpected features: %#v", got)
 	}
 }

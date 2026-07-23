@@ -20,7 +20,6 @@ jobs:
     outputs:
       go: ${{ steps.filter.outputs.go }}
       frontend: ${{ steps.filter.outputs.frontend }}
-      web: ${{ steps.filter.outputs.web }}
       ci: ${{ steps.filter.outputs.ci }}
       entry_contract: ${{ steps.filter.outputs.entry_contract }}
       auth_contract: ${{ steps.filter.outputs.auth_contract }}
@@ -47,13 +46,14 @@ jobs:
               - '.github/workflows/**'
             frontend:
               - 'frontend/**'
-              - 'app/entry/api/internal/handler/web/*.html'
+              - 'artifacts/web/**'
               - 'scripts/ci/check-web-artifacts.mjs'
-            web:
-              - 'web/**'
             ci:
               - '.github/workflows/**'
               - 'scripts/ci/**'
+              - 'scripts/k8s/init-db.sql'
+              - 'scripts/k8s/sql/**'
+              - 'scripts/k8s/build-init-db.mjs'
               - 'deploy/docker-compose.yml'
               - 'build/docker/**'
             entry_contract:
@@ -152,19 +152,6 @@ jobs:
       - name: Parse committed single-file artifacts
         run: node scripts/ci/check-web-artifacts.mjs
 
-  web-build:
-    needs: changes
-    if: needs.changes.outputs.web == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: cd web && npm ci && npm run build
-
   ci-config-check:
     needs: changes
     if: needs.changes.outputs.ci == 'true'
@@ -177,6 +164,8 @@ jobs:
           cache: true
       - name: Check CI shell syntax
         run: find scripts/ci -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
+      - name: Check database initialization aggregate
+        run: node scripts/ci/check-init-db-modules.mjs
       - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 

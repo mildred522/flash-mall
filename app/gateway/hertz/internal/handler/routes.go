@@ -19,5 +19,4 @@ func RegisterRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt time.
 	registerOrderRoutes(h, svcCtx)
 	registerAdminRoutes(h, svcCtx)
 	registerMerchantRoutes(h, svcCtx)
-	registerCompatibilityRoutes(h, svcCtx, startedAt)
 }

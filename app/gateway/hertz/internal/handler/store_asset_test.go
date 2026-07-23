@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"flash-mall/app/common/authctx"
+	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
+	"flash-mall/app/gateway/hertz/internal/application/merchantquery"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -17,7 +19,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/ut"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
 
 func TestProductImageExtRequiresMatchingDetectedType(t *testing.T) {
@@ -107,8 +108,8 @@ func TestMerchantStoreAssetUploadStoresImageUnderMerchantDirectory(t *testing.T)
 	}
 
 	svcCtx := &svc.ServiceContext{
-		Config:       config.Config{UploadDir: t.TempDir()},
-		OrderSqlConn: sqlx.NewSqlConnFromDB(db),
+		Config:          config.Config{UploadDir: t.TempDir()},
+		MerchantQueries: merchantquery.NewService(ordermysql.NewMerchantProfileRepository(db)),
 	}
 	h := server.Default()
 	h.POST("/upload", func(ctx context.Context, c *app.RequestContext) {

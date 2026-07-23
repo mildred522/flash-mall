@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Button, Form, Image, Input, InputNumber, Modal, Space, Table, Tag, message } from 'antd';
+import { Button, Form, Table, message } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { authed, formatPriceFen, uploadProductImage } from '@flash-mall/shared';
+import { authed, uploadProductImage } from '@flash-mall/shared';
 import type {
   AdminMutationResp,
   AdminProductCreateReq,
@@ -11,24 +11,14 @@ import type {
   AdminProductStockAdjustResp,
   AdminProductUpdateReq,
 } from '@flash-mall/shared';
-
-type ProductFormValues = {
-  name: string;
-  image_url?: string;
-  origin_price_fen: number;
-  sale_price_fen: number;
-  supplier_id: number;
-  stock_available?: number;
-  status: number;
-};
-
-type StockFormValues = { delta: number; bucket_idx: number };
-
-function errorText(data: AdminMutationResp): string {
-  if (data.error === 'sale_price_fen must be <= origin_price_fen') return '售价不能高于原价';
-  if (data.error === 'active supplier not found') return '供应商不可用';
-  return data.error || '';
-}
+import MerchantProductEditorModal from '../components/products/MerchantProductEditorModal';
+import StockAdjustModal from '../components/products/StockAdjustModal';
+import { createMerchantProductColumns } from '../components/products/productColumns';
+import {
+  productMutationError,
+  type ProductFormValues,
+  type StockFormValues,
+} from '../components/products/productModel';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<AdminProductItem[]>([]);
@@ -41,7 +31,6 @@ export default function ProductsPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [productForm] = Form.useForm<ProductFormValues>();
   const [stockForm] = Form.useForm<StockFormValues>();
-  const watchedImageURL = Form.useWatch('image_url', productForm);
 
   const loadProducts = async () => {
     setLoading(true);
@@ -92,7 +81,7 @@ export default function ProductsPage() {
         : { ...values, image_url: imageURL };
       const endpoint = editing ? '/api/merchant/products/update' : '/api/merchant/products/create';
       const response = await authed<AdminMutationResp | AdminProductCreateResp>(endpoint, { method: 'POST', jsonBody });
-      const error = errorText(response.data);
+      const error = productMutationError(response.data);
       if (!response.ok || error) {
         message.error(error || '商品保存失败');
         return;
@@ -122,7 +111,7 @@ export default function ProductsPage() {
         method: 'POST', jsonBody: { product_id: stockProduct.product_id, ...values },
       });
       if (!response.ok) {
-        message.error(errorText(response.data) || '库存调整失败');
+        message.error(productMutationError(response.data) || '库存调整失败');
         return;
       }
       message.success(`库存已更新为 ${response.data.stock_available}`);
@@ -146,100 +135,26 @@ export default function ProductsPage() {
             <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>新增商品</Button>
           </div>
         )}
-        columns={[
-          { title: '商品ID', dataIndex: 'product_id', width: 100 },
-          {
-            title: '图片', dataIndex: 'image_url', width: 88,
-            render: (value: string, row) => value
-              ? <Image width={48} height={48} src={value} alt={`${row.name} 商品图`} style={{ objectFit: 'cover', borderRadius: 6 }} />
-              : <span style={{ color: '#999' }}>无图</span>,
-          },
-          { title: '名称', dataIndex: 'name' },
-          { title: '供应商ID', dataIndex: 'supplier_id', width: 110 },
-          { title: '售价', dataIndex: 'sale_price_fen', width: 110, render: (value: number) => `¥${formatPriceFen(value)}` },
-          { title: '库存', dataIndex: 'stock_available', width: 90 },
-          {
-            title: '状态', dataIndex: 'status', width: 90,
-            render: (value: number) => value === 1 ? <Tag color="green">上架</Tag> : <Tag>下架</Tag>,
-          },
-          {
-            title: '操作', width: 180,
-            render: (_, row) => (
-              <Space>
-                <Button type="link" onClick={() => openEdit(row)}>编辑</Button>
-                <Button type="link" onClick={() => openStock(row)}>调整库存</Button>
-              </Space>
-            ),
-          },
-        ]}
+        columns={createMerchantProductColumns({ edit: openEdit, stock: openStock })}
       />
-
-      <Modal
-        title={editing ? '编辑商品' : '新增商品'}
+      <MerchantProductEditorModal
+        form={productForm}
+        editing={editing}
         open={productOpen}
+        saving={saving}
+        imageFile={imageFile}
+        onImageFile={setImageFile}
         onCancel={() => setProductOpen(false)}
-        onOk={saveProduct}
-        confirmLoading={saving}
-        destroyOnHidden
-      >
-        <Form form={productForm} layout="vertical" preserve={false}>
-          <Form.Item name="name" label="商品名称" rules={[{ required: true, message: '请输入商品名称' }]}>
-            <Input maxLength={80} />
-          </Form.Item>
-          <Form.Item name="image_url" label="图片地址">
-            <Input placeholder="https://... 或上传本地图片" />
-          </Form.Item>
-          <Form.Item label="上传图片">
-            <input
-              aria-label="上传图片"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-            />
-          </Form.Item>
-          {(watchedImageURL || imageFile) && (
-            <Space style={{ marginBottom: 16 }}>
-              {watchedImageURL && <Image width={88} height={88} src={watchedImageURL} alt="商品图片预览" />}
-              {imageFile && <span>待上传：{imageFile.name}</span>}
-            </Space>
-          )}
-          <Form.Item name="origin_price_fen" label="原价(分)" rules={[{ required: true }]}>
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="sale_price_fen" label="售价(分)" rules={[{ required: true }]}>
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="supplier_id" label="供应商ID" rules={[{ required: true }, { validator: (_, value) => value > 0 ? Promise.resolve() : Promise.reject(new Error('供应商ID必须大于0')) }]}>
-            <InputNumber min={1} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          {!editing && (
-            <Form.Item name="stock_available" label="初始库存">
-              <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-            </Form.Item>
-          )}
-          <Form.Item name="status" label="状态" rules={[{ required: true }]}>
-            <InputNumber min={1} max={2} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal
-        title={stockProduct ? `调整库存：${stockProduct.name}` : '调整库存'}
+        onSave={saveProduct}
+      />
+      <StockAdjustModal
+        form={stockForm}
+        product={stockProduct}
         open={stockOpen}
+        saving={saving}
         onCancel={() => setStockOpen(false)}
-        onOk={adjustStock}
-        confirmLoading={saving}
-        destroyOnHidden
-      >
-        <Form form={stockForm} layout="vertical" preserve={false}>
-          <Form.Item name="delta" label="库存变化量" rules={[{ required: true }, { validator: (_, value) => value !== 0 ? Promise.resolve() : Promise.reject(new Error('变化量不能为0')) }]}>
-            <InputNumber precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="bucket_idx" label="库存分桶">
-            <InputNumber min={0} precision={0} style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onSave={adjustStock}
+      />
     </>
   );
 }

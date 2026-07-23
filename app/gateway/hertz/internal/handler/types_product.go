@@ -1,5 +1,10 @@
 package handler
 
+import (
+	"flash-mall/app/gateway/hertz/internal/application/catalogquery"
+	"flash-mall/app/gateway/hertz/internal/application/productcommand"
+)
+
 type ProductCard struct {
 	ProductID      int64  `json:"product_id"`
 	Name           string `json:"name"`
@@ -28,15 +33,7 @@ type ProductListResp struct {
 	PageSize int64         `json:"page_size"`
 }
 
-type PublicStoreDetail struct {
-	MerchantID   int64  `json:"merchant_id"`
-	MerchantName string `json:"merchant_name"`
-	LogoURL      string `json:"logo_url"`
-	BannerURL    string `json:"banner_url"`
-	Description  string `json:"description"`
-	Status       int64  `json:"status"`
-	ProductCount int64  `json:"product_count"`
-}
+type PublicStoreDetail = catalogquery.StoreDetail
 
 type StoreProductListResp struct {
 	Items    []ProductCard `json:"items"`
@@ -85,22 +82,7 @@ type ShowcaseCandidatesResp struct {
 	PageSize int64               `json:"page_size"`
 }
 
-type AdminProductItem struct {
-	ProductID         int64  `json:"product_id"`
-	MerchantID        int64  `json:"merchant_id"`
-	MerchantName      string `json:"merchant_name"`
-	Name              string `json:"name"`
-	ImageURL          string `json:"image_url"`
-	OriginPriceFen    int64  `json:"origin_price_fen"`
-	SalePriceFen      int64  `json:"sale_price_fen"`
-	SupplierID        int64  `json:"supplier_id"`
-	SupplierName      string `json:"supplier_name"`
-	StockAvailable    int64  `json:"stock_available"`
-	PromotionPriceFen int64  `json:"promotion_price_fen"`
-	Status            int64  `json:"status"`
-	StatusText        string `json:"status_text"`
-	PromotionText     string `json:"promotion_text"`
-}
+type AdminProductItem = catalogquery.AdminProduct
 
 type AdminProductListResp struct {
 	Items    []AdminProductItem `json:"items"`
@@ -127,26 +109,9 @@ type AdminStockSnapshotRebuildReq struct {
 	Limit     int64 `json:"limit,omitempty"`
 }
 
-type AdminProductUpdateReq struct {
-	ProductID      int64  `json:"product_id"`
-	Name           string `json:"name,omitempty"`
-	ImageURL       string `json:"image_url,omitempty"`
-	SalePriceFen   *int64 `json:"sale_price_fen,omitempty"`
-	OriginPriceFen *int64 `json:"origin_price_fen,omitempty"`
-	SupplierID     *int64 `json:"supplier_id,omitempty"`
-	Status         *int64 `json:"status,omitempty"`
-}
+type AdminProductUpdateReq = productcommand.UpdateInput
 
-type AdminProductCreateReq struct {
-	Name           string `json:"name"`
-	ImageURL       string `json:"image_url,omitempty"`
-	MerchantID     int64  `json:"merchant_id,omitempty"`
-	OriginPriceFen int64  `json:"origin_price_fen"`
-	SalePriceFen   int64  `json:"sale_price_fen"`
-	StockAvailable int64  `json:"stock_available,omitempty"`
-	SupplierID     int64  `json:"supplier_id,omitempty"`
-	Status         int64  `json:"status,omitempty"`
-}
+type AdminProductCreateReq = productcommand.CreateInput
 
 type AdminProductCreateResp struct {
 	ProductID int64 `json:"product_id"`

@@ -105,7 +105,10 @@ for name in $services; do
   mkdir -p "$svc_context/web"
 
   if [ "$name" = "hertz-gateway" ]; then
-    cp -R "$repo_root/app/entry/api/internal/handler/web/." "$svc_context/web/"
+    cp -R "$repo_root/artifacts/web/." "$svc_context/web/"
+  fi
+  if [ "$name" = "entry-api" ]; then
+    cp -R "$repo_root/artifacts/web/." "$svc_context/web/"
   fi
 
   echo "[GO BUILD] $name"

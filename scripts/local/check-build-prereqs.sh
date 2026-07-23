@@ -79,13 +79,6 @@ else
   fail=1
 fi
 
-if [ -d "$repo_root/web/node_modules" ]; then
-  echo "[OK] web node_modules"
-else
-  echo "[MISS] web node_modules"
-  fail=1
-fi
-
 if [ "$fail" -ne 0 ]; then
   echo
   echo "Missing or mismatched prerequisites. Run: scripts/local/bootstrap-wsl.sh"

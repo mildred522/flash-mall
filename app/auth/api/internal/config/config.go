@@ -11,6 +11,7 @@ type Config struct {
 	JwtAuthSecret               string
 	JwtExpireSeconds            int64
 	DemoPassword                string
+	StorageMode                 string
 	DataSource                  string
 	RedisConf                   redis.RedisConf
 	RefreshTokenTTLSeconds      int64

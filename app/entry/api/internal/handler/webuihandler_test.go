@@ -40,21 +40,15 @@ func TestHomeUIIncludesEntryAnchors(t *testing.T) {
 	}
 }
 
-func TestDebugUIIncludesDeveloperAnchors(t *testing.T) {
+func TestDebugUIUsesSharedFrontend(t *testing.T) {
 	req := httptest.NewRequest("GET", "/debug", nil)
 	rec := httptest.NewRecorder()
 
 	DebugUIHandler().ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	for _, needle := range []string{
-		"Flash Mall",
-		"/shop",
-		"/api/system/health",
-	} {
-		if !strings.Contains(body, needle) {
-			t.Fatalf("expected debug UI to contain %q", needle)
-		}
+	if !strings.Contains(body, "Flash Mall") {
+		t.Fatal("expected debug route to use the shared shop frontend")
 	}
 }
 

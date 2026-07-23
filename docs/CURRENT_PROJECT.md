@@ -1,602 +1,163 @@
-# Flash Mall: Current Code State
-
-This is the only active project document. It is derived from the current source
-tree and deployment manifests, not from archived plans or logs.
-
-## Runtime topology
-
-- External HTTP service: `app/gateway/hertz`, default port `8889`.
-- Kubernetes Ingress points to `hertz-gateway:8889`.
-- Docker Compose keeps `entry-api` behind the `legacy-entry` profile.
-- Core services: `auth-api`, `product-rpc`, `order-rpc`, `inventory-kitex`,
-  MySQL, Redis, RabbitMQ, Etcd, and DTM.
-
-## Ownership boundaries
-
-- Hertz owns canonical external HTTP routes, request identity, role checks,
-  response shaping, and static home/shop/admin pages.
-- auth-api owns credentials, sessions, verification codes, and security audit.
-- order-rpc owns order creation, payment state, refund state, outbox events,
-  and SAGA branches.
-- inventory-kitex owns explicit stock reserve/release/confirm/adjust commands.
-- product-rpc and product tables own catalog metadata and product read models.
-
-## Implemented Hertz route groups
-
-- Shop: database-backed homepage showcase, product list/detail, public store
-  detail and store product list, plus authenticated user addresses.
-- Auth: login, registration, refresh, logout, verification-code and password
-  flows proxied to auth-api.
-- Orders: create, mock payment, signed payment callback, status, list/detail,
-  cancel, refund request, and confirm receipt.
-- Inventory: administrator and merchant stock audit, stock adjustment, and
-  stock/card snapshot rebuild. Reserve/release/confirm remain internal
-  `order-rpc -> inventory-kitex` commands rather than public Hertz routes.
-- Admin: products, suppliers, promotions, campaigns, homepage showcase
-  candidates/publishing, orders, refunds, reconciliation, events, dashboard,
-  and auth-admin proxy operations.
-- Merchant: application creation, dashboard, products, stock adjustment,
-  stock audit, store profile/assets, orders, shipping, and refunds.
-
-## Storefront and homepage showcase
-
-- Every approved merchant has a uniform public storefront. Merchants may edit
-  only the Logo, banner, and description; product `status=1/2` controls whether
-  the product is visible in that merchant's store.
-- Product cards and product details include merchant ownership plus a stable
-  `/store/{merchant_id}` link. Public browser routes are `/product/{id}` and
-  `/store/{merchant_id}`, with browser back/forward handled by the shop app.
-- The homepage uses a versioned 12-slot database layout. Publishing replaces
-  the complete layout transactionally with optimistic locking. A product may
-  appear once and one merchant may occupy at most two slots; invalid products
-  remain visible to administrators with a reason but are hidden publicly.
-- Candidate recommendation is deterministic and advisory. It scores recent
-  sales, available stock, active promotions, freshness, and merchant diversity,
-  returns human-readable reasons, and uses the shared Hertz read-cache policy
-  described below.
-- Store images use `/uploads/stores/{merchant_id}/...`; uploaded product images
-  use `/uploads/products/...`. Compose mounts both through the persistent local
-  upload directory so a Hertz container rebuild does not remove them.
-- Fresh databases seed only products 100 and 101 into the homepage because the
-  current demo fixture has one merchant. The migration removes slots 3-5 only
-  when they exactly match the old, never-published five-product seed; it never
-  rewrites an administrator-published layout.
-
-## Functional migration status
-
-All normal customer, admin, and merchant business route groups now have
-canonical Hertz handlers. Merchant application administration is included:
-
-- `GET /api/admin/merchants/applications`
-- `POST /api/admin/merchants/applications/audit`
-
-`entry-api` remains as a compatibility profile and as the Go-zero baseline for
-the project's architecture-evolution narrative. Removing it is not required
-for the Hertz/Kitex branch to be considered complete.
-
-## R0 migration-enabling refactor (2026-07-17)
-
-R0 removes the dependency ambiguity that had accumulated inside the Hertz
-handler package before the next Kitex migration phase:
-
-- Business-facing contracts now live in `app/gateway/hertz/internal/ports`.
-  The inventory, order-command, product-initialization, and snapshot contracts
-  do not import Hertz, SQL, Go-zero RPC clients, or Kitex generated types.
-- `adapters/inventorykitex` is the only Hertz package allowed to import the
-  inventory Thrift output. It converts neutral request metadata and stock
-  models at the boundary; handlers and health checks no longer depend on
-  generated `RequestMeta` or inventory DTOs.
-- User cancellation/receipt, administrator shipping/closure, and merchant
-  shipping call the `OrderCommands` port. P1 now implements that port through
-  `adapters/orderrpc`; Hertz no longer opens an order write transaction for
-  these commands.
-- The unused public reserve/release/confirm handler functions and DTOs were
-  removed. The only public inventory route in that group is the read-only
-  summary; order inventory effects remain internal commands.
-- Hertz no longer runs `CREATE TABLE` or `ALTER TABLE` in request handlers.
-  `scripts/k8s/init-db.sql` owns schema creation and idempotent migrations;
-  runtime code performs read-only, cached readiness checks and reports the
-  exact missing table or column.
-- New products are inserted offline together with a
-  `product_inventory_seed` task in one MySQL transaction. Kitex seeding must
-  succeed before the requested product status is restored. Failures record
-  attempts, error text, and retry time, and can be retried through the scoped
-  administrator or merchant endpoints:
-  `POST /api/admin/products/inventory-seed/retry` and
-  `POST /api/merchant/products/inventory-seed/retry`. Retrying an already
-  successful task is a no-op and does not reset stock or increment attempts.
-- Stock and product-card snapshot SQL moved to `adapters/productmysql`; HTTP
-  handlers now call `ProductSnapshotStore`. Common body decoding and response
-  shaping moved to `transport/httpx`.
-- The former monolithic route and DTO files are split by system/shop-order,
-  back-office/compatibility and product/order/merchant/admin/inventory domains.
-  The duplicate merchant-order route registration was removed.
-- Architecture tests now reject Kitex generated imports outside the adapter,
-  runtime DDL, every Hertz order-table/status-log write, infrastructure imports
-  in ports, and RPC/persistence imports in transport. They also assert that the
-  temporary `legacyorder` source is absent.
-
-### R0 deployed acceptance
-
-- `go test ./...`, `go vet ./app/gateway/hertz/...`, architecture tests, and
-  `git diff --check` passed.
-- The current initialization SQL was rerun against the WSL Compose MySQL. It
-  completed successfully, created `product_inventory_seed`, and backfilled 11
-  existing products; a repeated run remained successful.
-- The `hertz-gateway:dev` image was rebuilt and only that service was
-  recreated. Container, WSL-host, and Windows-host health checks returned 200
-  with authoritative inventory in `enforce` mode.
-- `/`, `/shop`, `/admin`, and `/api/shop/catalog` returned 200 after the
-  rebuild. A real administrator login reached the new seed-retry route and a
-  nonexistent task returned the expected `404 PRODUCT_NOT_FOUND` without
-  changing inventory. The deployed read-only smoke script passed.
-
-## P1 order ownership completion (2026-07-17)
-
-- The order protobuf now exposes five explicit lifecycle commands:
-  `CancelUserOrder`, `CloseAdminOrder`, `ShipAdminOrder`,
-  `ShipMerchantOrder`, and `ConfirmReceipt`. Requests carry bounded actor data
-  plus request/trace metadata; the order-rpc forwards that context into the
-  Kitex inventory command.
-- `order-rpc` owns the row lock, state-machine check, order update, timestamp,
-  and status-log transaction for every command. User and merchant commands
-  scope the locking query by owner; administrator commands carry the audited
-  operator ID.
-- Lifecycle commands are naturally idempotent on their target status. A replay
-  returns success without inserting another status log. Cancellation and
-  administrator closure commit the closed state first and then release the
-  reservation. If Kitex release fails, the caller receives `Unavailable`; a
-  replay sees the closed state and retries the idempotent release. This avoids
-  the old failure mode where stock could be released before an order
-  transaction later rolled back.
-- Hertz constructs `OrderCommands` only from its Go-zero order-rpc client. The
-  `legacyorder` adapter was deleted, while `OrderSqlConn` remains read-only for
-  current order list/detail projections.
-
-### P1 deployed acceptance
-
-- `go test ./...` passed, including SQL transaction tests for ownership,
-  transition rules, repeated commands, trace propagation, and release retry;
-  the Hertz architecture guards passed and `git diff --check` was clean.
-- Rebuilt only `order-rpc:dev` and `hertz-gateway:dev`, recreated those two
-  services, and retained the existing MySQL, Redis, RabbitMQ, and inventory
-  state. `/api/system/health` returned 200 with the reservation ledger in
-  `enforce` mode.
-- Exercised all five commands over real Hertz HTTP -> Go-zero order-rpc calls:
-  user cancel, administrator close, administrator ship, merchant ship, and
-  buyer confirm receipt. Every command was replayed; final order states were
-  correct and MySQL contained one status-log row per transition rather than
-  one per request.
-- The two paid orders ended with `CONFIRMED` reservations; both closed orders
-  ended with `RELEASED` reservations. Inventory metrics recorded successful
-  confirm/release calls, and the order-rpc access log showed request ID, trace
-  ID, actor, and RPC method for each command.
-- During a controlled Inventory Kitex outage, replaying a closed-order cancel
-  returned HTTP 503. After restarting Inventory Kitex, replaying the identical
-  command returned HTTP 200 and the reservation remained `RELEASED`, proving
-  the P1 compensation retry path against the deployed stack.
-
-## P0 reliability architecture
-
-### Authoritative inventory and durable reservations
-
-- `inventory-kitex` is the only owner of reserve, release, confirm, adjust, and
-  reconciliation commands. Compose and Kubernetes both enable final MySQL
-  deduction and set `INVENTORY_RESERVATION_LEDGER_MODE=enforce` by default.
-- Every successful Redis reservation is mirrored into
-  `mall_product.inventory_reservation`. The order ID is the durable idempotency
-  identity; a replay with a different product or quantity is rejected instead
-  of consuming stock again.
-- Redis keeps active reservation hashes for 48 hours and indexes them with a
-  24-hour logical expiry. The recovery worker claims expired reservations in
-  batches every minute, reclaims abandoned processing entries, retries three
-  times, and then exposes the item through a dead-letter index.
-- Release accepts an empty or repeated compensation. If the volatile Redis
-  reservation is missing, it reconstructs the release from the MySQL ledger;
-  an already released ledger record is a no-op.
-- Reconciliation never overwrites available stock with the raw database total.
-  In `enforce` mode it subtracts durable ledger reservations; `shadow` mode is
-  retained as a rollout fallback and uses the larger of Redis and ledger
-  reservations.
-- `GetRuntimeState` is a Kitex capability and liveness probe. Hertz `/health`
-  rejects traffic when final deduction, Redis/MySQL configuration, shard count,
-  or the reservation ledger is unsafe, and the RPC now actively checks both
-  Redis and MySQL reachability before reporting ready.
-
-### Hertz multi-level read cache
-
-- Public homepage catalog, product detail, store detail/product lists, and
-  administrator showcase candidates use a common cache coordinator.
-- L1 is a bounded in-process cache (512 entries, 2-second TTL). L2 is Redis
-  with a 30-second soft TTL, 120-second hard TTL, deterministic jitter,
-  singleflight request collapse, stale-while-revalidate, and stale-on-origin
-  error behavior.
-- Cache reads and writes have a 200-millisecond operation budget. Redis cache
-  failure never turns a successful origin read into an HTTP failure: Hertz
-  bypasses L2, returns the database/RPC result, and records `write_error`.
-- Product, store, snapshot, and homepage mutations invalidate exact keys plus
-  affected prefixes. Redis Pub/Sub removes peer-replica L1 entries; product
-  mutation also invalidates other product details because they contain
-  same-store recommendations.
-- The consistency boundary remains explicit: cache and product snapshots are
-  display data only. Checkout correctness is determined by the synchronous
-  Kitex reservation result.
-
-### Metrics and dashboards
-
-Start the optional local observation stack without enabling the legacy entry:
-
-```bash
-docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
-```
-
-- Prometheus: `http://127.0.0.1:9099`, seven-day local retention.
-- Grafana: `http://127.0.0.1:3000`, local default `admin / flashmall`.
-- Provisioned dashboards: `Flash Mall / 总览`, `Flash Mall / 库存一致性`, and
-  `Flash Mall / 支付与 Outbox`.
-- Bounded-label metrics cover cache layer/result, Kitex command success and
-  duration, active/expired/processing/dead-letter reservations, recovery,
-  payment callback/state-transition idempotency, and outbox publish/state.
-
-### Rollback controls
-
-- Set `FLASH_MALL_INVENTORY_RESERVATION_LEDGER_MODE=shadow` to keep durable
-  writes observable without making them a command prerequisite. `off` is only
-  an emergency compatibility mode and makes Hertz readiness fail by design.
-- `FLASH_MALL_INVENTORY_FINAL_DEDUCT_ENABLED=false` is retained for legacy
-  comparison only and also makes Hertz readiness fail; it is not a valid
-  production mode after Kitex inventory ownership.
-- L1 or L2 can be disabled independently through the gateway cache config.
-  Disabling both preserves origin reads; no checkout correctness rule changes.
-
-### P0 runtime acceptance (2026-07-17)
-
-- Rebuilt and ran the WSL Ubuntu Compose stack. `/health` returned 200 with
-  final deduction enabled, four shards, live Redis/MySQL checks, and the ledger
-  in `enforce` mode.
-- Repeated create-order requests with one request ID returned the same order
-  and one reservation. Repeated sandbox QR payment confirmation returned
-  `paid`; MySQL stock changed once, the ledger became `CONFIRMED`, and both
-  `order.created` and `order.paid` outbox events published once.
-- An enforce-mode create/cancel exercise moved the ledger to `RELEASED` and
-  restored stock exactly. A forced-expiry exercise was claimed by the recovery
-  worker, restored stock, left all hanging-state gauges at zero, and incremented
-  the recovery-success counter.
-- During a controlled Redis outage, cached catalog traffic fell back to the
-  origin with HTTP 200 while `/health` returned 503 in about 0.8 seconds. After
-  Redis restart, readiness returned to 200 without manual data repair.
-- Warm homepage sampling produced 300/300 successful requests with p50
-  0.592 ms, p95 1.067 ms, and p99 3.080 ms. A 2,000-request run at concurrency
-  20 completed with zero errors at approximately 4,676 requests/second. These
-  are local WSL baselines for regression detection, not cross-framework claims.
-- Prometheus reported all four application targets up. Grafana health was OK
-  and all three provisioned dashboards were discoverable through its API.
-
-## Deliberately local or internal surfaces
-
-- `/debug` and `/monitor` are local operational pages, not production API
-  migration blockers.
-- `/metrics` is mounted on Hertz for local/Compose observation. Production
-  ingress must restrict it to the monitoring network rather than expose it as
-  a customer API.
-- Legacy static `/js/*` and `/styles/*` routes are not required by the current
-  inlined shop/admin build artifacts.
-
-## Verification already performed
-
-- `go test ./...` and both front-end production builds have completed in the
-  Hertz worktree.
-- The default Compose topology has been started and the rebuilt Hertz image
-  returned HTTP 200 for `/`, `/shop`, `/admin`, `/api/system/health`, and
-  `/api/shop/catalog`.
-- The catalog UI response mismatch was fixed in the shared front-end client:
-  it now unwraps the Hertz response envelope without changing the direct
-  auth-api response contract.
-
-### Storefront/showcase acceptance (2026-07-13)
-
-- Rebuilt only `hertz-gateway` with
-  `scripts/local/build-compose-images.sh --tag dev hertz-gateway`, recreated
-  that Compose service, and received `status=ok` from
-  `/api/system/health`. Other business containers and data volumes stayed up.
-- Ran `scripts/k8s/init-db.sql` repeatedly. The store/showcase tables,
-  `product.merchant_id`, optimistic layout version, and compatibility cleanup
-  remained idempotent.
-- Added `BASE_URL` mode to `scripts/ci/smoke-e2e.sh`. It performs only deployed
-  read checks and never starts services or executes `docker compose down -v`.
-  `BASE_URL=http://127.0.0.1:8889 ./scripts/ci/smoke-e2e.sh` passed after the
-  rebuild. Local curl explicitly bypasses host proxies to avoid false 502s.
-- Executed a real role chain with merchant `1001` and administrator `1002`:
-  uploaded store and product images, saved a versioned store profile, created
-  product 106 with stock 48, obtained recommendation score 37 with stock/new
-  product explanations, published it to slot 1, and verified the public
-  catalog, product detail, store detail, and store product list. The original
-  layout was then restored to products 100/101 and product 106 was taken
-  offline.
-- Used the installed Windows Chrome (not Firefox) to navigate
-  `/shop -> /product/106 -> /store/1000`, then verified browser back and
-  forward. Merchant login showed the versioned store settings and preview;
-  the administrator one-click login showed the 12-slot showcase workbench.
-- Runtime metrics recorded successful public/admin reads, candidate requests,
-  publishes, active/pending slot gauges, bounded invalid-reason gauges, and
-  store request durations. Structured logs included request IDs and
-  old/current/new publish versions without business IDs in metric labels.
-- Backend handler/middleware/service-context tests, all three front-end Vitest
-  workspaces, all three production front-end builds, static artifact checks,
-  shell syntax, and `git diff --check` passed before the deployed acceptance.
-
-## Go-zero vs Hertz comparison plan
-
-**Goal:** Produce a repeatable, evidence-backed comparison between the
-unmodified `origin/main` Go-zero baseline and the current Hertz/Kitex
-migration. The comparison must distinguish functional compatibility from
-performance, operational, and architectural effects.
-
-### Rules for a valid comparison
-
-1. Pin the baseline to `origin/main` commit `344ebf9`; record the exact current
-   Hertz commit plus its working-tree diff before execution.
-2. Run the two variants sequentially, never concurrently. Both Compose files
-   define the same fixed container names (`mysql`, `auth-api`, etc.), so a
-   concurrent run would invalidate results.
-3. Recreate an isolated database/Redis state for each run from the same
-   initialization scripts and record image digests, configuration, host port,
-   machine load, and start/end time.
-4. Do not compare debug, monitor, or metrics pages as customer-facing
-   compatibility targets. Compare public shop, authenticated user, merchant,
-   and administrator routes.
-5. Treat a response-envelope difference as compatible only when the front-end
-   adapter and documented consumer contract produce the same rendered result.
-
-### Phase 1 — Baseline preparation
-
-- Use a fresh detached worktree at `origin/main` for the baseline; do not
-  modify its application code. The existing
-  `/home/mildred/.config/superpowers/worktrees/flash-mall/main-baseline`
-  worktree has generated `web/*.html` changes from an earlier build and is not
-  a clean comparison source.
-- Build `origin/main` and start its Compose stack at `http://127.0.0.1:8888`.
-  Capture `docker compose config --services`, image IDs, container health, and
-  the startup time from `docker compose up` until the health endpoint answers.
-- Export the initialized MySQL state and record Redis keys required by the
-  seeded catalog. Preserve the export as the baseline fixture for the Hertz
-  run; do not use a database previously modified by manual UI testing.
-
-### Phase 2 — Functional contract matrix
-
-Run each request once against the Go-zero baseline and once against Hertz,
-using the same fixture and a fresh user where a write is needed. Record HTTP
-status, normalized response body, latency, and rendered browser result.
-
-| Area | Required checks |
-| --- | --- |
-| Public | `/`, `/shop`, `/admin`, health, catalog, product list/detail |
-| Identity | verification-code send, register, login, `/api/auth/me`, logout, password reset |
-| Customer | address upsert/list, create order, mock pay/callback, status, list/detail, cancel, refund, confirm receipt |
-| Merchant | application, dashboard, product list/create, order list/ship, refunds, stock adjustment/audit |
-| Administrator | login, dashboard, products, suppliers, promotions, campaigns, merchant-application audit, orders, refunds, reconciliation, events, users/security |
-| Inventory-specific | Internal Kitex reserve/release/confirm commands plus Hertz administrator/merchant adjust, audit, and snapshot routes; mark these as new capability, not a baseline regression |
-
-For every common route, compare semantic fields rather than volatile fields
-such as request IDs, timestamps, generated order IDs, tokens, and trace IDs.
-An endpoint is a failure if its operation, authorization rule, error meaning,
-or rendered user-visible outcome differs.
-
-### Phase 3 — End-to-end browser chains
-
-Execute and capture screenshots/network traces for four flows in each variant:
-
-1. Anonymous visitor opens the shop and sees the seeded products.
-2. New customer registers, signs in, creates an address, places and pays an
-   order, then sees it in the order list.
-3. Merchant creates/updates a product or adjusts stock, ships an order, and
-   reviews a refund.
-4. Administrator signs in, audits a merchant application, changes catalog or
-   promotion data, and verifies the storefront result.
-
-The acceptance artifact for each chain is a short request trace plus before/
-after screenshots. A raw HTTP 200 alone is not sufficient.
-
-### Phase 4 — Measured runtime comparison
-
-Use a fixed request corpus (catalog read, authenticated order detail, and
-order create) with the same concurrency, duration, warm-up, database fixture,
-and host conditions. Run three repetitions per variant and report median and
-range for:
-
-- startup-to-ready time;
-- p50/p95/p99 latency and error rate;
-- requests/second;
-- gateway/entry CPU and memory;
-- downstream RPC latency/error counts;
-- MySQL, Redis, and RabbitMQ container resource use.
-
-Read-heavy catalog traffic and write-heavy order creation must be reported
-separately. The result is descriptive, not a claim that Hertz is faster,
-unless the repeated measurements agree and no dependency bottleneck dominates.
-
-### Phase 5 — Architecture and operational comparison
-
-Document the actual deltas from source and manifests:
-
-- Go-zero `entry-api` is a combined static host and BFF; Hertz becomes the
-  canonical HTTP edge, with `entry-api` retained only behind `legacy-entry`.
-- `origin/main` has `product-rpc` and `order-rpc`; the migration adds an
-  explicit Kitex inventory owner and moves stock commands out of implicit
-  product/order coupling.
-- Compare route ownership, error/response normalization, tracing propagation,
-  service discovery, deployment units, rollback procedure, and failure modes.
-- Classify each delta as an improvement, neutral trade-off, or unresolved risk
-  using the Phase 2–4 evidence rather than framework preference.
-
-### Phase 6 — Decision report and cleanup gate
-
-Deliver one comparison report containing the version table, environment,
-contract matrix, browser evidence, metrics, architecture assessment, and an
-explicit migration verdict:
-
-- **Hertz branch validated** when all common critical chains pass, no
-  unapproved response incompatibility remains, and rollback is documented;
-- **retain compatibility profile with explicit gaps** when functionality is
-  correct but runtime or operational evidence is incomplete;
-- **block cutover** when an authorization, order, payment, inventory, or
-  storefront regression remains.
-
-The legacy entry service and Go-zero baseline remain available for comparison
-and interview narration regardless of the Hertz branch verdict. Cleanup is a
-separate optional decision, not a migration acceptance requirement.
-
-## Windows 桌面控制中心
-
-推荐使用仓库内的 WPF 桌面控制中心启动和观察本地项目。它调用 Ubuntu WSL
-中的 Docker，不依赖 Docker Desktop；Hertz 网关和商城/后台入口使用端口
-`8889`。默认“停止项目”只执行 Compose down 并保留 MySQL、Redis 等数据卷，
-而旧 `entry-api` 不在桌面入口的默认构建和启动范围内。
+# Flash Mall 当前项目状态
+
+> 本文件是仓库内唯一有效的项目状态文档。内容以当前代码、配置和部署清单为准；历史方案、执行计划与聊天日志都不是开发依据。
+
+## 当前目标
+
+Flash Mall 用同一套商城业务展示从 Go-zero Entry API 向 Hertz + Kitex 演进的过程：
+
+- `codex/arch-hertz-kitex` 是默认开发分支，Hertz 是默认外部 HTTP 网关。
+- `main` 保留 Go-zero Entry API 基线，用于功能、性能和架构对比，不继续承载新功能。
+- Kitex 只承担库存领域的高频、稳定、强边界同步命令；商品读取继续使用 Product RPC/快照。
+- 支付后的卡片刷新、库存审计、运营统计和搜索更新通过 Outbox + RabbitMQ 异步执行。
+
+## 运行拓扑
+
+默认本地入口是 `http://127.0.0.1:8889`。
+
+| 组件 | 职责 | 默认端口 |
+| --- | --- | --- |
+| `hertz-gateway` | 商城、商家、管理员 HTTP API 与静态页面 | 8889 |
+| `entry-api` | Go-zero 对比基线；默认本地启动流程不使用 | 8888 |
+| `auth-api` | 凭证、会话、验证码与安全审计 | 8890 |
+| `product-rpc` | 商品元数据和商品读模型 | 8081 |
+| `order-rpc` | 订单状态机、支付、退款、Outbox 与 SAGA | 8082 |
+| `inventory-kitex` | 预占、释放、确认、调库存与一致性修复 | 8891 |
+| MySQL / Redis | 持久化、缓存、库存热数据 | 3306 / 6379 |
+| RabbitMQ / Etcd / DTM | 事件、服务发现和分布式事务辅助 | 5672 / 2379 / 36789 |
+
+Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速启动链路只启动 Hertz 拓扑。旧 Entry API 通过显式对比流程启动。
+
+## 领域所有权
+
+- Hertz 负责外部路由、请求身份、角色校验、响应格式和静态页面服务，不应直接拥有订单写状态或库存命令。
+- Auth API 负责用户、管理员与商家登录态；调用方不得通过本地伪造身份绕开它。
+- Order RPC 负责订单行锁、状态迁移、状态日志、支付/退款幂等与 Outbox 事务。
+- Inventory Kitex 是库存写入唯一入口；预占、释放、确认和调库存必须携带请求 ID、追踪 ID、订单 ID 与幂等键。
+- Product RPC、商品表和商品卡片快照负责商品读路径。列表与详情不为统一技术栈额外增加 Kitex 跳数。
+- RabbitMQ 消费者只处理支付后的非关键派生工作，不进入同步支付成功条件。
+
+## 已实现业务范围
+
+- 用户：注册登录、地址、商品和店铺浏览、下单、沙箱支付、取消、退款申请、确认收货。
+- 商家：申请入驻、店铺资料和素材、商品、库存、订单发货、退款处理与运营看板。
+- 管理员：商家审核、商品、供应商、促销活动、首页橱窗、订单、退款、对账、事件和系统看板。
+- 店铺：首页商品进入详情或商家店面；商家维护店内上架商品，管理员发布首页 12 槽橱窗。
+- 首页推荐：销量、库存、促销、新鲜度和商家多样性共同产生候选分数；最终发布仍由管理员决定。
+
+## 可靠性设计
+
+### 库存
+
+- Redis 负责库存热路径，MySQL 保存库存事实、预占账本、变更日志与快照。
+- `order_id` 是预占幂等身份；相同订单不同商品或数量必须拒绝。
+- Release 支持空补偿和重复调用；Redis 数据缺失时可依据 MySQL 账本恢复。
+- 恢复任务处理过期预占、重试和死信；对账不能用数据库总量覆盖仍被预占的可用量。
+- Hertz 健康检查校验 Kitex、Redis、MySQL、最终扣减开关和账本模式。
+
+### 订单和支付
+
+- 下单写入订单并通过 Kitex 预占库存；失败按既定 SAGA/补偿规则恢复。
+- 支付回调使用业务订单号、支付单号和幂等状态机防止重复入账。
+- 支付成功状态与 Outbox 事件在同一 MySQL 事务提交，消息发布失败由后台发布器重试。
+- 取消、关闭、发货、确认收货等写命令由 Hertz 经 Go-zero Order RPC 执行，Hertz 不直接更新订单状态。
+
+### 分层缓存
+
+- 商品、店铺和首页橱窗使用统一缓存协调器。
+- L1 是进程内短 TTL 缓存；L2 是 Redis，支持软/硬 TTL、抖动、singleflight、过期回源和原点失败时的陈旧值兜底。
+- 商品、店铺、快照和橱窗变更执行精确键与前缀失效，并通过 Redis Pub/Sub 清理其他 Hertz 实例的 L1。
+
+## 前端与静态资源
+
+- 唯一前端源码是 `frontend/packages` 下的 `shop`、`admin`、`merchant` 和 `shared`。
+- 根目录旧 `web` 工程不再继续开发，清理后不得重新作为 Entry API 的构建来源。
+- 构建产物统一放在中立目录 `artifacts/web`，由 Hertz 和 Go-zero Entry API 分别复制或嵌入。
+- 商品和店铺上传素材存储在持久化上传目录，不属于前端编译产物。
+
+## 开发边界
+
+- 新增外部 API 只实现到 Hertz；除修复对比基线自身缺陷外，不向 Entry API 同步新业务。
+- Hertz Handler 应只保留 HTTP 适配、鉴权调用和结果映射；数据库查询与业务编排逐域下沉到应用服务和适配器。
+- DDL 只允许出现在数据库迁移/初始化脚本，运行时代码只能做只读 schema readiness 检查。
+- 生成的 Protobuf/Kitex 文件不手工编辑；接口变化从 IDL 重新生成。
+- 不因框架统一而把商品高频读取迁往 Kitex。
+
+## 本地操作
 
 ```powershell
-# 首次安装或更新启动器
+# 安装或更新 Windows 桌面控制中心
 pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
-
-# 不创建快捷方式，只验证发布
-pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1 -NoShortcut
 ```
-
-安装后可通过桌面上的“Flash Mall 控制中心”启动、重新构建、停止项目，打开
-商城、后台、RabbitMQ 与 Jaeger，并查看业务服务状态和运行日志。关闭控制中心
-窗口只会取消当前前台操作，不会自动停止已经运行的容器。
-
-## Docker build design (approved 2026-07-12)
-
-### Problem statement
-
-Repeated container-native builds produced 78.03 GB of reclaimable BuildKit
-cache. All six Go images use the repository root as their build context and
-run `COPY . .`; a change in any included file therefore invalidates every
-selected service's source layer and the following `go build` step. The large
-private cache records came primarily from Go compiler caches captured inside
-those invalidated build steps.
-
-The default local startup script already builds binaries on the WSL host, but
-it always builds all six services. Its generic scratch image also omits the
-external `/app/web` files required by Hertz. The optimized design must fix
-both paths instead of replacing one incomplete path with another.
-
-### Goals and constraints
-
-- Rebuild and restart one changed service during normal local development.
-- Keep CI and full validation builds reproducible inside Docker.
-- Share Go module and compiler caches without committing them to ordinary
-  image layers.
-- Preserve the explicit source dependency boundary of each service.
-- Keep BuildKit cache near 8 GB during rapid iteration.
-- Never include MySQL or Redis volumes in automatic cleanup.
-- Preserve Hertz static pages and the legacy Entry embedded web resources.
-- Avoid introducing Air or Compose Watch until the simpler host-build path is
-  measured and shown to be insufficient.
-
-### Local development path
-
-`scripts/local/build-compose-images.sh` and its PowerShell counterpart are
-service-selective. With no service arguments they keep the current full-build
-behavior; with service arguments they validate names and build only those
-images. A single-service rebuild command then recreates only that Compose
-service without rebuilding or restarting its dependencies.
-
-The local runtime image remains separate from the reproducible builder image.
-It contains the static Go binary, CA certificates, and timezone data. Every
-generated local image context contains an `app` binary and an optional `web`
-directory; the Hertz build populates `web` from the canonical Entry web asset
-directory, while other services use an empty directory. This keeps one small
-runtime Dockerfile without losing Hertz pages.
-
-### Reproducible Docker and CI path
-
-Service-specific Dockerfiles remain separate. A single generic Dockerfile is
-not used because Order, Hertz, and Entry depend on different generated RPC and
-Kitex packages, while Hertz also owns external runtime web files.
-
-Every Go builder uses Dockerfile syntax with two shared cache mounts:
-
-```dockerfile
-RUN --mount=type=cache,id=flash-mall-go-mod,target=/go/pkg/mod \
-    go mod download
-RUN --mount=type=cache,id=flash-mall-go-build,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ...
-```
-
-Source copies follow the local dependency graph reported by `go list -deps`:
-
-- Auth copies only `app/auth`.
-- Product copies `app/common` and `app/product`.
-- Inventory copies `app/common` and `app/inventory`.
-- Order copies `app/common`, `app/order`, Product RPC generated clients, and
-  Inventory Kitex generated clients.
-- Hertz copies `app/common`, `app/gateway`, the required Product, Order, and
-  Inventory generated clients, plus the canonical web assets.
-- Entry copies `app/common`, `app/entry`, and the same generated clients.
-
-The root `.dockerignore` also excludes documentation, Kubernetes manifests,
-local runtime output, unrelated frontend workspaces, test output, and editor
-state when those files are not required by an image build. Build failures from
-a newly introduced local dependency are treated as a dependency-list update,
-not worked around by restoring a repository-wide `COPY . .`.
-
-### Cache lifecycle
-
-After a successful iteration, cache cleanup runs only when inspection shows
-that the configured budget is exceeded. The normal policy retains recent hot
-cache while removing older records:
 
 ```bash
-docker buildx prune --force \
-  --filter 'until=48h' \
-  --max-used-space 8gb \
-  --reserved-space 2gb
+# 在 Ubuntu WSL 中启动默认 Compose 拓扑
+./scripts/local/start-compose-all.sh
+
+# 查看健康状态
+./scripts/local/health-compose.sh
+
+# 只重建一个服务
+./scripts/local/rebuild-compose-service.sh hertz-gateway
 ```
 
-Failed builds do not trigger automatic cleanup. At a milestone or major
-branch transition, `docker buildx prune --all --force` may remove the complete
-builder cache. Automatic scripts may remove dangling images, but they do not
-run `docker system prune -a --volumes`. The Compose MySQL and Redis volumes
-retain their stable project-scoped names and remain outside every cleanup
-path. Existing Docker volume labels are immutable, so live data volumes are
-not recreated merely to add a `keep=true` label.
+Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代按服务重建，缓存超过预算后保留近期热缓存；任何自动清理都不得删除 MySQL、Redis 或 RabbitMQ 数据卷。
 
-### Verification and acceptance
+## 当前清理重点
 
-The implementation is accepted only when all of the following are observed:
+已完成的清理：
 
-1. A cold full Compose build succeeds for the default Hertz topology.
-2. A no-change rebuild reuses dependency and compiler caches.
-3. An Order-only source change rebuilds and recreates only `order-rpc`.
-4. Ten representative single-service rebuilds leave at most about 8 GB of
-   BuildKit cache after the iteration cleanup policy runs.
-5. The local fast path serves Hertz `/`, `/shop`, and `/admin` successfully.
-6. The full customer order and payment path still reaches Inventory Kitex.
-7. `deploy_mysql-data` and `deploy_redis-data` retain their contents before
-   and after every cache-cleanup verification.
+- Inventory Repository 不再执行 DDL，运行检查只读验证必需表；Redis/MySQL 实现已按命令、持久化、编解码和 Lua 脚本拆分。
+- `frontend/packages` 是唯一前端源码，产物统一写入 `artifacts/web`；根目录旧 `web` 工程和 Entry Handler 内产物副本已删除。
+- Hertz 与 Go-zero Entry API 均消费中立产物；Entry API 已标记为冻结的比较基线，Hertz 架构测试禁止依赖它。
+- Auth 部署显式使用 `StorageMode: mysql`；具名服务缺失模式或 MySQL 模式缺失数据源会拒绝启动。
+- 管理员促销已拆成 `application/promotion` 与 `adapters/productmysql`：折扣、时间窗、冲突和更新规则不再由 HTTP Handler 编排。
+- 首页橱窗已拆成 `application/showcase` 与 `adapters/productmysql`：版本锁、槽位/商家约束和发布事务不再位于 Handler。
+- 用户订单列表、详情、支付单和下单幂等回读已拆成 `application/orderquery` 与 `adapters/ordermysql`；订单写命令仍保持走 Order RPC。
+- 管理员/商家订单列表、详情、状态日志和退款列表已统一进入 Backoffice 订单查询服务；`admin_order.go` 与 `merchant_order.go` 不再执行 SQL。
+- 首页橱窗候选 SQL 已进入 `productmysql.ShowcaseRepository`，Handler 只负责参数、缓存、Product RPC 卡片补全和响应。
+- `catalog.go` 已按参数解析、商品卡片、查询服务分拆；商品图片、商家/供应商元数据由 `application/catalogquery` 和 `adapters/productmysql` 提供，不再在主 Handler 中拼接 SQL。
+- 商品列表筛选、关联商品、公开店铺详情/商品列表以及管理员商品列表/详情已统一进入 `catalogquery` 与 `productmysql`；`catalog.go`、`storefront.go`、`admin_product_query.go` 均有禁止直接持久化的架构约束。
+- 管理员供应商查询与写入已进入 `application/supplier` 和 `productmysql.SupplierRepository`；供应商停用时的启用商品检查与状态更新在同一数据库事务内完成，Handler 只保留 HTTP 映射与审计。
+- 商家身份列表、最新入驻申请和仪表盘统计已进入 `application/merchantquery` 与 `adapters/ordermysql`。
+- 商家申请提交、管理员申请列表和审核状态机已统一进入 `application/merchantonboarding` 与 `ordermysql.MerchantOnboardingRepository`；审批通过创建商家、写入 owner 成员关系和更新申请在同一事务内完成，同方向重复审核幂等返回已有结果，相反方向重复审核才返回冲突。商家权限继续以 `mall_order.merchant_user` 为事实来源，不跨库篡改 Auth 用户角色。
+- 管理员与商家的商品创建、元数据更新已统一进入 `application/productcommand` 与 `productmysql.ProductCommandRepository`；有效供应商/商家校验、商品行锁、最终价格约束、离线商品与库存初始化任务写入由事务保证，商家更新通过事务内 `merchant_id` 条件隔离所有权。商品初始库存仍在事务提交后通过 Inventory Kitex 写入，失败时商品保持离线并保留可重试种子任务。
+- 管理员商品、促销、订单和供应商页面已拆出列定义、编辑/详情/日志弹窗及页面模型；四个页面只保留状态、导航和 API 编排，并由架构测试限制体积与组件边界。
+- 管理员首页橱窗页已拆出草稿模型、12 槽编辑器和推荐候选面板；安全事件页已拆出事件语义、筛选条和列定义；用户页已拆出列定义、详情弹窗和角色/状态展示。页面仍保留各自的请求状态与业务动作，现有橱窗拖拽、商家多样性和版本冲突行为保持不变。
+- 数据库初始化源码已按 bootstrap、订单、商品 schema、商品种子、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 六个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性。
+- 管理员看板、Outbox 事件列表/重试已进入 `application/adminops` 与 `ordermysql.AdminOpsRepository`；看板统计由原先 17 次串行查询收敛为一次聚合查询。
+- 支付/退款/订单对账已进入 `application/reconciliation` 与 `ordermysql.ReconciliationRepository`；扫描、幂等问题键和列表查询不再位于 Handler，集成测试也不再运行时修改表结构。
+- 用户地址已进入 `application/useraddress` 与 `adapters/authmysql`；默认地址切换、地址保存及用户所有权检查在同一事务内完成。
+- 商家店铺资料已进入 `application/merchantstore` 与 `ordermysql.MerchantStoreRepository`；素材 URL、描述长度和乐观版本校验位于应用层，更新事务负责商家状态、行锁和版本冲突。
+- 秒杀活动管理已进入 `application/campaign` 与 `productmysql.CampaignRepository`；库存、限购数默认值、输入规范化及新增/更新不再由 Handler 持有。
+- 管理员退款查询复用 Backoffice 订单查询服务，库存变更日志进入 `application/stockaudit` 与 `productmysql.StockAuditRepository`；管理员可选商家筛选和商家强制隔离仍分别保留。
+- 商家操作范围统一由 `merchantquery.ResolveScope` 根据 `mall_order.merchant_user` 解析，商品所有权统一由 `catalogquery.OwnsProduct` 在商品库判断；库存调整、库存种子重试和店铺素材接口不再获取裸数据库句柄。
+- 支付二维码/状态查询和下单状态轮询已进入 `orderquery`；令牌查询同时约束支付单号、订单号和外部交易号，支付成功写入仍只走 Order RPC。
+- Hertz 生产 Handler 已清除全部 `database/sql`、`RawDB`、SQL 查询和事务调用，并新增全目录架构守卫；SQL 只允许存在于 `adapters`，依赖只允许由 `ServiceContext` 装配。历史 schema readiness Handler 及其自测死代码已删除。
+- 原 396 行 `order.go` 已按订单创建/支付意图、用户订单读取、取消/退款/确认收货写命令拆分；路由和 RPC 边界保持不变，后续修改不再集中到单一文件。
+- 支付回调已拆成 HTTP 适配和独立签名协议模块；HMAC-SHA256、规范化签名载荷和 300 秒时钟偏差可在固定时间下确定性验证。支付意图、支付状态和沙箱确认也已拆成独立文件，均继续通过 Order RPC/查询服务访问支付状态。
+- 迁移状态接口的 HTTP 契约与静态路由目录已经分离；认证、支付、订单、库存、管理员和商家路由各有唯一归属，已上线的活动、库存审计与支付路由不再被误报为规划中。
+- 商家商品页已拆成页面编排、列定义、商品编辑弹窗、库存弹窗和表单模型；店铺设置页已拆成资料表单、公开预览和页面请求状态，图片上传、库存 Kitex 命令、乐观锁冲突等既有行为保持不变。
+- `shared/src/types.ts` 已从 543 行混合声明改为公共 barrel，认证、商城、订单、商家及管理员领域类型分别维护；现有 `@flash-mall/shared` 导入方式保持兼容。
+- 管理员商品页已进一步拆成薄页面、`useProductManagement` 页面控制器和独立商品 API；筛选、详情、创建、编辑、上下架、图片上传与库存调整不再堆积在页面组件中。
+- 仓库内已确认没有前端、脚本或服务继续消费 `/api/gateway/*` 与 `/api/catalog` 旧别名，因此兼容路由已删除；公开 API 只保留当前规范路由，路由回归测试会阻止旧别名重新注册。
 
-### Measured implementation results
+本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
-- The first successful five-service cold Docker build completed in 190.1
-  seconds after one transient module-proxy EOF retry. Scoped contexts were
-  roughly 140 KB to 3 MB instead of repository-wide inputs.
-- A no-change six-service build, including legacy Entry frontend generation,
-  completed in 2.20 seconds with all relevant stages cached.
-- Ten consecutive Order-only context changes completed in 3.46 to 6.65
-  seconds each. The normal iteration policy left 3.788 GB of BuildKit cache,
-  below the 8 GB budget.
-- A focused Hertz rebuild changed only the Hertz container start time; Auth,
-  Product, Order, and Inventory start times were unchanged.
-- The local Hertz image contains `/app/app` and the required `/app/web` pages.
-  Hertz `/`, `/shop`, `/admin`, `/api/system/health`, and
-  `/api/shop/catalog` returned HTTP 200.
-- A real login/create/pay chain changed product 100 stock from 10000 to 9999.
-  Both `order.created` and `order.paid` outbox events were published, and the
-  asynchronous `stock_audit` projection was recorded.
-- `go test ./...`, shell syntax checks, PowerShell AST parsing, and Compose
-  configuration parsing passed. Repository-wide `git diff --check` still
-  reports pre-existing trailing whitespace in generated `admin.html` and
-  `shop.html`; plan-owned files pass the scoped whitespace check.
-- `health-compose.sh` now checks Hertz on port 8889 and accepts both the Hertz
-  `status=ok` and legacy `overall=true` health envelopes.
+1. 用 Grafana 固化库存命令、支付、Outbox、缓存和 RPC 的延迟、成功率与一致性面板。
+2. 对库存 Kitex、订单 RPC、Redis、RabbitMQ 和 MySQL 做故障注入，验证超时、补偿、重试、幂等及恢复任务。
+3. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
+4. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
+
+## 验证基线
+
+2026-07-23 当前清理已完成以下验证：
+
+- Hertz 全部包测试和 `go vet ./app/gateway/hertz/...` 通过；Docker MySQL 可用后，支付绑定与对账扫描两个集成用例也已纳入完整 Handler 测试并通过。
+- Inventory Repository、Auth ServiceContext、Entry 静态入口、Handler 持久化架构守卫、支付签名与迁移目录回归通过。
+- 前端全部 35 个测试文件、57 个用例通过；共享类型边界测试以及 shop、admin、merchant 三套生产构建通过。
+- 数据库初始化六个模块与聚合 SQL 一致，`artifacts/web` 中三套静态产物的内联脚本检查通过。
+- 在 Ubuntu WSL Docker Engine 中从当前源码重新构建 `auth-api`、`product-rpc`、`order-rpc`、`inventory-kitex`、`entry-api` 和 `hertz-gateway` 六个镜像，默认 Hertz Compose 拓扑健康。
+- 真实链路订单 `docker-e2e-1784777507` 使用同一请求 ID 重复下单只生成同一订单；库存从可用 `9999` 经预占变为 `9998`，支付确认后预占归零、总库存变为 `9998`。
+- 同一支付令牌重复确认仍只产生 1 条支付回调事件、2 条 Outbox 事件和 2 条库存变更日志；两条 Outbox 均已发布，RabbitMQ 消费者已写入支付投影。
+- 管理员和商家真实登录、管理看板、商家成员关系与店铺资料、商品目录及图片、商城/管理端/商家端/商品详情/店铺页面均返回正常；已删除的 `/api/gateway/health` 返回 404。

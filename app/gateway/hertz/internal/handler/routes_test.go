@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,6 +9,17 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
+
+func TestRegisteredRoutesExcludeRetiredGatewayAliases(t *testing.T) {
+	h := server.Default()
+	RegisterRoutes(h, &svc.ServiceContext{}, time.Now())
+
+	for _, route := range h.Routes() {
+		if strings.HasPrefix(route.Path, "/api/gateway/") || route.Path == "/api/catalog" {
+			t.Errorf("retired compatibility route is still registered: %s %s", route.Method, route.Path)
+		}
+	}
+}
 
 func TestInventoryRoutesExposeReadOnlySummary(t *testing.T) {
 	h := server.Default()

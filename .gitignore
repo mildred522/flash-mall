@@ -35,8 +35,6 @@ data/
 .env.*
 !.env.example
 
-web/node_modules/
-
 # Root-level Go build artifacts
 /api
 /rpc

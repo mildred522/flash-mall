@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"flash-mall/app/gateway/hertz/internal/adapters/productmysql"
+	"flash-mall/app/gateway/hertz/internal/application/catalogquery"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/svc"
@@ -18,7 +20,6 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/ut"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"github.com/zeromicro/go-zero/core/stores/sqlx"
 	"google.golang.org/grpc"
 )
 
@@ -112,13 +113,6 @@ func TestCatalogHandlerReadsPublishedShowcase(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	storefrontSchemaStates.Store(db, &storefrontSchemaState{ready: true})
-	merchantStoreProfileSchemaStates.Store(db, &storefrontSchemaState{ready: true})
-	t.Cleanup(func() {
-		storefrontSchemaStates.Delete(db)
-		merchantStoreProfileSchemaStates.Delete(db)
-	})
-
 	mock.ExpectQuery("SELECT showcase.version, showcase.operator_id").
 		WithArgs(int64(1)).
 		WillReturnRows(sqlmock.NewRows([]string{
@@ -140,8 +134,9 @@ func TestCatalogHandlerReadsPublishedShowcase(t *testing.T) {
 		}}}, nil
 	}}
 	svcCtx := &svc.ServiceContext{
-		SqlConn: sqlx.NewSqlConnFromDB(db), ProductRpc: client,
-		Cache: gatewaycache.New(gatewaycache.Config{EnableL1: true, L1TTL: time.Minute}, nil),
+		CatalogQueries: catalogquery.NewService(productmysql.NewCatalogRepository(db)), ProductRpc: client,
+		Showcases: showcaseServiceForTest(db),
+		Cache:     gatewaycache.New(gatewaycache.Config{EnableL1: true, L1TTL: time.Minute}, nil),
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		c := app.NewContext(0)

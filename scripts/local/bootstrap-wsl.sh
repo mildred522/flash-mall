@@ -168,10 +168,6 @@ install_node_dependencies() {
     echo "[NPM CI] frontend"
     npm ci --prefix "$repo_root/frontend"
   fi
-  if [ -f "$repo_root/web/package-lock.json" ]; then
-    echo "[NPM CI] web"
-    npm ci --prefix "$repo_root/web"
-  fi
 }
 
 pull_compose_images() {

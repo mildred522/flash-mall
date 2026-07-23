@@ -2,7 +2,6 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 
@@ -46,7 +45,7 @@ func AdminProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 
 		item, err := loadAdminProductDetail(ctx, svcCtx, productID)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+			if apperror.CodeOf(err) == apperror.CodeProductNotFound {
 				fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeProductNotFound, "product not found"))
 				return
 			}
@@ -80,19 +79,14 @@ func AdminProductCardSnapshotRefreshHandler(svcCtx *svc.ServiceContext) app.Hand
 			req.WindowMinutes = 120
 		}
 
-		db, err := svcCtx.SqlConn.RawDB()
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product snapshot refresh failed", err))
-			return
-		}
-		if err := requireGatewayProductReadSchema(ctx, db); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product snapshot schema unavailable", err))
-			return
-		}
-
 		productIDs := []int64{req.ProductID}
+		var err error
 		if req.ProductID == 0 {
-			productIDs, err = gatewayPromotionWindowAffectedProductIDs(ctx, db, req.WindowMinutes, req.Limit)
+			if svcCtx.Promotions == nil {
+				fail(ctx, c, consts.StatusBadGateway, apperror.New(apperror.CodeInternal, "promotion service unavailable"))
+				return
+			}
+			productIDs, err = svcCtx.Promotions.WindowAffectedProductIDs(ctx, req.WindowMinutes, req.Limit)
 			if err != nil {
 				fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "promotion window scan failed", err))
 				return

@@ -6,7 +6,6 @@
 logs
 docs
 k8s
-frontend
 scripts
 deploy/data
 deploy/data/**

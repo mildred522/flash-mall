@@ -1,4 +1,6 @@
-﻿-- 初始化数据库与表结构（K8s MySQL）
+﻿-- 本目录 SQL 模块是数据库初始化源码；修改后运行 node scripts/k8s/build-init-db.mjs。
+-- scripts/k8s/init-db.sql 是供 Docker、K8s 和冒烟脚本使用的兼容聚合文件。
+-- 初始化数据库与表结构（K8s MySQL）
 
 SET NAMES utf8mb4;
 SET character_set_client = utf8mb4;
@@ -15,7 +17,6 @@ ALTER DATABASE mall_order CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER DATABASE mall_product CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER DATABASE mall_auth CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 ALTER DATABASE dtm CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-
 USE mall_order;
 
 CREATE TABLE IF NOT EXISTS merchant (
@@ -30,7 +31,6 @@ CREATE TABLE IF NOT EXISTS merchant (
   KEY ix_status (status),
   KEY ix_owner_user_id (owner_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS merchant_user (
   id bigint NOT NULL AUTO_INCREMENT,
   merchant_id bigint NOT NULL,
@@ -373,7 +373,6 @@ CREATE TABLE IF NOT EXISTS barrier (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_barrier (gid, branch_id, op, barrier_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 USE mall_product;
 
 CREATE TABLE IF NOT EXISTS product (
@@ -535,7 +534,7 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- CHG 2026-02-24: 变更=新增库存分桶表; 之前=单行 product 表扣减; 原因=降低热点行冲突。
+-- 库存分桶用于分散热点商品的并发写入。
 CREATE TABLE IF NOT EXISTS product_stock_bucket (
   product_id bigint NOT NULL,
   bucket_idx int NOT NULL,
@@ -732,7 +731,6 @@ VALUES
   (201, '山岚食品工坊', 1),
   (211, '北纬户外供应', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
-
 -- 初始化示例商品
 INSERT INTO product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
 VALUES (100, 1000, '首发风衣', '/products/100.svg', 10000, 0, 12900, 11900, 1, 200)
@@ -891,7 +889,6 @@ INSERT INTO promotion_rule (product_id, type, discount_value, threshold_amount, 
   (202, 'LIMITED_PRICE', 7900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 180 DAY), 1),
   (211, 'LIMITED_PRICE', 19900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 180 DAY), 1),
   (212, 'LIMITED_PRICE', 15900, 0, DATE_SUB(NOW(), INTERVAL 1 DAY), DATE_ADD(NOW(), INTERVAL 180 DAY), 1);
-
 USE mall_auth;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -905,7 +902,6 @@ CREATE TABLE IF NOT EXISTS users (
   PRIMARY KEY (id),
   KEY ix_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 CREATE TABLE IF NOT EXISTS user_identities (
   id bigint NOT NULL AUTO_INCREMENT COMMENT '身份ID',
   user_id bigint NOT NULL COMMENT '用户ID',
@@ -1032,7 +1028,6 @@ CREATE TABLE IF NOT EXISTS user_risk_snapshot (
   KEY ix_user_time (user_id, create_time),
   KEY ix_risk_level (risk_level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- ========== auth migration: add missing columns if tables already exist ==========
 
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role');

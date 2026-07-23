@@ -9,7 +9,7 @@ import (
 )
 
 func registerSystemRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt time.Time) {
-	h.GET("/", StaticPageHandler("home.html"))
+	h.GET("/", StaticPageHandler("shop.html"))
 	h.GET("/shop", StaticPageHandler("shop.html"))
 	h.GET("/pay", StaticPageHandler("shop.html"))
 	h.GET("/product/*any", StaticPageHandler("shop.html"))

@@ -4,7 +4,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const webDir = resolve(__dirname, '../app/entry/api/internal/handler/web');
+const webDir = resolve(__dirname, '../artifacts/web');
 
 function copySingleFileHtml(source, target) {
   const html = readFileSync(source, 'utf8').replace(/[ \t]+$/gm, '');

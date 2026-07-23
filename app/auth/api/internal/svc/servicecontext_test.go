@@ -10,7 +10,9 @@ import (
 	"flash-mall/app/auth/api/internal/risk"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/zeromicro/go-zero/core/service"
 	"github.com/zeromicro/go-zero/core/stores/redis"
+	"github.com/zeromicro/go-zero/rest"
 )
 
 type stubAuthStore struct{}
@@ -106,12 +108,31 @@ func TestNewServiceContextWithStore_UsesInjectedStore(t *testing.T) {
 func TestNewServiceContext_UsesSQLStoreWhenDataSourceConfigured(t *testing.T) {
 	svcCtx := NewServiceContext(config.Config{
 		DemoPassword: "pwd",
+		StorageMode:  "mysql",
 		DataSource:   "root:pwd@tcp(127.0.0.1:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Local",
 	})
 
 	if _, ok := svcCtx.Store.(*authstore.SQLStore); !ok {
 		t.Fatalf("expected SQLStore when datasource is configured, got %T", svcCtx.Store)
 	}
+}
+
+func TestNewServiceContext_RejectsMySQLModeWithoutDataSource(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected mysql storage mode without datasource to panic")
+		}
+	}()
+	NewServiceContext(config.Config{StorageMode: "mysql"})
+}
+
+func TestNewServiceContext_RejectsMissingStorageModeForNamedService(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("expected named service without storage mode to panic")
+		}
+	}()
+	NewServiceContext(config.Config{RestConf: rest.RestConf{ServiceConf: service.ServiceConf{Name: "auth-api"}}})
 }
 
 func TestNewServiceContext_UsesRedisBackedFoundationWhenRedisConfigured(t *testing.T) {

@@ -1,6 +1,8 @@
 package svc
 
 import (
+	"strings"
+
 	"flash-mall/app/auth/api/internal/audit"
 	"flash-mall/app/auth/api/internal/authstore"
 	"flash-mall/app/auth/api/internal/config"
@@ -20,10 +22,28 @@ type ServiceContext struct {
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	stateStore, limiter, recorder := newFoundationDeps(c)
-	if c.DataSource != "" {
+	switch normalizeStorageMode(c) {
+	case "mysql":
+		if strings.TrimSpace(c.DataSource) == "" {
+			panic("auth storage mode mysql requires DataSource")
+		}
 		return newServiceContext(c, authstore.NewSQLStore(sqlx.NewMysql(c.DataSource), c.DemoPassword, stateStore), limiter, recorder)
+	case "memory":
+		return newServiceContext(c, authstore.NewStoreWithState(c.DemoPassword, stateStore), limiter, recorder)
+	default:
+		panic("unreachable auth storage mode")
 	}
-	return newServiceContext(c, authstore.NewStoreWithState(c.DemoPassword, stateStore), limiter, recorder)
+}
+
+func normalizeStorageMode(c config.Config) string {
+	mode := strings.ToLower(strings.TrimSpace(c.StorageMode))
+	if mode == "" && strings.TrimSpace(c.Name) == "" {
+		return "memory"
+	}
+	if mode != "mysql" && mode != "memory" {
+		panic("auth StorageMode must be explicitly set to mysql or memory")
+	}
+	return mode
 }
 
 func NewServiceContextWithStore(c config.Config, store authstore.AuthStore) *ServiceContext {

@@ -2,10 +2,10 @@ package handler
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/common/refundstatus"
 	"flash-mall/app/common/tracectx"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
@@ -21,12 +21,11 @@ func AdminRefundListHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusBadRequest, err)
 			return
 		}
-		db, err := orderDB(svcCtx)
-		if err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "order datasource unavailable", err))
+		if svcCtx.BackofficeOrders == nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.New(apperror.CodeInternal, "order query service unavailable"))
 			return
 		}
-		resp, err := loadAdminRefunds(ctx, db, req)
+		resp, err := svcCtx.BackofficeOrders.ListAdminRefunds(ctx, req)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "admin refund query failed", err))
 			return
@@ -49,7 +48,7 @@ func AdminRefundAuditHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 		operatorID := gatewayOperatorID(ctx)
-		statusText, err := auditAdminRefund(ctx, svcCtx, nil, req, operatorID)
+		statusText, err := auditAdminRefund(ctx, svcCtx, req, operatorID)
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -89,71 +88,7 @@ func adminRefundQueryFromRequest(c *app.RequestContext) (AdminRefundListReq, err
 	}, nil
 }
 
-func loadAdminRefunds(ctx context.Context, db *sql.DB, req AdminRefundListReq) (AdminRefundListResp, error) {
-	where := "1=1"
-	args := []any{}
-	if req.Status >= 0 {
-		where += " AND r.status = ?"
-		args = append(args, req.Status)
-	}
-	if req.UserID > 0 {
-		where += " AND r.user_id = ?"
-		args = append(args, req.UserID)
-	}
-	if req.MerchantID > 0 {
-		where += " AND r.merchant_id = ?"
-		args = append(args, req.MerchantID)
-	}
-	if req.OrderID != "" {
-		where += " AND r.order_id = ?"
-		args = append(args, req.OrderID)
-	}
-	var total int64
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM refund_order r WHERE "+where, args...).Scan(&total); err != nil {
-		return AdminRefundListResp{}, err
-	}
-	queryArgs := append(append([]any{}, args...), req.PageSize, (req.Page-1)*req.PageSize)
-	rows, err := db.QueryContext(ctx, `SELECT r.id,
-       r.order_id,
-       r.payment_order_id,
-       r.user_id,
-       r.merchant_id,
-       COALESCE(m.name, ''),
-       r.product_id,
-       r.refund_amount_fen,
-       r.status,
-       r.reason,
-       r.audit_remark,
-       r.operator_id,
-       DATE_FORMAT(r.request_time, '%Y-%m-%d %H:%i:%s'),
-       COALESCE(DATE_FORMAT(r.audit_time, '%Y-%m-%d %H:%i:%s'), ''),
-       COALESCE(DATE_FORMAT(r.finish_time, '%Y-%m-%d %H:%i:%s'), '')
-FROM refund_order r
-LEFT JOIN merchant m ON m.id = r.merchant_id
-WHERE `+where+`
-ORDER BY r.create_time DESC
-LIMIT ? OFFSET ?`, queryArgs...)
-	if err != nil {
-		return AdminRefundListResp{}, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]AdminRefundItem, 0)
-	for rows.Next() {
-		var item AdminRefundItem
-		if err := rows.Scan(&item.RefundID, &item.OrderID, &item.PaymentOrderID, &item.UserID, &item.MerchantID, &item.MerchantName, &item.ProductID, &item.RefundAmountFen, &item.Status, &item.Reason, &item.AuditRemark, &item.OperatorID, &item.RequestTime, &item.AuditTime, &item.FinishTime); err != nil {
-			return AdminRefundListResp{}, err
-		}
-		item.StatusText = refundStatusText(item.Status)
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return AdminRefundListResp{}, err
-	}
-	return AdminRefundListResp{Items: items, Total: total}, nil
-}
-
-func auditAdminRefund(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB, req AdminRefundAuditReq, operatorID int64) (string, error) {
+func auditAdminRefund(ctx context.Context, svcCtx *svc.ServiceContext, req AdminRefundAuditReq, operatorID int64) (string, error) {
 	requestID := tracectx.RequestIDFrom(ctx)
 	if requestID == "" {
 		requestID = req.RefundID + ":audit"
@@ -165,5 +100,5 @@ func auditAdminRefund(ctx context.Context, svcCtx *svc.ServiceContext, _ *sql.DB
 	if err != nil {
 		return "", err
 	}
-	return refundStatusText(resp.GetRefundStatus()), nil
+	return refundstatus.Text(resp.GetRefundStatus()), nil
 }

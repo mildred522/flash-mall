@@ -37,9 +37,6 @@ func (r *RedisMySQLRepository) insertReservationLedger(ctx context.Context, reco
 	if r.db == nil || normalizeReservationLedgerMode(r.reservationLedgerMode) == reservationLedgerModeOff {
 		return nil
 	}
-	if err := r.ensureReservationLedgerTable(ctx); err != nil {
-		return err
-	}
 	result, err := r.db.ExecContext(ctx, `
 INSERT INTO inventory_reservation
   (order_id, product_id, quantity, shard_index, status, expires_at, version, request_id, trace_id)
@@ -88,13 +85,6 @@ func (r *RedisMySQLRepository) transitionReservationLedger(ctx context.Context, 
 	if r.db == nil || mode == reservationLedgerModeOff || orderID == "" || len(allowed) == 0 {
 		return nil
 	}
-	if err := r.ensureReservationLedgerTable(ctx); err != nil {
-		if mode == reservationLedgerModeShadow {
-			log.Printf("inventory reservation ledger shadow transition failed: order_id=%s target=%s err=%v", orderID, target, err)
-			return nil
-		}
-		return err
-	}
 	placeholders := make([]string, len(allowed))
 	args := make([]any, 0, len(allowed)+2)
 	args = append(args, strings.ToUpper(string(target)), orderID)
@@ -112,19 +102,6 @@ func (r *RedisMySQLRepository) transitionReservationLedger(ctx context.Context, 
 		return err
 	}
 	return nil
-}
-
-func (r *RedisMySQLRepository) ensureReservationLedgerTable(ctx context.Context) error {
-	r.reservationLedgerOnce.Do(func() {
-		if r.db == nil {
-			return
-		}
-		_, r.reservationLedgerErr = r.db.ExecContext(ctx, reservationLedgerDDL)
-		if r.reservationLedgerErr != nil {
-			r.reservationLedgerErr = apperror.Wrap(apperror.CodeInternal, "ensure inventory reservation ledger failed", r.reservationLedgerErr)
-		}
-	})
-	return r.reservationLedgerErr
 }
 
 func normalizeReservationLedgerMode(mode string) string {
@@ -168,13 +145,6 @@ func (r *RedisMySQLRepository) activeReservationTotal(ctx context.Context, produ
 	if r.db == nil || mode == reservationLedgerModeOff {
 		return 0, nil
 	}
-	if err := r.ensureReservationLedgerTable(ctx); err != nil {
-		if mode == reservationLedgerModeShadow {
-			log.Printf("inventory reservation ledger shadow read failed: product_id=%d err=%v", productID, err)
-			return 0, nil
-		}
-		return 0, err
-	}
 	var total int64
 	if err := r.db.QueryRowContext(ctx, "SELECT COALESCE(SUM(quantity), 0) FROM inventory_reservation WHERE product_id = ? AND status = 'RESERVED'", productID).Scan(&total); err != nil {
 		err = apperror.Wrap(apperror.CodeInternal, "read active inventory reservations failed", err)
@@ -191,13 +161,6 @@ func (r *RedisMySQLRepository) loadReservationLedger(ctx context.Context, orderI
 	mode := normalizeReservationLedgerMode(r.reservationLedgerMode)
 	if r.db == nil || mode == reservationLedgerModeOff || orderID == "" {
 		return reservationLedgerRecord{}, false, nil
-	}
-	if err := r.ensureReservationLedgerTable(ctx); err != nil {
-		if mode == reservationLedgerModeShadow {
-			log.Printf("inventory reservation ledger shadow load failed: order_id=%s err=%v", orderID, err)
-			return reservationLedgerRecord{}, false, nil
-		}
-		return reservationLedgerRecord{}, false, err
 	}
 	var record reservationLedgerRecord
 	var status string
@@ -220,22 +183,3 @@ func (r *RedisMySQLRepository) loadReservationLedger(ctx context.Context, orderI
 	record.Status = domain.ReservationStatus(strings.ToLower(status))
 	return record, true, nil
 }
-
-const reservationLedgerDDL = `
-CREATE TABLE IF NOT EXISTS inventory_reservation (
-  order_id varchar(64) NOT NULL,
-  product_id bigint NOT NULL,
-  quantity bigint NOT NULL,
-  shard_index int NOT NULL,
-  status varchar(16) NOT NULL,
-  expires_at datetime(6) NOT NULL,
-  version bigint NOT NULL DEFAULT 0,
-  request_id varchar(64) NOT NULL DEFAULT '',
-  trace_id varchar(64) NOT NULL DEFAULT '',
-  create_time datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-  update_time datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-  PRIMARY KEY (order_id),
-  KEY ix_status_expires (status, expires_at),
-  KEY ix_product_status (product_id, status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-`
