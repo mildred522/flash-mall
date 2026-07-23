@@ -12,6 +12,7 @@ type ListItem struct {
 	OrderID          string `json:"order_id"`
 	ProductID        int64  `json:"product_id"`
 	ProductName      string `json:"product_name"`
+	ImageURL         string `json:"image_url"`
 	Amount           int64  `json:"amount"`
 	Status           int64  `json:"status"`
 	StatusText       string `json:"status_text"`
@@ -26,6 +27,7 @@ type Detail struct {
 	MerchantName       string `json:"merchant_name"`
 	ProductID          int64  `json:"product_id"`
 	ProductName        string `json:"product_name"`
+	ImageURL           string `json:"image_url"`
 	Amount             int64  `json:"amount"`
 	Status             int64  `json:"status"`
 	StatusText         string `json:"status_text"`

@@ -16,7 +16,7 @@ func NewQueryRepository(db *sql.DB) *QueryRepository { return &QueryRepository{d
 
 func (r *QueryRepository) ListByUser(ctx context.Context, userID, limit int64) ([]orderquery.ListItem, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT o.id, o.product_id, o.amount, o.status,
-       DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s'), s.product_name, s.payable_amount_fen
+       DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s'), s.product_name, s.product_image_url, s.payable_amount_fen
 FROM orders o JOIN order_price_snapshot s ON s.order_id = o.id
 WHERE o.user_id = ? ORDER BY o.create_time DESC LIMIT ?`, userID, limit)
 	if err != nil {
@@ -26,7 +26,7 @@ WHERE o.user_id = ? ORDER BY o.create_time DESC LIMIT ?`, userID, limit)
 	items := make([]orderquery.ListItem, 0)
 	for rows.Next() {
 		var item orderquery.ListItem
-		if err := rows.Scan(&item.OrderID, &item.ProductID, &item.Amount, &item.Status, &item.CreateTime, &item.ProductName, &item.PayableAmountFen); err != nil {
+		if err := rows.Scan(&item.OrderID, &item.ProductID, &item.Amount, &item.Status, &item.CreateTime, &item.ProductName, &item.ImageURL, &item.PayableAmountFen); err != nil {
 			return nil, err
 		}
 		items = append(items, item)
@@ -38,12 +38,12 @@ func (r *QueryRepository) DetailByUser(ctx context.Context, orderID string, user
 	var detail orderquery.Detail
 	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, COALESCE(o.merchant_id, 0), COALESCE(m.name, ''),
        o.product_id, o.amount, o.status, DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s'),
-       s.product_name, s.origin_unit_price_fen, s.sale_unit_price_fen, s.payable_amount_fen,
+       s.product_name, s.product_image_url, s.origin_unit_price_fen, s.sale_unit_price_fen, s.payable_amount_fen,
        s.discount_amount_fen, s.promotion_type, s.promotion_tag, p.id, p.status
 FROM orders o JOIN order_price_snapshot s ON s.order_id = o.id JOIN payment_order p ON p.order_id = o.id
 LEFT JOIN merchant m ON m.id = o.merchant_id WHERE o.id = ? AND o.user_id = ? LIMIT 1`, orderID, userID).Scan(
 		&detail.OrderID, &detail.UserID, &detail.MerchantID, &detail.MerchantName, &detail.ProductID,
-		&detail.Amount, &detail.Status, &detail.CreateTime, &detail.ProductName, &detail.OriginUnitPriceFen,
+		&detail.Amount, &detail.Status, &detail.CreateTime, &detail.ProductName, &detail.ImageURL, &detail.OriginUnitPriceFen,
 		&detail.SaleUnitPriceFen, &detail.PayableAmountFen, &detail.DiscountAmountFen, &detail.PromotionType,
 		&detail.PromotionTag, &detail.PaymentOrderID, &detail.PaymentStatus)
 	return detail, !errors.Is(err, sql.ErrNoRows), normalizeNotFound(err)

@@ -2,6 +2,7 @@ import { Button, Descriptions, Modal } from 'antd';
 import { formatPriceFen } from '@flash-mall/shared';
 import type { AdminProductItem } from '@flash-mall/shared';
 import { ProductStatusTag } from './productModel';
+import ProductThumbnail from './ProductThumbnail';
 
 type Props = {
   open: boolean;
@@ -38,7 +39,7 @@ export default function ProductDetailModal(props: Props) {
           <Descriptions.Item label="名称" span={2}>{product.name || '-'}</Descriptions.Item>
           <Descriptions.Item label="商品图片" span={2}>
             {product.image_url
-              ? <img src={product.image_url} alt={`${product.name} 商品图`} style={{ maxWidth: 240, maxHeight: 160, borderRadius: 8, objectFit: 'contain' }} />
+              ? <ProductThumbnail src={product.image_url} alt={`${product.name} 商品图`} width={240} height={160} />
               : '无图'}
           </Descriptions.Item>
           <Descriptions.Item label="供应商" span={2}>

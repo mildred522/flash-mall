@@ -7,6 +7,7 @@ const modules = [
   'scripts/k8s/sql/10-order.sql',
   'scripts/k8s/sql/20-product-schema.sql',
   'scripts/k8s/sql/21-product-seed.sql',
+  'scripts/k8s/sql/22-data-repair.sql',
   'scripts/k8s/sql/30-auth-schema.sql',
   'scripts/k8s/sql/31-auth-seed.sql',
 ];

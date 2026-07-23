@@ -4,6 +4,7 @@ import { Button, Card, Space, Tag, Tooltip } from 'antd';
 import { formatPriceFen, resolveProductImage } from '@flash-mall/shared';
 import type { DraftSlot } from './showcaseModel';
 import { invalidShowcaseReasonText } from './showcaseModel';
+import ProductThumbnail from '../products/ProductThumbnail';
 
 type Props = {
   slots: DraftSlot[];
@@ -31,7 +32,7 @@ export default function ShowcaseSlots({ slots, onMove, onRemove }: Props) {
               }}>
               <strong style={{ color: '#b23a2c', textAlign: 'center' }}>{String(slot.slot_no).padStart(2, '0')}</strong>
               <div style={{ width: 62, height: 54, display: 'grid', placeItems: 'center', overflow: 'hidden', borderRadius: 8, background: '#f7efe8', color: '#b23a2c' }}>
-                {imageURL ? <img src={imageURL} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : slot.product_id > 0 ? '商品' : '＋'}
+                {imageURL ? <ProductThumbnail src={imageURL} alt={`${slot.product?.name || '商品'} 商品图`} width={62} height={54} /> : slot.product_id > 0 ? '商品' : '＋'}
               </div>
               {slot.product_id > 0 ? (
                 <div style={{ minWidth: 0 }}>

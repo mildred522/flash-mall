@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS order_price_snapshot (
   merchant_id bigint NOT NULL DEFAULT 1000 COMMENT '商家id',
   supplier_id bigint NOT NULL DEFAULT 0 COMMENT '供应商id',
   product_name varchar(128) NOT NULL DEFAULT '' COMMENT '商品名快照',
+  product_image_url varchar(512) NOT NULL DEFAULT '' COMMENT '商品图快照',
   amount int NOT NULL DEFAULT 0 COMMENT '购买数量',
   origin_unit_price_fen bigint NOT NULL DEFAULT 0 COMMENT '原价单价分',
   sale_unit_price_fen bigint NOT NULL DEFAULT 0 COMMENT '成交单价分',
@@ -170,6 +171,10 @@ CREATE TABLE IF NOT EXISTS order_price_snapshot (
 
 SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'order_price_snapshot' AND COLUMN_NAME = 'merchant_id');
 SET @sql = IF(@has_col = 0, 'ALTER TABLE order_price_snapshot ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER product_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'order_price_snapshot' AND COLUMN_NAME = 'product_image_url');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE order_price_snapshot ADD COLUMN product_image_url varchar(512) NOT NULL DEFAULT '''' COMMENT ''商品图快照'' AFTER product_name', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = 'mall_order' AND TABLE_NAME = 'order_price_snapshot' AND INDEX_NAME = 'ix_merchant_id');

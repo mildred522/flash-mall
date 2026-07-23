@@ -1,6 +1,6 @@
 import { Button, Image, Space, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
-import { formatPriceFen } from '@flash-mall/shared';
+import { formatPriceFen, PRODUCT_IMAGE_FALLBACK_DATA_URI } from '@flash-mall/shared';
 import type { AdminProductItem } from '@flash-mall/shared';
 
 type ProductActions = {
@@ -14,7 +14,7 @@ export function createMerchantProductColumns(actions: ProductActions): ColumnsTy
     {
       title: '图片', dataIndex: 'image_url', width: 88,
       render: (value: string, row) => value
-        ? <Image width={48} height={48} src={value} alt={`${row.name} 商品图`} style={{ objectFit: 'cover', borderRadius: 6 }} />
+        ? <Image width={48} height={48} src={value} fallback={PRODUCT_IMAGE_FALLBACK_DATA_URI} alt={`${row.name} 商品图`} style={{ objectFit: 'cover', borderRadius: 6 }} />
         : <span style={{ color: '#999' }}>无图</span>,
     },
     { title: '名称', dataIndex: 'name' },

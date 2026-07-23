@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"flash-mall/app/common/mysqlguard"
 	"flash-mall/app/gateway/hertz/internal/adapters/authmysql"
 	"flash-mall/app/gateway/hertz/internal/adapters/inventorykitex"
 	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
@@ -24,6 +25,7 @@ import (
 	"flash-mall/app/gateway/hertz/internal/application/stockaudit"
 	"flash-mall/app/gateway/hertz/internal/application/supplier"
 	"flash-mall/app/gateway/hertz/internal/application/useraddress"
+	"flash-mall/app/gateway/hertz/internal/assetstore"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/ports"
@@ -63,10 +65,14 @@ type ServiceContext struct {
 	StockAudits        *stockaudit.Service
 	Suppliers          *supplier.Service
 	Cache              *gatewaycache.Coordinator
+	UploadIntegrity    *assetstore.IntegrityChecker
 	cacheRedis         *redis.Client
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
+	mysqlguard.MustUTF8MB4("hertz product", c.DataSource)
+	mysqlguard.MustUTF8MB4("hertz order", c.OrderDataSource)
+	mysqlguard.MustUTF8MB4("hertz auth", c.AuthDataSource)
 	svcCtx := &ServiceContext{
 		Config:       c,
 		SqlConn:      sqlx.NewMysql(c.DataSource),
@@ -114,6 +120,9 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		svcCtx.Showcases = showcase.NewService(productmysql.NewShowcaseRepository(productDB))
 		svcCtx.StockAudits = stockaudit.NewService(productmysql.NewStockAuditRepository(productDB))
 		svcCtx.Suppliers = supplier.NewService(productmysql.NewSupplierRepository(productDB))
+	}
+	if orderDB, orderErr := svcCtx.OrderSqlConn.RawDB(); orderErr == nil && err == nil {
+		svcCtx.UploadIntegrity = assetstore.NewIntegrityChecker(c.UploadDir, productDB, orderDB)
 	}
 	cacheConfig := c.CacheConfig()
 	var cacheRedis *redis.Client

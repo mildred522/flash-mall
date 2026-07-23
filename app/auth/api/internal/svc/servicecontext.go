@@ -8,6 +8,7 @@ import (
 	"flash-mall/app/auth/api/internal/config"
 	"flash-mall/app/auth/api/internal/risk"
 	"flash-mall/app/auth/api/internal/sessionstate"
+	"flash-mall/app/common/mysqlguard"
 
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -27,6 +28,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		if strings.TrimSpace(c.DataSource) == "" {
 			panic("auth storage mode mysql requires DataSource")
 		}
+		mysqlguard.MustUTF8MB4("auth", c.DataSource)
 		return newServiceContext(c, authstore.NewSQLStore(sqlx.NewMysql(c.DataSource), c.DemoPassword, stateStore), limiter, recorder)
 	case "memory":
 		return newServiceContext(c, authstore.NewStoreWithState(c.DemoPassword, stateStore), limiter, recorder)

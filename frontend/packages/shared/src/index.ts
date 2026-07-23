@@ -11,7 +11,7 @@ export {
   isLoggedIn,
 } from './auth';
 export { STATUS_MAP, formatPriceFen, PRODUCT_META } from './constants';
-export { resolveProductImage } from './product-image';
+export { PRODUCT_IMAGE_FALLBACK_DATA_URI, resolveProductImage } from './product-image';
 export { uploadImageAsset, uploadProductImage, MAX_PRODUCT_IMAGE_BYTES } from './product-image-upload';
 export type { TokenPayload } from './auth';
 export type { ProductMeta } from './constants';

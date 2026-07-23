@@ -23,6 +23,8 @@ message GetProductCardResp {
   string promotion_tag = 6;
   int64 stock_available = 7;
   int64 supplier_id = 8;
+  string image_url = 9;
+  int64 merchant_id = 10;
 }
 
 message RevertStockReq {

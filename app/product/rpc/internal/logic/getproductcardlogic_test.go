@@ -47,6 +47,9 @@ func TestGetProductCardLogic_GetProductCard_UsesPromotionAndStockSummary(t *test
 	if resp.StockAvailable <= 0 {
 		t.Fatalf("expected positive stock summary, got %d", resp.StockAvailable)
 	}
+	if resp.ImageUrl != "/uploads/products/flash-coat.webp" || resp.MerchantId != 9300 {
+		t.Fatalf("expected durable image and merchant metadata, got %#v", resp)
+	}
 }
 
 func TestGetProductCardLogic_GetProductCard_TreatsNullBoundsAsActive(t *testing.T) {
@@ -96,7 +99,7 @@ func seedProductCardData(t *testing.T, svcCtx *svc.ServiceContext, productID, su
 		fmt.Sprintf("DELETE FROM product WHERE id = %d", productID),
 		fmt.Sprintf("DELETE FROM supplier WHERE id = %d", supplierID),
 		fmt.Sprintf("INSERT INTO supplier (id, name, status) VALUES (%d, 'Flash Supplier Test', 1)", supplierID),
-		fmt.Sprintf("INSERT INTO product (id, name, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (%d, 'Flash Coat Test', 0, 0, 12900, 11900, 1, %d)", productID, supplierID),
+		fmt.Sprintf("INSERT INTO product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id) VALUES (%d, 9300, 'Flash Coat Test', '/uploads/products/flash-coat.webp', 0, 0, 12900, 11900, 1, %d)", productID, supplierID),
 		fmt.Sprintf("INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES (%d, 0, 4, 0), (%d, 1, 6, 0)", productID, productID),
 		promotionSQL,
 	}
@@ -187,6 +190,8 @@ func ensureProductCardSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 	ensureProductColumn(t, svcCtx, "sale_price_fen", "ALTER TABLE product ADD COLUMN sale_price_fen BIGINT NOT NULL DEFAULT 0")
 	ensureProductColumn(t, svcCtx, "status", "ALTER TABLE product ADD COLUMN status TINYINT NOT NULL DEFAULT 1")
 	ensureProductColumn(t, svcCtx, "supplier_id", "ALTER TABLE product ADD COLUMN supplier_id BIGINT NOT NULL DEFAULT 0")
+	ensureProductColumn(t, svcCtx, "merchant_id", "ALTER TABLE product ADD COLUMN merchant_id BIGINT NOT NULL DEFAULT 1000")
+	ensureProductColumn(t, svcCtx, "image_url", "ALTER TABLE product ADD COLUMN image_url VARCHAR(512) NOT NULL DEFAULT ''")
 }
 
 func ensureProductColumn(t *testing.T, svcCtx *svc.ServiceContext, columnName string, alterSQL string) {

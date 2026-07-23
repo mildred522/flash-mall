@@ -44,6 +44,7 @@ func (l *ListProductsLogic) ListProducts(in *product.ListProductsReq) (*product.
 		}
 		query := fmt.Sprintf(`
 SELECT p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id,
+       COALESCE(p.image_url, '') AS image_url, COALESCE(p.merchant_id, 1000) AS merchant_id,
        MIN(CASE WHEN pr.type = 'LIMITED_PRICE' THEN pr.discount_value END) AS limited_price_fen
 FROM product p
 LEFT JOIN promotion_rule pr
@@ -53,7 +54,7 @@ LEFT JOIN promotion_rule pr
  AND (pr.ends_at IS NULL OR pr.ends_at >= NOW())
 WHERE p.id IN (%s)
   AND p.status = 1
-GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`,
+GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id, p.image_url, p.merchant_id`,
 			strings.Join(placeholders, ","))
 		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &rows, query, args...); err != nil {
 			return nil, err
@@ -62,6 +63,7 @@ GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`,
 		// Query all active products (with optional pagination)
 		query := `
 SELECT p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id,
+       COALESCE(p.image_url, '') AS image_url, COALESCE(p.merchant_id, 1000) AS merchant_id,
        MIN(CASE WHEN pr.type = 'LIMITED_PRICE' THEN pr.discount_value END) AS limited_price_fen
 FROM product p
 LEFT JOIN promotion_rule pr
@@ -70,7 +72,7 @@ LEFT JOIN promotion_rule pr
  AND (pr.starts_at IS NULL OR pr.starts_at <= NOW())
  AND (pr.ends_at IS NULL OR pr.ends_at >= NOW())
 WHERE p.status = 1
-GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id
+GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id, p.image_url, p.merchant_id
 ORDER BY p.id`
 		if in.PageSize > 0 {
 			offset := (in.PageNum - 1) * in.PageSize
@@ -154,6 +156,8 @@ GROUP BY product_id`, strings.Join(placeholders, ","))
 			PromotionTag:   promotionTag,
 			StockAvailable: stockMap[row.ID],
 			SupplierId:     row.SupplierID,
+			ImageUrl:       row.ImageURL,
+			MerchantId:     row.MerchantID,
 		})
 	}
 
@@ -185,10 +189,13 @@ func (l *ListProductsLogic) listProductCardSnapshots(in *product.ListProductsReq
 			placeholders[i] = "?"
 			args[i] = id
 		}
-		query := fmt.Sprintf(`SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id
-FROM product_card_snapshot
-WHERE product_id IN (%s) AND status = 1
-ORDER BY product_id`, strings.Join(placeholders, ","))
+		query := fmt.Sprintf(`SELECT snapshot.product_id, snapshot.name, snapshot.origin_price_fen, snapshot.final_price_fen,
+       snapshot.promotion_type, snapshot.promotion_tag, snapshot.stock_available, snapshot.supplier_id,
+       COALESCE(product.image_url, '') AS image_url, COALESCE(product.merchant_id, 1000) AS merchant_id
+FROM product_card_snapshot AS snapshot
+JOIN product ON product.id = snapshot.product_id
+WHERE snapshot.product_id IN (%s) AND snapshot.status = 1
+ORDER BY snapshot.product_id`, strings.Join(placeholders, ","))
 		if err := l.svcCtx.SqlConn.QueryRowsCtx(l.ctx, &rows, query, args...); err != nil && err != sqlx.ErrNotFound {
 			return nil, false, err
 		}
@@ -205,10 +212,13 @@ ORDER BY product_id`, strings.Join(placeholders, ","))
 		return &product.ListProductsResp{Items: productCardSnapshotsToResp(rows), Total: int64(len(rows))}, true, nil
 	}
 
-	query := `SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id
-FROM product_card_snapshot
-WHERE status = 1
-ORDER BY product_id`
+	query := `SELECT snapshot.product_id, snapshot.name, snapshot.origin_price_fen, snapshot.final_price_fen,
+       snapshot.promotion_type, snapshot.promotion_tag, snapshot.stock_available, snapshot.supplier_id,
+       COALESCE(product.image_url, '') AS image_url, COALESCE(product.merchant_id, 1000) AS merchant_id
+FROM product_card_snapshot AS snapshot
+JOIN product ON product.id = snapshot.product_id
+WHERE snapshot.status = 1
+ORDER BY snapshot.product_id`
 	if in.PageSize > 0 {
 		offset := (in.PageNum - 1) * in.PageSize
 		if offset < 0 {

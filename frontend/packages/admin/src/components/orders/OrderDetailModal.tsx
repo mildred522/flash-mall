@@ -2,6 +2,7 @@ import { Button, Descriptions, Modal, Popconfirm } from 'antd';
 import { formatPriceFen } from '@flash-mall/shared';
 import type { OrderDetailResp } from '@flash-mall/shared';
 import { OrderStatusTag } from './orderModel';
+import ProductThumbnail from '../products/ProductThumbnail';
 
 type Props = {
   open: boolean;
@@ -42,6 +43,9 @@ export default function OrderDetailModal(props: Props) {
           <Descriptions.Item label="用户ID">{detail.user_id || '-'}</Descriptions.Item>
           <Descriptions.Item label="商品ID">{detail.product_id}</Descriptions.Item>
           <Descriptions.Item label="商品">{detail.product_name}</Descriptions.Item>
+          <Descriptions.Item label="商品图" span={2}>
+            <ProductThumbnail src={detail.image_url} alt={`${detail.product_name} 商品图`} width={240} height={160} />
+          </Descriptions.Item>
           <Descriptions.Item label="数量">{detail.amount}</Descriptions.Item>
           <Descriptions.Item label="订单状态"><OrderStatusTag status={detail.status} fallback={detail.status_text} /></Descriptions.Item>
           <Descriptions.Item label="原单价">¥{formatPriceFen(detail.origin_unit_price_fen)}</Descriptions.Item>

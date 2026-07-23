@@ -166,6 +166,8 @@ jobs:
         run: find scripts/ci -type f -name '*.sh' -print0 | xargs -0 -r -n1 bash -n
       - name: Check database initialization aggregate
         run: node scripts/ci/check-init-db-modules.mjs
+      - name: Check durable upload and charset configuration
+        run: node scripts/ci/check-durable-storage.mjs
       - name: Lint GitHub Actions workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 

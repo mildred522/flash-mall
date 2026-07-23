@@ -13,7 +13,7 @@ export default function OrderCard({ order, onPay, onConfirm, onRefund }: Props) 
   const st = STATUS_MAP[order.status] || { text: '未知', cls: 'unknown' };
   const meta = PRODUCT_META[order.product_id];
   const icon = meta?.icon || '📦';
-  const imageURL = resolveProductImage(order.product_id);
+  const imageURL = resolveProductImage(order.product_id, order.image_url);
   const [imageFailed, setImageFailed] = useState(false);
 
   return (

@@ -2,6 +2,7 @@ export interface OrderListItem {
   order_id: string;
   product_id: number;
   product_name: string;
+  image_url: string;
   amount: number;
   status: number;
   status_text: string;
@@ -18,6 +19,7 @@ export interface OrderDetailResp {
   user_id?: number;
   product_id: number;
   product_name: string;
+  image_url: string;
   amount: number;
   status: number;
   status_text: string;

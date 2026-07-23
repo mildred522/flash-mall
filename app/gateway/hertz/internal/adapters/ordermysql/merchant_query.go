@@ -31,7 +31,7 @@ func (r *QueryRepository) ListMerchantOrders(ctx context.Context, query orderque
 	}
 	queryArgs := append(append([]any{}, args...), query.PageSize, (query.Page-1)*query.PageSize)
 	rows, err := r.db.QueryContext(ctx, `SELECT o.id, o.user_id, o.merchant_id, COALESCE(m.name, ''),
-       o.product_id, COALESCE(s.product_name, ''), o.amount, o.status,
+       o.product_id, COALESCE(s.product_name, ''), COALESCE(s.product_image_url, ''), o.amount, o.status,
        COALESCE(s.payable_amount_fen, 0), DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s')
 FROM orders o
 LEFT JOIN order_price_snapshot s ON s.order_id = o.id

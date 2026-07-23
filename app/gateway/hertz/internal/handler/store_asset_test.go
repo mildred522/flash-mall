@@ -3,6 +3,8 @@ package handler
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"mime/multipart"
 	"path/filepath"
 	"strings"
@@ -100,7 +102,8 @@ func TestMerchantStoreAssetUploadStoresImageUnderMerchantDirectory(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := part.Write([]byte("\x89PNG\r\n\x1a\n")); err != nil {
+	payload := []byte("\x89PNG\r\n\x1a\n")
+	if _, err := part.Write(payload); err != nil {
 		t.Fatal(err)
 	}
 	if err := writer.Close(); err != nil {
@@ -123,7 +126,8 @@ func TestMerchantStoreAssetUploadStoresImageUnderMerchantDirectory(t *testing.T)
 	if resp.StatusCode() != consts.StatusOK {
 		t.Fatalf("status=%d body=%s", resp.StatusCode(), resp.Body())
 	}
-	if !strings.Contains(string(resp.Body()), "/uploads/stores/1000/logo-") {
+	expectedURL := fmt.Sprintf("/uploads/stores/1000/%x.png", sha256.Sum256(payload))
+	if !strings.Contains(string(resp.Body()), expectedURL) {
 		t.Fatalf("unexpected body: %s", resp.Body())
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"flash-mall/app/common/mysqlguard"
 	"flash-mall/app/product/rpc/internal/config"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -15,6 +16,7 @@ type ServiceContext struct {
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
+	mysqlguard.MustUTF8MB4("product", c.DataSource)
 	sqlConn := sqlx.NewMysql(c.DataSource)
 	if !c.DisableStockRepair {
 		go repairProductStockState(context.Background(), sqlConn, c.StockBucketCount)

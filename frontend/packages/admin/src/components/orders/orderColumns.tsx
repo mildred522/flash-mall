@@ -3,6 +3,7 @@ import type { ProColumns } from '@ant-design/pro-components';
 import { formatPriceFen } from '@flash-mall/shared';
 import type { AdminOrderListItem } from '@flash-mall/shared';
 import { OrderStatusTag } from './orderModel';
+import ProductThumbnail from '../products/ProductThumbnail';
 
 type Actions = {
   detail: (orderId: string) => void;
@@ -22,10 +23,14 @@ export function createOrderColumns(actions: Actions): ProColumns<AdminOrderListI
     { title: '商品ID', dataIndex: 'product_id', hideInTable: true, valueType: 'digit' },
     { title: '开始日期', dataIndex: 'created_from', hideInTable: true, valueType: 'date' },
     { title: '结束日期', dataIndex: 'created_to', hideInTable: true, valueType: 'date' },
-    { title: '商品', dataIndex: 'product_name', ellipsis: true, render: (_, row) => (
-      <Button type="link" size="small" onClick={() => actions.navigate('/admin/products', 'productId', row.product_id)}>
-        {row.product_name || row.product_id}
-      </Button>
+    { title: '商品', dataIndex: 'product_name', width: 260, render: (_, row) => (
+      <Space size={8}>
+        <ProductThumbnail src={row.image_url} alt={`${row.product_name || row.product_id} 商品图`} />
+        <Button type="link" size="small" style={{ maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis' }}
+          onClick={() => actions.navigate('/admin/products', 'productId', row.product_id)}>
+          {row.product_name || row.product_id}
+        </Button>
+      </Space>
     ) },
     { title: '数量', dataIndex: 'amount', width: 80, search: false },
     { title: '状态', dataIndex: 'status', width: 100,

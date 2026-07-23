@@ -27,6 +27,8 @@ type productCardRow struct {
 	OriginPriceFen int64         `db:"origin_price_fen"`
 	SalePriceFen   int64         `db:"sale_price_fen"`
 	SupplierID     int64         `db:"supplier_id"`
+	ImageURL       string        `db:"image_url"`
+	MerchantID     int64         `db:"merchant_id"`
 	LimitedPrice   sql.NullInt64 `db:"limited_price_fen"`
 }
 
@@ -47,6 +49,8 @@ type productCardSnapshotRow struct {
 	PromotionTag   string `db:"promotion_tag"`
 	StockAvailable int64  `db:"stock_available"`
 	SupplierID     int64  `db:"supplier_id"`
+	ImageURL       string `db:"image_url"`
+	MerchantID     int64  `db:"merchant_id"`
 }
 
 func NewGetProductCardLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetProductCardLogic {
@@ -59,13 +63,13 @@ func NewGetProductCardLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ge
 
 func (l *GetProductCardLogic) GetProductCard(in *product.GetProductCardReq) (*product.GetProductCardResp, error) {
 	var snapshot productCardSnapshotRow
-	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &snapshot, `SELECT product_id, name, origin_price_fen, final_price_fen, promotion_type, promotion_tag, stock_available, supplier_id FROM product_card_snapshot WHERE product_id = ? AND status = 1 LIMIT 1`, in.ProductId); err == nil {
+	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &snapshot, `SELECT s.product_id, s.name, s.origin_price_fen, s.final_price_fen, s.promotion_type, s.promotion_tag, s.stock_available, s.supplier_id, COALESCE(p.image_url, '') AS image_url, COALESCE(p.merchant_id, 1000) AS merchant_id FROM product_card_snapshot s JOIN product p ON p.id = s.product_id WHERE s.product_id = ? AND s.status = 1 LIMIT 1`, in.ProductId); err == nil {
 		return productCardSnapshotToResp(snapshot), nil
 	}
 
 	var row productCardRow
 	query := `
-SELECT p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id,
+SELECT p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id, COALESCE(p.image_url, '') AS image_url, COALESCE(p.merchant_id, 1000) AS merchant_id,
        MIN(CASE WHEN pr.type = 'LIMITED_PRICE' THEN pr.discount_value END) AS limited_price_fen
 FROM product p
 LEFT JOIN promotion_rule pr
@@ -75,7 +79,7 @@ LEFT JOIN promotion_rule pr
  AND (pr.ends_at IS NULL OR pr.ends_at >= NOW())
 WHERE p.id = ?
   AND p.status = 1
-GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`
+GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id, p.image_url, p.merchant_id`
 	if err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &row, query, in.ProductId); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "product card not found")
@@ -115,6 +119,8 @@ GROUP BY p.id, p.name, p.origin_price_fen, p.sale_price_fen, p.supplier_id`
 		PromotionTag:   promotionTag,
 		StockAvailable: stockAvailable,
 		SupplierId:     row.SupplierID,
+		ImageUrl:       row.ImageURL,
+		MerchantId:     row.MerchantID,
 	}, nil
 }
 
@@ -128,5 +134,7 @@ func productCardSnapshotToResp(row productCardSnapshotRow) *product.GetProductCa
 		PromotionTag:   row.PromotionTag,
 		StockAvailable: row.StockAvailable,
 		SupplierId:     row.SupplierID,
+		ImageUrl:       row.ImageURL,
+		MerchantId:     row.MerchantID,
 	}
 }

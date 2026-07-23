@@ -2,8 +2,6 @@ package handler
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"io"
 	"net/http"
@@ -14,6 +12,7 @@ import (
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
+	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -63,34 +62,18 @@ func MerchantStoreAssetUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc
 			fail(ctx, c, consts.StatusBadRequest, apperror.New(apperror.CodeInvalidArgument, "image file cannot be read"))
 			return
 		}
-		randomBytes := make([]byte, 16)
-		if _, err = rand.Read(randomBytes); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "store image upload failed", err))
-			return
-		}
-		name := assetType + "-" + hex.EncodeToString(randomBytes) + ext
-		relative := strconv.FormatInt(merchantID, 10) + "/" + name
-		root := filepath.Join(productUploadDir(svcCtx), "stores")
-		dstPath, err := safeUploadedAssetPath(root, relative)
-		if err != nil {
-			fail(ctx, c, consts.StatusForbidden, apperror.New(apperror.CodeForbidden, "invalid image path"))
-			return
-		}
-		if err = os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "store image upload failed", err))
-			return
-		}
-		dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		namespace := "stores/" + strconv.FormatInt(merchantID, 10)
+		asset, err := assetstore.NewFilesystem(productUploadDir(svcCtx)).Save(
+			namespace,
+			ext,
+			file,
+			maxGatewayProductImageBytes,
+		)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "store image upload failed", err))
 			return
 		}
-		defer func() { _ = dst.Close() }()
-		if _, err = io.Copy(dst, io.LimitReader(file, maxGatewayProductImageBytes+1)); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "store image upload failed", err))
-			return
-		}
-		ok(ctx, c, map[string]any{"image_url": "/uploads/stores/" + relative})
+		ok(ctx, c, map[string]any{"image_url": asset.URL, "asset_type": assetType})
 	}
 }
 

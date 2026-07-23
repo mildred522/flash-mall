@@ -85,9 +85,12 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 		return nil, status.Error(codes.FailedPrecondition, "price changed, please retry checkout")
 	}
 
-	merchantID, err := l.loadProductMerchantID(in.ProductId)
-	if err != nil {
-		return nil, err
+	merchantID := card.GetMerchantId()
+	if merchantID <= 0 {
+		merchantID, err = l.loadProductMerchantID(in.ProductId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	barrier, err := dtmgrpc.BarrierFromGrpc(l.ctx)
@@ -114,6 +117,7 @@ INSERT IGNORE INTO order_price_snapshot (
 	merchant_id,
 	supplier_id,
 	product_name,
+	product_image_url,
 	amount,
 	origin_unit_price_fen,
 	sale_unit_price_fen,
@@ -121,12 +125,13 @@ INSERT IGNORE INTO order_price_snapshot (
 	discount_amount_fen,
 	promotion_type,
 	promotion_tag
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			in.OrderId,
 			quote.ProductId,
 			merchantID,
 			quote.SupplierId,
 			quote.ProductName,
+			card.GetImageUrl(),
 			quote.Amount,
 			quote.OriginUnitPriceFen,
 			quote.SaleUnitPriceFen,

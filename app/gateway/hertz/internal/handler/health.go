@@ -34,6 +34,20 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 			}
 			inventoryRuntime = state
 		}
+		var uploadStorage any
+		if svcCtx.UploadIntegrity != nil {
+			report, err := svcCtx.UploadIntegrity.Check(ctx)
+			if err != nil {
+				fail(ctx, c, consts.StatusServiceUnavailable, apperror.Wrap(apperror.CodeInternal, "upload storage check failed", err))
+				return
+			}
+			if !report.Healthy() {
+				fail(ctx, c, consts.StatusServiceUnavailable, apperror.New(apperror.CodeInternal,
+					fmt.Sprintf("upload storage is not healthy: writable=%t missing_files=%d", report.Writable, report.MissingFiles)))
+				return
+			}
+			uploadStorage = report
+		}
 		ok(ctx, c, map[string]any{
 			"name":                       svcCtx.Config.Name,
 			"status":                     "ok",
@@ -43,6 +57,7 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 			"inventory_kitex_configured": svcCtx.Config.InventoryKitexEndpoint != "",
 			"inventory_runtime":          inventoryRuntime,
 			"live_stock_overlay_enabled": svcCtx.Config.EnableLiveStockOverlay,
+			"upload_storage":             uploadStorage,
 		})
 	}
 }

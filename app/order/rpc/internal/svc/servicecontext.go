@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 
+	"flash-mall/app/common/mysqlguard"
 	"flash-mall/app/order/rpc/internal/config"
 	"flash-mall/app/order/rpc/internal/inventoryclient"
 	productclient "flash-mall/app/product/rpc/productclient"
@@ -24,6 +25,7 @@ type ServiceContext struct {
 
 func NewServiceContext(c config.Config) *ServiceContext {
 	validateInventoryReserveConfig(c)
+	mysqlguard.MustUTF8MB4("order", c.DataSource)
 	svcCtx := &ServiceContext{
 		Config:  c,
 		SqlConn: sqlx.NewMysql(c.DataSource),

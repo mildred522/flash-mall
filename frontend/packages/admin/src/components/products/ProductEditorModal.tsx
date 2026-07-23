@@ -2,6 +2,7 @@ import type { FormInstance } from 'antd';
 import { Form, Input, InputNumber, Modal, Select } from 'antd';
 import type { AdminProductItem, AdminSupplierItem } from '@flash-mall/shared';
 import type { ProductFormValues } from './productModel';
+import ProductThumbnail from './ProductThumbnail';
 
 type Props = {
   open: boolean;
@@ -45,7 +46,7 @@ export default function ProductEditorModal(props: Props) {
         </Form.Item>
         {(watchedImageURL || selectedImageFile) && (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 }}>
-            {watchedImageURL && <img src={watchedImageURL} alt="商品图片预览" style={{ width: 96, height: 96, borderRadius: 8, objectFit: 'cover' }} />}
+            {watchedImageURL && <ProductThumbnail src={watchedImageURL} alt="商品图片预览" width={96} height={96} />}
             {selectedImageFile && <span>待上传：{selectedImageFile.name}</span>}
           </div>
         )}

@@ -29,6 +29,9 @@ services:
     image: mysql:5.7
     pull_policy: never
     container_name: mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
     environment:
       MYSQL_ROOT_PASSWORD: ${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}
     ports:
@@ -341,7 +344,7 @@ services:
       FLASH_MALL_CACHE_REDIS_ADDR: redis:6379
     volumes:
       - ./config/gateway.yaml:/etc/flash-mall/gateway.yaml:ro
-      - ../.runtime/uploads:/data/flash-mall/uploads
+      - flash-mall-uploads:/data/flash-mall/uploads
     command: ["-f", "/etc/flash-mall/gateway.yaml"]
     ports:
       - "8889:8889"
@@ -358,6 +361,8 @@ services:
         condition: service_started
 
 volumes:
+  flash-mall-uploads:
+    name: flash-mall-uploads
   mysql-data:
   redis-data:
   prometheus-data:

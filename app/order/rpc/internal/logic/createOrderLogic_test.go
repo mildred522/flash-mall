@@ -121,11 +121,13 @@ func TestCreateOrderLogic_CreateOrder_PersistsSnapshotAndPaymentOrder(t *testing
 	var snapshotRow struct {
 		OrderID          string `db:"order_id"`
 		ProductID        int64  `db:"product_id"`
+		ProductName      string `db:"product_name"`
+		ProductImageURL  string `db:"product_image_url"`
 		Amount           int64  `db:"amount"`
 		PayableAmountFen int64  `db:"payable_amount_fen"`
 		PromotionType    string `db:"promotion_type"`
 	}
-	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &snapshotRow, "SELECT order_id, product_id, amount, payable_amount_fen, promotion_type FROM order_price_snapshot WHERE order_id = ?", orderID); err != nil {
+	if err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &snapshotRow, "SELECT order_id, product_id, product_name, product_image_url, amount, payable_amount_fen, promotion_type FROM order_price_snapshot WHERE order_id = ?", orderID); err != nil {
 		t.Fatalf("query snapshot row failed: %v", err)
 	}
 	if snapshotRow.ProductID != 9100 || snapshotRow.Amount != 3 || snapshotRow.PayableAmountFen != 29700 {
@@ -133,6 +135,9 @@ func TestCreateOrderLogic_CreateOrder_PersistsSnapshotAndPaymentOrder(t *testing
 	}
 	if snapshotRow.PromotionType != "LIMITED_PRICE" {
 		t.Fatalf("unexpected promotion type: %#v", snapshotRow)
+	}
+	if snapshotRow.ProductName != "中文风衣🧥" || snapshotRow.ProductImageURL != "/uploads/products/flash-coat.webp" {
+		t.Fatalf("snapshot lost UTF-8 name or durable image: %#v", snapshotRow)
 	}
 
 	var paymentRow struct {
@@ -156,12 +161,14 @@ func newOrderCreateServiceContext() *svc.ServiceContext {
 		ProductRpc: &stubProductRPC{
 			card: &productclient.GetProductCardResp{
 				ProductId:      9100,
-				Name:           "Flash Coat",
+				Name:           "中文风衣🧥",
 				OriginPriceFen: 12900,
 				FinalPriceFen:  9900,
 				PromotionType:  "LIMITED_PRICE",
 				PromotionTag:   "限时价",
 				SupplierId:     200,
+				ImageUrl:       "/uploads/products/flash-coat.webp",
+				MerchantId:     1000,
 			},
 		},
 	}
@@ -204,6 +211,7 @@ func ensureOrderCreateSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 			merchant_id bigint NOT NULL DEFAULT 1000,
 			supplier_id bigint NOT NULL DEFAULT 0,
 			product_name varchar(128) NOT NULL DEFAULT '',
+			product_image_url varchar(512) NOT NULL DEFAULT '',
 			amount int NOT NULL DEFAULT 0,
 			origin_unit_price_fen bigint NOT NULL DEFAULT 0,
 			sale_unit_price_fen bigint NOT NULL DEFAULT 0,
@@ -269,6 +277,7 @@ func ensureOrderCreateSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 		"ALTER TABLE mall_product.product ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER id",
 		"ALTER TABLE orders ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id",
 		"ALTER TABLE order_price_snapshot ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER product_id",
+		"ALTER TABLE order_price_snapshot ADD COLUMN product_image_url varchar(512) NOT NULL DEFAULT '' AFTER product_name",
 	}
 	for _, statement := range alterStatements {
 		if _, err := svcCtx.SqlConn.ExecCtx(context.Background(), statement); err != nil && !strings.Contains(err.Error(), "Duplicate column") {

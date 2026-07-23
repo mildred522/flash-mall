@@ -2,6 +2,7 @@ import { Button, Popconfirm, Space, Tag } from 'antd';
 import type { ProColumns } from '@ant-design/pro-components';
 import { formatPriceFen } from '@flash-mall/shared';
 import type { AdminProductItem, AdminSupplierItem } from '@flash-mall/shared';
+import ProductThumbnail from './ProductThumbnail';
 import { ProductStatusTag } from './productModel';
 
 type Actions = {
@@ -25,10 +26,14 @@ export function createProductColumns(suppliers: AdminSupplierItem[], actions: Ac
     { title: '库存状态', dataIndex: 'stock_status', hideInTable: true, valueEnum: {
       '-1': { text: '全部' }, '1': { text: '库存充足' }, '2': { text: '低库存' }, '3': { text: '缺货' },
     } },
-    { title: '图片', dataIndex: 'image_url', width: 88, search: false, render: (_, row) => row.image_url
-      ? <img src={row.image_url} alt={`${row.name} 商品图`} style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover' }} />
-      : <span style={{ color: '#999' }}>无图</span> },
-    { title: '名称', dataIndex: 'name', ellipsis: true, search: false },
+    { title: '商品', dataIndex: 'name', width: 240, search: false, render: (_, row) => (
+      <Space size={10}>
+        <ProductThumbnail src={row.image_url} alt={`${row.name} 商品图`} />
+        <span style={{ display: 'inline-block', maxWidth: 164, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {row.name || `商品 ${row.product_id}`}
+        </span>
+      </Space>
+    ) },
     { title: '原价', dataIndex: 'origin_price_fen', width: 120, search: false, render: (_, row) => `¥${formatPriceFen(row.origin_price_fen)}` },
     { title: '售价', dataIndex: 'sale_price_fen', width: 120, search: false, render: (_, row) => `¥${formatPriceFen(row.sale_price_fen)}` },
     { title: '当前价', dataIndex: 'promotion_price_fen', width: 120, search: false,

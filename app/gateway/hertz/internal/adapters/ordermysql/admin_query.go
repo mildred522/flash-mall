@@ -19,7 +19,7 @@ func (r *QueryRepository) ListOrders(ctx context.Context, query orderquery.Admin
 	}
 	queryArgs := append(append([]any{}, args...), query.PageSize, (query.Page-1)*query.PageSize)
 	rows, err := r.db.QueryContext(ctx, `SELECT o.id, o.user_id, o.merchant_id, COALESCE(m.name, ''),
-       o.product_id, COALESCE(s.product_name, ''), o.amount, o.status,
+       o.product_id, COALESCE(s.product_name, ''), COALESCE(s.product_image_url, ''), o.amount, o.status,
        COALESCE(s.payable_amount_fen, 0), DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s')
 FROM orders o
 LEFT JOIN order_price_snapshot s ON s.order_id = o.id
@@ -37,7 +37,7 @@ func (r *QueryRepository) DetailByID(ctx context.Context, orderID string) (order
 	var detail orderquery.Detail
 	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, COALESCE(o.merchant_id, 0), COALESCE(m.name, ''),
        o.product_id, o.amount, o.status, DATE_FORMAT(o.create_time, '%Y-%m-%d %H:%i:%s'),
-       s.product_name, s.origin_unit_price_fen, s.sale_unit_price_fen, s.payable_amount_fen,
+       s.product_name, s.product_image_url, s.origin_unit_price_fen, s.sale_unit_price_fen, s.payable_amount_fen,
        s.discount_amount_fen, s.promotion_type, s.promotion_tag, p.id, p.status
 FROM orders o
 JOIN order_price_snapshot s ON s.order_id = o.id
@@ -45,7 +45,7 @@ JOIN payment_order p ON p.order_id = o.id
 LEFT JOIN merchant m ON m.id = o.merchant_id
 WHERE o.id = ? LIMIT 1`, orderID).Scan(
 		&detail.OrderID, &detail.UserID, &detail.MerchantID, &detail.MerchantName, &detail.ProductID,
-		&detail.Amount, &detail.Status, &detail.CreateTime, &detail.ProductName, &detail.OriginUnitPriceFen,
+		&detail.Amount, &detail.Status, &detail.CreateTime, &detail.ProductName, &detail.ImageURL, &detail.OriginUnitPriceFen,
 		&detail.SaleUnitPriceFen, &detail.PayableAmountFen, &detail.DiscountAmountFen, &detail.PromotionType,
 		&detail.PromotionTag, &detail.PaymentOrderID, &detail.PaymentStatus)
 	return detail, !errors.Is(err, sql.ErrNoRows), normalizeNotFound(err)
@@ -123,7 +123,7 @@ func scanBackofficeOrders(rows orderRows) ([]orderquery.BackofficeOrderItem, err
 	for rows.Next() {
 		var item orderquery.BackofficeOrderItem
 		if err := rows.Scan(&item.OrderID, &item.UserID, &item.MerchantID, &item.MerchantName, &item.ProductID,
-			&item.ProductName, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
+			&item.ProductName, &item.ImageURL, &item.Amount, &item.Status, &item.PayableAmountFen, &item.CreateTime); err != nil {
 			return nil, err
 		}
 		items = append(items, item)

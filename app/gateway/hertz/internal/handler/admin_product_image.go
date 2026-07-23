@@ -2,16 +2,15 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
+	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -74,26 +73,17 @@ func productImageUploadHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		dir := filepath.Join(productUploadDir(svcCtx), "products")
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product image upload failed", err))
-			return
-		}
-
-		name := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-		dstPath := filepath.Join(dir, name)
-		dst, err := os.OpenFile(dstPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		asset, err := assetstore.NewFilesystem(productUploadDir(svcCtx)).Save(
+			"products",
+			ext,
+			file,
+			maxGatewayProductImageBytes,
+		)
 		if err != nil {
 			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product image upload failed", err))
 			return
 		}
-		defer func() { _ = dst.Close() }()
-
-		if _, err := io.Copy(dst, io.LimitReader(file, maxGatewayProductImageBytes+1)); err != nil {
-			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal, "product image upload failed", err))
-			return
-		}
-		ok(ctx, c, map[string]any{"image_url": "/uploads/products/" + name})
+		ok(ctx, c, map[string]any{"image_url": asset.URL})
 	}
 }
 
@@ -114,6 +104,7 @@ func ProductUploadStaticHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			fail(ctx, c, consts.StatusNotFound, apperror.New(apperror.CodeNotFound, "image not found"))
 			return
 		}
+		c.Response.Header.Set("Cache-Control", "public, max-age=31536000, immutable")
 		c.File(path)
 	}
 }

@@ -20,10 +20,10 @@ Flash Mall 用同一套商城业务展示从 Go-zero Entry API 向 Hertz + Kitex
 | `hertz-gateway` | 商城、商家、管理员 HTTP API 与静态页面 | 8889 |
 | `entry-api` | Go-zero 对比基线；默认本地启动流程不使用 | 8888 |
 | `auth-api` | 凭证、会话、验证码与安全审计 | 8890 |
-| `product-rpc` | 商品元数据和商品读模型 | 8081 |
-| `order-rpc` | 订单状态机、支付、退款、Outbox 与 SAGA | 8082 |
-| `inventory-kitex` | 预占、释放、确认、调库存与一致性修复 | 8891 |
-| MySQL / Redis | 持久化、缓存、库存热数据 | 3306 / 6379 |
+| `product-rpc` | 商品元数据和商品读模型 | 8080 |
+| `order-rpc` | 订单状态机、支付、退款、Outbox 与 SAGA | 8090 |
+| `inventory-kitex` | 预占、释放、确认、调库存与一致性修复 | 8093 |
+| MySQL / Redis | 持久化、缓存、库存热数据 | 3307 / 6379 |
 | RabbitMQ / Etcd / DTM | 事件、服务发现和分布式事务辅助 | 5672 / 2379 / 36789 |
 
 Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速启动链路只启动 Hertz 拓扑。旧 Entry API 通过显式对比流程启动。
@@ -73,7 +73,10 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - 唯一前端源码是 `frontend/packages` 下的 `shop`、`admin`、`merchant` 和 `shared`。
 - 根目录旧 `web` 工程不再继续开发，清理后不得重新作为 Entry API 的构建来源。
 - 构建产物统一放在中立目录 `artifacts/web`，由 Hertz 和 Go-zero Entry API 分别复制或嵌入。
-- 商品和店铺上传素材存储在持久化上传目录，不属于前端编译产物。
+- 商品和店铺上传素材存储在显式命名卷 `flash-mall-uploads`，不属于前端编译产物，也不随 worktree、源码清理或镜像重建消失。
+- 新素材以内容 SHA-256 命名，通过同目录临时文件、`fsync` 和原子重命名写入；同内容重复上传复用同一 URL，静态响应使用 immutable 缓存头。
+- Hertz 健康接口同时检查上传目录可写性和数据库中 `/uploads/` 引用的文件完整性；管理员、商家、商城图片组件均提供加载失败降级。
+- 订单价格快照保存 `product_image_url`，订单列表和详情不再依赖商品当前图片或前端硬编码映射。
 
 ## 开发边界
 
@@ -99,6 +102,12 @@ pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
 
 # 只重建一个服务
 ./scripts/local/rebuild-compose-service.sh hertz-gateway
+
+# 首次升级到命名卷时，无损迁移一个或多个旧上传目录；重复执行安全
+./scripts/local/migrate-uploads-to-volume.sh /path/to/old/.runtime/uploads
+
+# 用真实管理员/用户链路验证哈希上传、中文/emoji 订单快照和图片读取
+node scripts/local/verify-durable-assets.mjs /path/to/image.png 106
 ```
 
 Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代按服务重建，缓存超过预算后保留近期热缓存；任何自动清理都不得删除 MySQL、Redis 或 RabbitMQ 数据卷。
@@ -124,7 +133,7 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 管理员与商家的商品创建、元数据更新已统一进入 `application/productcommand` 与 `productmysql.ProductCommandRepository`；有效供应商/商家校验、商品行锁、最终价格约束、离线商品与库存初始化任务写入由事务保证，商家更新通过事务内 `merchant_id` 条件隔离所有权。商品初始库存仍在事务提交后通过 Inventory Kitex 写入，失败时商品保持离线并保留可重试种子任务。
 - 管理员商品、促销、订单和供应商页面已拆出列定义、编辑/详情/日志弹窗及页面模型；四个页面只保留状态、导航和 API 编排，并由架构测试限制体积与组件边界。
 - 管理员首页橱窗页已拆出草稿模型、12 槽编辑器和推荐候选面板；安全事件页已拆出事件语义、筛选条和列定义；用户页已拆出列定义、详情弹窗和角色/状态展示。页面仍保留各自的请求状态与业务动作，现有橱窗拖拽、商家多样性和版本冲突行为保持不变。
-- 数据库初始化源码已按 bootstrap、订单、商品 schema、商品种子、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 六个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性。
+- 数据库初始化源码已按 bootstrap、订单、商品 schema、商品种子、历史数据修复、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 七个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性。
 - 管理员看板、Outbox 事件列表/重试已进入 `application/adminops` 与 `ordermysql.AdminOpsRepository`；看板统计由原先 17 次串行查询收敛为一次聚合查询。
 - 支付/退款/订单对账已进入 `application/reconciliation` 与 `ordermysql.ReconciliationRepository`；扫描、幂等问题键和列表查询不再位于 Handler，集成测试也不再运行时修改表结构。
 - 用户地址已进入 `application/useraddress` 与 `adapters/authmysql`；默认地址切换、地址保存及用户所有权检查在同一事务内完成。
@@ -141,6 +150,9 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - `shared/src/types.ts` 已从 543 行混合声明改为公共 barrel，认证、商城、订单、商家及管理员领域类型分别维护；现有 `@flash-mall/shared` 导入方式保持兼容。
 - 管理员商品页已进一步拆成薄页面、`useProductManagement` 页面控制器和独立商品 API；筛选、详情、创建、编辑、上下架、图片上传与库存调整不再堆积在页面组件中。
 - 仓库内已确认没有前端、脚本或服务继续消费 `/api/gateway/*` 与 `/api/catalog` 旧别名，因此兼容路由已删除；公开 API 只保留当前规范路由，路由回归测试会阻止旧别名重新注册。
+- MySQL Compose 默认字符集和排序规则显式固定为 `utf8mb4/utf8mb4_unicode_ci`；Auth、Product、Order 和 Hertz 在启动时拒绝未显式携带 `charset=utf8mb4` 的 DSN，防止配置回退再次把中文写成问号。
+- 历史订单乱码修复只处理名称含连续三个问号、且规范商品名有效的快照；修复前原值和十六进制字节进入 `order_snapshot_repair_audit`，脚本可重复执行。
+- 商品 RPC 卡片同时返回图片 URL 和商家 ID，Order RPC 下单直接写入名称/图片/商家快照；Hertz 用户、管理员和商家订单查询统一返回 `image_url`。
 
 本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
@@ -151,13 +163,17 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 ## 验证基线
 
-2026-07-23 当前清理已完成以下验证：
+2026-07-23 当前清理与素材持久化修复已完成以下验证：
 
 - Hertz 全部包测试和 `go vet ./app/gateway/hertz/...` 通过；Docker MySQL 可用后，支付绑定与对账扫描两个集成用例也已纳入完整 Handler 测试并通过。
 - Inventory Repository、Auth ServiceContext、Entry 静态入口、Handler 持久化架构守卫、支付签名与迁移目录回归通过。
-- 前端全部 35 个测试文件、57 个用例通过；共享类型边界测试以及 shop、admin、merchant 三套生产构建通过。
-- 数据库初始化六个模块与聚合 SQL 一致，`artifacts/web` 中三套静态产物的内联脚本检查通过。
+- Go 全仓 `go test ./... -count=1` 通过；前端全部 37 个测试文件、59 个用例通过，shop、admin、merchant 三套生产构建通过。
+- 数据库初始化七个模块与聚合 SQL 一致，持久化卷/utf8mb4 配置守卫和 `artifacts/web` 三套静态产物检查通过。
 - 在 Ubuntu WSL Docker Engine 中从当前源码重新构建 `auth-api`、`product-rpc`、`order-rpc`、`inventory-kitex`、`entry-api` 和 `hertz-gateway` 六个镜像，默认 Hertz Compose 拓扑健康。
 - 真实链路订单 `docker-e2e-1784777507` 使用同一请求 ID 重复下单只生成同一订单；库存从可用 `9999` 经预占变为 `9998`，支付确认后预占归零、总库存变为 `9998`。
 - 同一支付令牌重复确认仍只产生 1 条支付回调事件、2 条 Outbox 事件和 2 条库存变更日志；两条 Outbox 均已发布，RabbitMQ 消费者已写入支付投影。
 - 管理员和商家真实登录、管理看板、商家成员关系与店铺资料、商品目录及图片、商城/管理端/商家端/商品详情/店铺页面均返回正常；已删除的 `/api/gateway/health` 返回 404。
+- 旧 worktree 的 4 个上传文件已无损迁入 `flash-mall-uploads`；Hertz 重建和重启后，内容寻址图片 `f7e96c…c856.png` 的 HTTP SHA-256 仍为 `f7e96c…c856`。
+- 历史 40 条问号商品名快照全部先写入审计表再修复，修复后连续问号残留为 0；包含验收订单在内已有 55 条订单保存商品图片快照。
+- 真实订单 `durable-assets-1784792738791` 保存了 `持久化验收商品🧥-1784792738713` 的完整 utf8mb4 字节和内容寻址图片 URL。
+- Windows 本机 Google Chrome 对管理员商品、管理员订单和商城首页做真实渲染：商品与订单中文名可见，所有图片 `naturalWidth > 0`，无 4xx 响应或失败请求。

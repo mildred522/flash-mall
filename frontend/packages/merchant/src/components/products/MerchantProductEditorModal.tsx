@@ -1,5 +1,6 @@
 import { Form, Image, Input, InputNumber, Modal, Space } from 'antd';
 import type { FormInstance } from 'antd';
+import { PRODUCT_IMAGE_FALLBACK_DATA_URI } from '@flash-mall/shared';
 import type { AdminProductItem } from '@flash-mall/shared';
 import type { ProductFormValues } from './productModel';
 
@@ -43,7 +44,7 @@ export default function MerchantProductEditorModal(props: Props) {
         </Form.Item>
         {(watchedImageURL || props.imageFile) && (
           <Space style={{ marginBottom: 16 }}>
-            {watchedImageURL && <Image width={88} height={88} src={watchedImageURL} alt="商品图片预览" />}
+            {watchedImageURL && <Image width={88} height={88} src={watchedImageURL} fallback={PRODUCT_IMAGE_FALLBACK_DATA_URI} alt="商品图片预览" />}
             {props.imageFile && <span>待上传：{props.imageFile.name}</span>}
           </Space>
         )}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Popconfirm, Space, Table, Tag, message } from 'antd';
-import { authed, formatPriceFen, STATUS_MAP } from '@flash-mall/shared';
+import { Button, Image, Popconfirm, Space, Table, Tag, message } from 'antd';
+import { authed, formatPriceFen, PRODUCT_IMAGE_FALLBACK_DATA_URI, STATUS_MAP } from '@flash-mall/shared';
 import type { ActionResp, AdminOrderListItem, AdminOrderListResp } from '@flash-mall/shared';
 
 export default function OrdersPage() {
@@ -43,7 +43,17 @@ export default function OrdersPage() {
       )}
       columns={[
         { title: '订单号', dataIndex: 'order_id', width: 220 },
-        { title: '商品', dataIndex: 'product_name' },
+        {
+          title: '商品', dataIndex: 'product_name', width: 260,
+          render: (_, row) => (
+            <Space>
+              {row.image_url
+                ? <Image width={48} height={48} src={row.image_url} fallback={PRODUCT_IMAGE_FALLBACK_DATA_URI} alt={`${row.product_name} 商品图`} />
+                : <span style={{ color: '#999', width: 48 }}>无图</span>}
+              <span>{row.product_name || row.product_id}</span>
+            </Space>
+          ),
+        },
         { title: '用户ID', dataIndex: 'user_id', width: 100 },
         { title: '数量', dataIndex: 'amount', width: 80 },
         { title: '金额', dataIndex: 'payable_amount_fen', width: 110, render: (value: number) => `¥${formatPriceFen(value)}` },
