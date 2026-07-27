@@ -171,6 +171,13 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 ## 验证基线
 
+2026-07-27 CI 修复与双入口集成基线：
+
+- Fast CI [30236181296](https://github.com/mildred522/flash-mall/actions/runs/30236181296) 全绿：Go 全仓 `vet`、测试与六个服务二进制构建通过，桌面启动器测试/发布通过，数据库聚合、持久化与字符集、Docker 构建上下文、Go 工具链、GitHub Actions 运行时、集成冒烟配置及 Actionlint 守卫全部通过。
+- Full Integration CI [30236336893](https://github.com/mildred522/flash-mall/actions/runs/30236336893) 全绿：旧 Go-zero Entry API 与新 Hertz + Kitex 两条端到端冒烟均从空白依赖环境完成，验证注册/登录、商品读取、下单、库存预占与最终扣减等核心链路。
+- `entry-api`、`hertz-gateway`、`auth-api`、`product-rpc`、`order-rpc`、`inventory-kitex` 六个服务镜像均由 GitHub Buildx 成功构建；服务 Dockerfile 必须显式复制共享 `app/common`，该契约已进入 Fast CI。
+- 工作流统一使用支持 Node 24 的官方 Action 大版本，Go 安装以 `go.mod` 的 `toolchain go1.24.11` 为唯一版本来源并以 `go.sum` 为缓存键；日常提交只跑受影响检查，完整双入口与镜像矩阵保留为手动/定时验证。
+
 2026-07-27 商品存在性过滤与负缓存完成以下验证：
 
 - `go test ./app/gateway/hertz/... -count=1` 与 `go vet ./app/gateway/hertz/...` 通过；过滤器测试覆盖固定哈希位置、幂等 Add、重建锁、失败不切 active、多实例共享、Redis 不可用 fail-open、负缓存生命周期和副本指标初始化。
