@@ -8,6 +8,10 @@ const minimumMajors = new Map([
   ['actions/setup-node', 5],
   ['actions/setup-dotnet', 5],
   ['dorny/paths-filter', 4],
+  ['docker/setup-buildx-action', 4],
+  ['docker/build-push-action', 7],
+  ['docker/login-action', 4],
+  ['docker/metadata-action', 6],
 ]);
 
 let checked = 0;

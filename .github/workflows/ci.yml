@@ -170,6 +170,8 @@ jobs:
         run: node scripts/ci/check-init-db-modules.mjs
       - name: Check durable upload and charset configuration
         run: node scripts/ci/check-durable-storage.mjs
+      - name: Check Docker build contexts
+        run: node scripts/ci/check-docker-contexts.mjs
       - name: Check Go toolchain configuration
         run: node scripts/ci/check-go-toolchain.mjs
       - name: Check GitHub Action runtimes
