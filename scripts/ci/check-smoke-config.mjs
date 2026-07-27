@@ -8,6 +8,10 @@ const requirements = [
     /export INVENTORY_FINAL_DEDUCT_ENABLED="true"/,
   ],
   [
+    'the integration smoke must enforce the durable reservation ledger',
+    /export INVENTORY_RESERVATION_LEDGER_MODE="enforce"/,
+  ],
+  [
     'the ephemeral auth config must expose the verification code used by registration',
     /s\/ExposeDebugCode: false\/ExposeDebugCode: true\//,
   ],

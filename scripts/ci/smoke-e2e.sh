@@ -98,16 +98,24 @@ wait_for_http() {
   local url="$2"
   local timeout="${3:-90}"
   local deadline=$((SECONDS + timeout))
+  local response_file="${LOG_DIR}/${name}-readiness.json"
+  local status_code="000"
 
   while (( SECONDS < deadline )); do
-    if curl -fsS "${url}" >/dev/null 2>&1; then
+    status_code="$(curl -sS -o "${response_file}" -w '%{http_code}' "${url}" 2>/dev/null || true)"
+    if [[ "${status_code}" =~ ^2[0-9][0-9]$ ]]; then
       echo "[ok] ${name} ready at ${url}"
       return 0
     fi
     sleep 1
   done
 
-  echo "[error] ${name} not ready at ${url}" >&2
+  echo "[error] ${name} not ready at ${url}; last_status=${status_code}" >&2
+  if [[ -s "${response_file}" ]]; then
+    echo "[diagnostic] last readiness response:" >&2
+    cat "${response_file}" >&2
+    echo >&2
+  fi
   return 1
 }
 
@@ -180,6 +188,7 @@ export INVENTORY_REDIS_HOST="127.0.0.1:6379"
 export INVENTORY_DATASOURCE="${FLASH_MALL_PRODUCT_DATASOURCE}"
 export INVENTORY_STOCK_SHARD_COUNT="4"
 export INVENTORY_FINAL_DEDUCT_ENABLED="true"
+export INVENTORY_RESERVATION_LEDGER_MODE="enforce"
 
 smoke_gateway="${FLASH_MALL_SMOKE_GATEWAY:-hertz}"
 case "${smoke_gateway}" in
