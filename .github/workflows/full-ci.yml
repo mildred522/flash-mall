@@ -50,10 +50,11 @@ jobs:
         run: cd frontend && npm ci && npm run build
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Download dependencies
         run: go mod download
@@ -84,10 +85,11 @@ jobs:
         run: cd frontend && npm ci && npm run build
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.sum
 
       - name: Download dependencies
         run: go mod download
@@ -147,7 +149,7 @@ jobs:
               - 'build/docker/auth-api.Dockerfile'
             entry:
               - 'app/entry/**'
-              - 'web/**'
+              - 'artifacts/web/**'
               - 'build/docker/entry-api.Dockerfile'
 
       - name: Create build matrix
