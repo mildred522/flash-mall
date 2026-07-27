@@ -172,6 +172,8 @@ jobs:
         run: node scripts/ci/check-durable-storage.mjs
       - name: Check observability configuration
         run: node scripts/ci/check-observability.mjs
+      - name: Check failure recovery verifier
+        run: node scripts/ci/check-failure-recovery.mjs
       - name: Check Docker build contexts
         run: node scripts/ci/check-docker-contexts.mjs
       - name: Check Go toolchain configuration

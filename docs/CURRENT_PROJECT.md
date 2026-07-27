@@ -111,6 +111,9 @@ docker compose -f deploy/docker-compose.yml --profile observability up -d promet
 # 主机 3000 被占用时只改宿主端口，容器内配置保持不变
 FLASH_MALL_GRAFANA_PORT=3001 docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
 
+# 显式授权后执行可自动恢复的本地故障演练
+./scripts/local/verify-failure-recovery.sh --allow-disruption --scenario all
+
 # 只重建一个服务
 ./scripts/local/rebuild-compose-service.sh hertz-gateway
 
@@ -170,13 +173,20 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
-Grafana 观测闭环已经收口：Prometheus 抓取 Hertz、Order RPC、Product RPC 和 Inventory Kitex；四个自动装载面板覆盖服务/数据库总览、库存一致性、支付与 Outbox、缓存与 RPC；六条规则覆盖服务失联、库存命令错误率、库存/Outbox 死信、Outbox 积压和支付回调异常。后续优先级为：
+Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
 
-1. 对库存 Kitex、订单 RPC、Redis、RabbitMQ 和 MySQL 做故障注入，验证超时、补偿、重试、幂等及恢复任务。
-2. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
-3. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
+1. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
+2. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
 
 ## 验证基线
+
+2026-07-27 故障注入与恢复演练完成以下验证：
+
+- `verify-failure-recovery.sh` 必须显式传入 `--allow-disruption`，并校验容器属于当前 Compose 项目；退出 trap 会恢复所有暂停容器并删除唯一 `chaos.probe` Outbox 记录，CI 固化九项安全契约。
+- 暂停 Inventory Kitex 和 Order RPC 后，对应 Prometheus `up` 变为 0；解除暂停后重新变为 1，Hertz 最终恢复就绪。
+- 暂停 Redis、MySQL 后，Hertz 就绪接口均返回 503；解除暂停后在等待窗口内恢复 200，没有重启业务服务。
+- RabbitMQ 暂停期间，隔离 Outbox 探针保持 pending 且 `attempt_count` 增加；RabbitMQ 恢复后同一事件进入 published，随后探针数据被删除。
+- 演练结束后 Hertz、Inventory Kitex、Order RPC、Redis、MySQL、RabbitMQ 均为 running 且非 paused，残留 `chaos.probe` 记录为 0。
 
 2026-07-27 Grafana 观测闭环完成以下验证：
 
