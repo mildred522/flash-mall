@@ -22,9 +22,22 @@
         {"expr": "sum by (result) (rate(inventory_reservation_recovery_total[5m]))", "legendFormat": "recovery / {{result}}"}
       ],
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 7}
+    },
+    {
+      "type": "stat", "title": "Kitex 命令成功率", "id": 4,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "100 * sum(rate(inventory_kitex_commands_total{result=\"success\"}[5m])) / clamp_min(sum(rate(inventory_kitex_commands_total[5m])), 0.001)", "legendFormat": "success"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 95}, {"color": "green", "value": 99}]}}},
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 15}
+    },
+    {
+      "type": "timeseries", "title": "Kitex 命令错误率", "id": 5,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (operation) (rate(inventory_kitex_commands_total{result=\"error\"}[5m]))", "legendFormat": "{{operation}}"}],
+      "gridPos": {"h": 6, "w": 16, "x": 8, "y": 15}
     }
   ],
   "refresh": "10s", "schemaVersion": 39, "tags": ["flash-mall", "inventory"],
   "templating": {"list": []}, "time": {"from": "now-1h", "to": "now"},
-  "title": "Flash Mall / 库存一致性", "uid": "flashmall-inventory", "version": 1
+  "title": "Flash Mall / 库存一致性", "uid": "flashmall-inventory", "version": 2
 }

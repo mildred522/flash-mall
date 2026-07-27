@@ -1,0 +1,63 @@
+groups:
+  - name: flash-mall-core
+    interval: 30s
+    rules:
+      - alert: FlashMallServiceDown
+        expr: up{job=~"hertz-gateway|order-rpc|product-rpc|inventory-kitex"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Flash Mall 核心服务不可抓取"
+          description: "{{ $labels.job }} 已连续 2 分钟无法被 Prometheus 抓取。"
+
+      - alert: InventoryCommandErrorRateHigh
+        expr: |
+          sum(rate(inventory_kitex_commands_total{result="error"}[5m]))
+          /
+          clamp_min(sum(rate(inventory_kitex_commands_total[5m])), 0.001)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "库存 Kitex 命令错误率超过 5%"
+          description: "库存写命令错误率已连续 5 分钟超过阈值。"
+
+      - alert: InventoryDeadLettersPresent
+        expr: max(inventory_reservations{state="dead_letter"}) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "存在库存预占死信"
+          description: "库存恢复任务仍有 {{ $value }} 条死信需要处理。"
+
+      - alert: OutboxDeadLettersPresent
+        expr: max(flashmall_outbox_events{state="dead"}) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "存在 Outbox 死信"
+          description: "支付后异步事件仍有 {{ $value }} 条死信需要处理。"
+
+      - alert: OutboxBacklogHigh
+        expr: max(flashmall_outbox_events{state="pending"}) > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox 积压超过 100 条"
+          description: "Outbox 待发布事件已连续 10 分钟超过阈值。"
+
+      - alert: PaymentCallbackErrors
+        expr: |
+          sum(rate(flashmall_payment_callback_total{result=~"invalid_request|unauthorized|invalid_payload|error"}[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "支付回调异常持续发生"
+          description: "支付回调异常速率已连续 5 分钟超过每秒 0.05 次。"

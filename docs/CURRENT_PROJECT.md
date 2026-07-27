@@ -105,6 +105,12 @@ pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
 # 查看健康状态
 ./scripts/local/health-compose.sh
 
+# 启动 Prometheus 与 Grafana；Grafana 默认监听 3000
+docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
+
+# 主机 3000 被占用时只改宿主端口，容器内配置保持不变
+FLASH_MALL_GRAFANA_PORT=3001 docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
+
 # 只重建一个服务
 ./scripts/local/rebuild-compose-service.sh hertz-gateway
 
@@ -164,12 +170,20 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
-1. 用 Grafana 固化库存命令、支付、Outbox、缓存和 RPC 的延迟、成功率与一致性面板。
-2. 对库存 Kitex、订单 RPC、Redis、RabbitMQ 和 MySQL 做故障注入，验证超时、补偿、重试、幂等及恢复任务。
-3. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
-4. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
+Grafana 观测闭环已经收口：Prometheus 抓取 Hertz、Order RPC、Product RPC 和 Inventory Kitex；四个自动装载面板覆盖服务/数据库总览、库存一致性、支付与 Outbox、缓存与 RPC；六条规则覆盖服务失联、库存命令错误率、库存/Outbox 死信、Outbox 积压和支付回调异常。后续优先级为：
+
+1. 对库存 Kitex、订单 RPC、Redis、RabbitMQ 和 MySQL 做故障注入，验证超时、补偿、重试、幂等及恢复任务。
+2. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
+3. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
 
 ## 验证基线
+
+2026-07-27 Grafana 观测闭环完成以下验证：
+
+- Prometheus 2.53 `promtool` 校验主配置和六条告警规则通过；Compose 配置与仓库观测契约检查通过，CI 会阻止面板、告警挂载、关键 PromQL 或可配置 Grafana 端口回退。
+- 使用现有业务拓扑启动 observability profile，Prometheus 对 `hertz-gateway`、`order-rpc`、`product-rpc`、`inventory-kitex` 四个目标均报告 `up`，六条告警规则健康状态均为 `ok`。
+- Grafana 11.1 自动装载“总览”“库存一致性”“支付与 Outbox”“缓存与 RPC”四个面板；通过 Prometheus HTTP API 实际编译执行全部 32 条面板 PromQL，均返回成功。
+- Windows 上已有独立 Next.js 服务占用 3000 时，以 `FLASH_MALL_GRAFANA_PORT=3001` 启动成功；Prometheus 仍使用 9099，业务容器未重启。
 
 2026-07-27 CI 修复与双入口集成基线：
 

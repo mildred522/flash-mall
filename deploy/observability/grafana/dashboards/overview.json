@@ -53,9 +53,23 @@
         {"expr": "sum(rate(flashmall_existence_filter_false_positive_total{entity=\"product\"}[5m]))", "legendFormat": "false positive"}
       ],
       "gridPos": {"h": 6, "w": 12, "x": 12, "y": 24}
+    },
+    {
+      "type": "stat", "title": "核心服务抓取状态", "id": 9,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "up{job=~\"hertz-gateway|order-rpc|product-rpc|inventory-kitex\"}", "legendFormat": "{{job}}"}],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 30}
+    },
+    {
+      "type": "timeseries", "title": "数据库连接池使用率", "id": 10,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "100 * max by (job) (sql_client_in_use_connections) / clamp_min(max by (job) (sql_client_max_open_connections), 1)", "legendFormat": "{{job}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 30}
     }
   ],
   "refresh": "10s", "schemaVersion": 39, "tags": ["flash-mall", "overview"],
   "templating": {"list": []}, "time": {"from": "now-1h", "to": "now"},
-  "title": "Flash Mall / 总览", "uid": "flashmall-overview", "version": 1
+  "title": "Flash Mall / 总览", "uid": "flashmall-overview", "version": 2
 }

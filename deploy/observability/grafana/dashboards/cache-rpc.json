@@ -1,0 +1,63 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat", "title": "L1 命中率", "id": 1,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "100 * sum(rate(flashmall_cache_requests_total{layer=\"l1\",result=\"hit\"}[5m])) / clamp_min(sum(rate(flashmall_cache_requests_total{layer=\"l1\",result=~\"hit|miss\"}[5m])), 0.001)", "legendFormat": "L1"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0}
+    },
+    {
+      "type": "stat", "title": "L2 命中率", "id": 2,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "100 * sum(rate(flashmall_cache_requests_total{layer=\"l2\",result=\"hit\"}[5m])) / clamp_min(sum(rate(flashmall_cache_requests_total{layer=\"l2\",result=~\"hit|miss|stale\"}[5m])), 0.001)", "legendFormat": "L2"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0}
+    },
+    {
+      "type": "timeseries", "title": "缓存分层结果", "id": 3,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (layer, result) (rate(flashmall_cache_requests_total[5m]))", "legendFormat": "{{layer}} / {{result}}"}],
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "type": "timeseries", "title": "缓存回源与刷新异常", "id": 4,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [
+        {"expr": "sum(rate(flashmall_cache_requests_total{layer=\"origin\",result=\"error\"}[5m]))", "legendFormat": "origin error"},
+        {"expr": "sum(rate(flashmall_cache_refresh_total{result=\"error\"}[5m]))", "legendFormat": "refresh error"}
+      ],
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 6}
+    },
+    {
+      "type": "timeseries", "title": "RPC 服务端 p95", "id": 5,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le, job, method) (rate(rpc_server_requests_duration_ms_bucket[5m])))", "legendFormat": "{{job}} / {{method}}"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "gridPos": {"h": 7, "w": 16, "x": 8, "y": 6}
+    },
+    {
+      "type": "timeseries", "title": "RPC 服务端错误率", "id": 6,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "100 * sum by (job, method) (rate(rpc_server_requests_code_total{code!=\"0\"}[5m])) / clamp_min(sum by (job, method) (rate(rpc_server_requests_code_total[5m])), 0.001)", "legendFormat": "{{job}} / {{method}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 13}
+    },
+    {
+      "type": "timeseries", "title": "RPC 服务端吞吐", "id": 7,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (job, method, code) (rate(rpc_server_requests_code_total[5m]))", "legendFormat": "{{job}} / {{method}} / {{code}}"}],
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 13}
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["flash-mall", "cache", "rpc"],
+  "templating": {"list": []},
+  "time": {"from": "now-1h", "to": "now"},
+  "title": "Flash Mall / 缓存与 RPC",
+  "uid": "flashmall-cache-rpc",
+  "version": 1
+}
