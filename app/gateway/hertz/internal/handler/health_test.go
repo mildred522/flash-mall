@@ -8,6 +8,7 @@ import (
 
 	"flash-mall/app/gateway/hertz/internal/assetstore"
 	"flash-mall/app/gateway/hertz/internal/config"
+	"flash-mall/app/gateway/hertz/internal/existencefilter"
 	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -92,6 +93,24 @@ func TestReadinessRejectsConfiguredStoreWithoutIntegrityMonitor(t *testing.T) {
 	resp := ut.PerformRequest(h.Engine, "GET", "/ready", nil).Result()
 	if resp.StatusCode() != consts.StatusServiceUnavailable {
 		t.Fatalf("status=%d body=%s", resp.StatusCode(), resp.Body())
+	}
+}
+
+func TestHealthReportsOptionalProductExistenceFilterStatus(t *testing.T) {
+	h := server.Default()
+	h.GET("/health", HealthHandler(&svc.ServiceContext{
+		Config: config.Config{Name: "gateway-test", ProductExistenceFilterEnabled: true},
+		ProductExistenceFilter: &stubProductFilter{status: existencefilter.Status{
+			Enabled: true, Ready: false, State: "unready",
+		}},
+	}, time.Now()))
+
+	resp := ut.PerformRequest(h.Engine, "GET", "/health", nil).Result()
+	if resp.StatusCode() != consts.StatusOK {
+		t.Fatalf("status=%d body=%s", resp.StatusCode(), resp.Body())
+	}
+	if !containsJSONText(resp.Body(), `"product_existence_filter":{"enabled":true,"ready":false,"state":"unready"}`) {
+		t.Fatalf("missing filter status: %s", resp.Body())
 	}
 }
 

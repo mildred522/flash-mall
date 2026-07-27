@@ -1,7 +1,7 @@
 # 商品存在性过滤与负缓存设计
 
 > 日期：2026-07-25
-> 状态：待用户确认后实施
+> 状态：已实施并完成 Docker 真实链路验证
 > 决策：采用普通 Redis Bitmap 实现商品布隆过滤器，并以短期负缓存吸收假阳性和不可见商品请求。
 
 ## 1. 当前实现与问题根因
@@ -195,7 +195,7 @@ flashmall:hertz:negative:product:{product_id}
 | Redis 单次操作超时 | 200 ms |
 | 重建批次 | 1000 |
 
-`meta` 保存 `state`、`m`、`k`、`count`、`built_at` 和算法版本。active Key 只保存
+`meta` 保存 `state`、`bit_count`、`hash_count`、`count`、`built_at` 和算法版本。active Key 只保存
 完整 generation ID。参数变化必须生成新 generation，不能原地解释旧位图。
 
 ## 8. 哈希与 Redis 操作
@@ -306,8 +306,9 @@ ProductExistenceFilterBatchSize: 1000
 ProductNegativeCacheTTLSeconds: 30
 ```
 
-代码合入时默认配置保持关闭，Docker 真实验收完成后再在开发部署配置中开启。关闭时
-装配禁用实现，不改变现有 API 行为。Redis 地址继续复用 `CacheRedisAddr`。
+Go 配置零值保持关闭，Docker Compose 和 Kubernetes 开发部署配置在真实验收后已开启。
+关闭时不装配过滤器和负缓存，不改变现有 API 行为。Redis 地址继续复用
+`CacheRedisAddr`。
 
 ## 13. API、权限和错误映射
 

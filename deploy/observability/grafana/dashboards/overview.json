@@ -19,6 +19,40 @@
       "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
       "targets": [{"expr": "sum by (operation, result) (rate(inventory_kitex_commands_total[5m]))", "legendFormat": "{{operation}} / {{result}}"}],
       "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+    },
+    {
+      "type": "timeseries", "title": "商品存在性过滤结果", "id": 4,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (result) (rate(flashmall_existence_filter_checks_total{entity=\"product\"}[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16}
+    },
+    {
+      "type": "timeseries", "title": "商品负缓存命中结果", "id": 5,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "sum by (result) (rate(flashmall_negative_cache_requests_total{entity=\"product\"}[5m]))", "legendFormat": "{{result}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16}
+    },
+    {
+      "type": "stat", "title": "商品过滤器就绪", "id": 6,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "max(flashmall_existence_filter_ready{entity=\"product\"})", "legendFormat": "ready"}],
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "mappings": [{"type": "value", "options": {"0": {"text": "未就绪", "color": "red"}, "1": {"text": "就绪", "color": "green"}}}], "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 24}
+    },
+    {
+      "type": "stat", "title": "过滤器商品数量", "id": 7,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [{"expr": "max(flashmall_existence_filter_items{entity=\"product\"})", "legendFormat": "items"}],
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 24}
+    },
+    {
+      "type": "timeseries", "title": "过滤器更新与假阳性", "id": 8,
+      "datasource": {"type": "prometheus", "uid": "flashmall-prometheus"},
+      "targets": [
+        {"expr": "sum by (result) (rate(flashmall_existence_filter_updates_total{entity=\"product\"}[5m]))", "legendFormat": "update / {{result}}"},
+        {"expr": "sum(rate(flashmall_existence_filter_false_positive_total{entity=\"product\"}[5m]))", "legendFormat": "false positive"}
+      ],
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 24}
     }
   ],
   "refresh": "10s", "schemaVersion": 39, "tags": ["flash-mall", "overview"],

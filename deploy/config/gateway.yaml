@@ -26,6 +26,13 @@ CacheL1TTLMillis: 2000
 CacheSoftTTLSeconds: 30
 CacheHardTTLSeconds: 120
 CacheMaxEntries: 512
+ProductExistenceFilterEnabled: true
+ProductExistenceFilterPrefix: flashmall:hertz:existence:product
+ProductExistenceFilterExpectedItems: 1000000
+ProductExistenceFilterFalsePositiveRate: 0.01
+ProductExistenceFilterRebuildHours: 6
+ProductExistenceFilterBatchSize: 1000
+ProductNegativeCacheTTLSeconds: 30
 
 ProductRpcConf:
   Endpoints:

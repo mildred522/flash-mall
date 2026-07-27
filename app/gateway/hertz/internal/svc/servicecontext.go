@@ -29,6 +29,7 @@ import (
 	"flash-mall/app/gateway/hertz/internal/assetstore"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/config"
+	"flash-mall/app/gateway/hertz/internal/existencefilter"
 	"flash-mall/app/gateway/hertz/internal/ports"
 	orderclient "flash-mall/app/order/rpc/orderclient"
 	productclient "flash-mall/app/product/rpc/productclient"
@@ -40,36 +41,39 @@ import (
 )
 
 type ServiceContext struct {
-	Config             config.Config
-	SqlConn            sqlx.SqlConn
-	OrderSqlConn       sqlx.SqlConn
-	AuthSqlConn        sqlx.SqlConn
-	OrderRpc           orderclient.Order
-	ProductRpc         productclient.Product
-	InventoryRpc       ports.InventoryService
-	OrderCommands      ports.OrderCommands
-	AdminOps           *adminops.Service
-	Campaigns          *campaign.Service
-	Reconciliation     *reconciliation.Service
-	OrderQueries       *orderquery.Service
-	BackofficeOrders   *orderquery.BackofficeService
-	CatalogQueries     *catalogquery.Service
-	MerchantQueries    *merchantquery.Service
-	MerchantOnboarding *merchantonboarding.Service
-	MerchantStores     *merchantstore.Service
-	UserAddresses      *useraddress.Service
-	ProductInventory   ports.ProductInventoryInitializer
-	ProductCommands    *productcommand.Service
-	ProductSnapshots   ports.ProductSnapshotStore
-	Promotions         *promotion.Service
-	Showcases          *showcase.Service
-	StockAudits        *stockaudit.Service
-	Suppliers          *supplier.Service
-	Cache              *gatewaycache.Coordinator
-	AssetStore         assetstore.Store
-	UploadIntegrity    assetstore.IntegrityReporter
-	cacheRedis         *redis.Client
-	uploadMonitor      *assetstore.IntegrityMonitor
+	Config                 config.Config
+	SqlConn                sqlx.SqlConn
+	OrderSqlConn           sqlx.SqlConn
+	AuthSqlConn            sqlx.SqlConn
+	OrderRpc               orderclient.Order
+	ProductRpc             productclient.Product
+	InventoryRpc           ports.InventoryService
+	OrderCommands          ports.OrderCommands
+	AdminOps               *adminops.Service
+	Campaigns              *campaign.Service
+	Reconciliation         *reconciliation.Service
+	OrderQueries           *orderquery.Service
+	BackofficeOrders       *orderquery.BackofficeService
+	CatalogQueries         *catalogquery.Service
+	MerchantQueries        *merchantquery.Service
+	MerchantOnboarding     *merchantonboarding.Service
+	MerchantStores         *merchantstore.Service
+	UserAddresses          *useraddress.Service
+	ProductInventory       ports.ProductInventoryInitializer
+	ProductCommands        *productcommand.Service
+	ProductSnapshots       ports.ProductSnapshotStore
+	Promotions             *promotion.Service
+	Showcases              *showcase.Service
+	StockAudits            *stockaudit.Service
+	Suppliers              *supplier.Service
+	Cache                  *gatewaycache.Coordinator
+	ProductExistenceFilter existencefilter.Filter
+	ProductNegativeCache   existencefilter.NegativeCache
+	AssetStore             assetstore.Store
+	UploadIntegrity        assetstore.IntegrityReporter
+	cacheRedis             *redis.Client
+	existenceCancel        context.CancelFunc
+	uploadMonitor          *assetstore.IntegrityMonitor
 }
 
 const mysqlSessionGuardTimeout = 3 * time.Second
@@ -154,6 +158,17 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	}
 	svcCtx.Cache = gatewaycache.New(cacheConfig, cacheRedis)
 	svcCtx.Cache.Start(context.Background())
+	if filter := configureProductExistence(svcCtx, cacheRedis, svcCtx.CatalogQueries); filter != nil {
+		maintenanceCtx, cancel := context.WithCancel(context.Background())
+		svcCtx.existenceCancel = cancel
+		rebuildInterval := time.Duration(c.ProductExistenceFilterRebuildHours) * time.Hour
+		if rebuildInterval <= 0 {
+			rebuildInterval = 6 * time.Hour
+		}
+		filter.Start(maintenanceCtx, rebuildInterval, func(err error) {
+			logx.Errorf("product existence filter maintenance failed: %v", err)
+		})
+	}
 	return svcCtx
 }
 
@@ -164,6 +179,9 @@ func mustVerifyMySQLSession(name string, db *sql.DB) {
 }
 
 func (s *ServiceContext) Close() {
+	if s.existenceCancel != nil {
+		s.existenceCancel()
+	}
 	if s.uploadMonitor != nil {
 		s.uploadMonitor.Close()
 	}

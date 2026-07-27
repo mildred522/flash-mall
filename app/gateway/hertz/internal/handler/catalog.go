@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/gateway/hertz/internal/existencefilter"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	"flash-mall/app/product/rpc/productclient"
 
@@ -63,14 +64,25 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		}
 
 		detail, _, err := loadCachedJSON(ctx, svcCtx, productDetailCacheKey(productID), func(loadCtx context.Context) (ProductDetailResp, error) {
-			meta := loadProductMeta(loadCtx, svcCtx, []int64{productID})
-			mainMeta, exists := meta[productID]
-			if !exists || !productMetaPubliclyVisible(mainMeta) {
-				return ProductDetailResp{}, apperror.New(apperror.CodeProductNotFound, "product not found")
+			filterPossible, guardErr := protectProductDetailOrigin(loadCtx, svcCtx, productID)
+			if guardErr != nil {
+				return ProductDetailResp{}, guardErr
 			}
 			service, loadErr := catalogQueryService(svcCtx)
 			if loadErr != nil {
 				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product datasource unavailable", loadErr)
+			}
+			meta, loadErr := service.ProductMetadata(loadCtx, []int64{productID})
+			if loadErr != nil {
+				return ProductDetailResp{}, apperror.Wrap(apperror.CodeInternal, "product metadata query failed", loadErr)
+			}
+			mainMeta, exists := meta[productID]
+			if !exists || !productMetaPubliclyVisible(mainMeta) {
+				if !exists && filterPossible {
+					existencefilter.RecordFalsePositive()
+				}
+				markProductNotPublic(loadCtx, svcCtx, productID)
+				return ProductDetailResp{}, productNotFound()
 			}
 			relatedPage, loadErr := service.StoreProductIDs(loadCtx, mainMeta.MerchantID, "", 1, 5)
 			if loadErr != nil {
@@ -86,7 +98,7 @@ func ProductDetailHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			cards := buildProductCards(resp.Items, loadProductMeta(loadCtx, svcCtx, allIDs), nil)
 			detail, exists := buildProductDetailResp(productID, relatedIDs, cards)
 			if !exists {
-				return ProductDetailResp{}, apperror.New(apperror.CodeProductNotFound, "product not found")
+				return ProductDetailResp{}, productNotFound()
 			}
 			return detail, nil
 		})

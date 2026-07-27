@@ -67,6 +67,9 @@ func retryProductInventorySeed(ctx context.Context, svcCtx *svc.ServiceContext, 
 	if err != nil {
 		return err
 	}
+	if err = prepareProductVisibility(ctx, svcCtx, productID); err != nil {
+		return err
+	}
 	if _, err = initializer.Initialize(ctx, productID, inventoryRequestMeta(ctx)); err != nil {
 		return err
 	}

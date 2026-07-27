@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"flash-mall/app/common/apperror"
+	"flash-mall/app/gateway/hertz/internal/existencefilter"
 	"flash-mall/app/gateway/hertz/internal/ports"
 	"flash-mall/app/gateway/hertz/internal/svc"
 
@@ -17,6 +18,10 @@ const inventoryReadinessTimeout = 750 * time.Millisecond
 
 type runtimeStateClient interface {
 	GetRuntimeState(context.Context, ports.RequestMeta) (ports.InventoryRuntimeState, error)
+}
+
+type productExistenceStatusReporter interface {
+	Status(context.Context) existencefilter.Status
 }
 
 func LivenessHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerFunc {
@@ -64,6 +69,13 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 			}
 			uploadStorage = snapshot
 		}
+		productExistenceStatus := existencefilter.Status{
+			Enabled: svcCtx.Config.ProductExistenceFilterEnabled,
+			State:   "unready",
+		}
+		if reporter, ok := svcCtx.ProductExistenceFilter.(productExistenceStatusReporter); ok {
+			productExistenceStatus = reporter.Status(ctx)
+		}
 		ok(ctx, c, map[string]any{
 			"name":                       svcCtx.Config.Name,
 			"status":                     status,
@@ -74,6 +86,7 @@ func HealthHandler(svcCtx *svc.ServiceContext, startedAt time.Time) app.HandlerF
 			"inventory_runtime":          inventoryRuntime,
 			"live_stock_overlay_enabled": svcCtx.Config.EnableLiveStockOverlay,
 			"upload_storage":             uploadStorage,
+			"product_existence_filter":   productExistenceStatus,
 		})
 	}
 }

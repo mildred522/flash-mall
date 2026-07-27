@@ -74,7 +74,11 @@ func invalidateStoreReadCaches(ctx context.Context, svcCtx *svc.ServiceContext, 
 }
 
 func invalidateProductReadCaches(ctx context.Context, svcCtx *svc.ServiceContext, productID, merchantID int64) {
-	if svcCtx.Cache == nil || productID <= 0 {
+	if productID <= 0 {
+		return
+	}
+	invalidateProductProtection(ctx, svcCtx, productID)
+	if svcCtx.Cache == nil {
 		return
 	}
 	if merchantID <= 0 {

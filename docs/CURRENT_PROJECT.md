@@ -67,6 +67,9 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - 商品、店铺和首页橱窗使用统一缓存协调器。
 - L1 是进程内短 TTL 缓存；L2 是 Redis，支持软/硬 TTL、抖动、singleflight、过期回源和原点失败时的陈旧值兜底。
 - 商品、店铺、快照和橱窗变更执行精确键与前缀失效，并通过 Redis Pub/Sub 清理其他 Hertz 实例的 L1。
+- 商品详情只在 L1/L2 未命中并进入 singleflight loader 后检查短期负缓存和 Redis Bitmap 布隆过滤器；ready generation 明确判定不存在时不访问 MySQL 或 Product RPC，Redis 异常、元数据异常和未就绪状态一律 fail-open。
+- 商品过滤器保存所有历史商品 ID，不承担上下架、店铺状态、库存或权限判断。默认按 100 万商品、1% 假阳性率配置为 9,585,059 bit、7 次双哈希，负缓存基础 TTL 为 30 秒并带稳定抖动。
+- 多 Hertz 副本共享版本化 active generation；新 generation 完整构建后才通过 Lua 切换，重建失败保留旧版本。新商品创建、库存种子重试和既有商品上架均先幂等写入过滤器，再允许公开；商品变更同时精确清除负缓存。
 
 ## 前端与静态资源
 
@@ -157,6 +160,7 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - MySQL Compose 默认字符集和排序规则显式固定为 `utf8mb4/utf8mb4_unicode_ci`；Auth、Product、Order 和 Hertz 拒绝未显式携带 `charset=utf8mb4` 的 DSN，Hertz 还会在真实连接建立后验证 product、order、auth 三个会话的 client/connection/results 字符集。
 - 历史订单乱码修复只处理名称含连续三个问号、且规范商品名有效的快照；修复前原值和十六进制字节进入 `order_snapshot_repair_audit`，迁移版本 `20260723_order_snapshot_utf8_asset_repair` 成功记录后不再重复扫描历史订单。
 - 商品 RPC 卡片同时返回图片 URL 和商家 ID，Order RPC 下单直接写入名称/图片/商家快照；Hertz 用户、管理员和商家订单查询统一返回 `image_url`。
+- 商品缓存穿透防护已收口到独立 `existencefilter` 组件：普通 Redis Bitmap、版本化重建、分布式重建锁、短期负缓存、写链路可见性屏障、健康详情、固定低基数指标和 Grafana 面板均已接入；Go-zero Entry API 基线未复制该能力。
 
 本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
@@ -166,6 +170,14 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 4. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
 
 ## 验证基线
+
+2026-07-27 商品存在性过滤与负缓存完成以下验证：
+
+- `go test ./app/gateway/hertz/... -count=1` 与 `go vet ./app/gateway/hertz/...` 通过；过滤器测试覆盖固定哈希位置、幂等 Add、重建锁、失败不切 active、多实例共享、Redis 不可用 fail-open、负缓存生命周期和副本指标初始化。
+- 在 Ubuntu WSL Docker Engine 中从当前源码重建并启动 `hertz-gateway`；`/api/system/health` 返回过滤器 `ready=true`、active generation 和 11 个历史商品 ID，普通商品 100 详情返回 200。
+- 随机不存在商品 `9999999999` 由 Bitmap 在 0 ms 内返回既有 404，指标分别记录 `possible=1`、`absent=1`；已下架商品 106 第一次权威回源后写入约 30 秒负缓存，第二次请求记录 `hit=1`。
+- 临时启动第二个 Hertz 容器连接同一 Redis 后，商品 100 仍返回 200、随机缺失商品 `9999999998` 返回 404，副本指标同时观测到 `possible`、`absent` 和 `ready=1`；验收后已删除临时容器。
+- Redis 中只发布 active 指针、ready metadata 和对应 Bitmap；metadata 记录算法 `xxhash64-double-v1`、9,585,059 bit、7 次哈希与 11 个条目，未创建新数据库表或新网络服务。
 
 2026-07-23 当前清理与素材持久化修复已完成以下验证：
 

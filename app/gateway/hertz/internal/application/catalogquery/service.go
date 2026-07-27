@@ -56,6 +56,7 @@ type AdminProduct struct {
 
 type Repository interface {
 	ProductMetadata(context.Context, []int64) (map[int64]ProductMeta, error)
+	ProductIDBatch(context.Context, int64, int) ([]int64, error)
 	ProductIDs(context.Context, ListQuery) (IDPage, error)
 	StoreProductIDs(context.Context, int64, string, int64, int64) (IDPage, error)
 	StoreDetail(context.Context, int64) (StoreDetail, bool, error)
@@ -135,4 +136,8 @@ func (s *Service) ProductMetadata(ctx context.Context, productIDs []int64) (map[
 		return map[int64]ProductMeta{}, nil
 	}
 	return s.repository.ProductMetadata(ctx, productIDs)
+}
+
+func (s *Service) ProductIDBatch(ctx context.Context, afterID int64, limit int) ([]int64, error) {
+	return s.repository.ProductIDBatch(ctx, afterID, limit)
 }

@@ -17,6 +17,32 @@ func (r *CatalogRepository) ProductIDs(ctx context.Context, query catalogquery.L
 	return r.queryProductIDs(ctx, where, args, query.Page, query.PageSize, "p.id DESC")
 }
 
+func (r *CatalogRepository) ProductIDBatch(ctx context.Context, afterID int64, limit int) ([]int64, error) {
+	if limit <= 0 {
+		limit = 1000
+	}
+	if limit > 10_000 {
+		limit = 10_000
+	}
+	rows, err := r.db.QueryContext(ctx,
+		"SELECT id FROM mall_product.product WHERE id > ? ORDER BY id LIMIT ?",
+		afterID, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	ids := make([]int64, 0, limit)
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 func (r *CatalogRepository) OwnsProduct(ctx context.Context, merchantID, productID int64) (bool, error) {
 	var count int64
 	err := r.db.QueryRowContext(ctx,

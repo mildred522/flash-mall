@@ -24,6 +24,12 @@ func AdminProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			failProductCommand(ctx, c, "admin product update failed", errProductCommandUnavailable)
 			return
 		}
+		if req.Status != nil && *req.Status == 1 {
+			if err := prepareProductVisibility(ctx, svcCtx, req.ProductID); err != nil {
+				fail(ctx, c, consts.StatusBadGateway, err)
+				return
+			}
+		}
 		if err := svcCtx.ProductCommands.Update(ctx, req); err != nil {
 			if reason := productCommandReason(err); reason != "" {
 				recordGatewayAdminAuditFailure(c, svcCtx, productUpdateAuditEvent(req.Status),
@@ -64,6 +70,13 @@ func AdminProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 				recordGatewayAdminAuditFailure(c, svcCtx, adminAuditProductCreated, fmt.Sprintf("reason:%s", reason))
 			}
 			failProductCommand(ctx, c, "admin product create failed", err)
+			return
+		}
+		if err = prepareProductVisibility(ctx, svcCtx, result.ProductID); err != nil {
+			recordGatewayAdminAuditFailure(c, svcCtx, adminAuditProductCreated,
+				fmt.Sprintf("product:%d reason:existence_filter_failed", result.ProductID))
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal,
+				fmt.Sprintf("product %d created offline; publication preparation can be retried", result.ProductID), err))
 			return
 		}
 		if _, err = initializer.Initialize(ctx, result.ProductID, inventoryRequestMeta(ctx)); err != nil {

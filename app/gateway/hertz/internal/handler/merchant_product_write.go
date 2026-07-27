@@ -44,6 +44,11 @@ func MerchantProductCreateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			failProductCommand(ctx, c, "merchant product create failed", err)
 			return
 		}
+		if err = prepareProductVisibility(ctx, svcCtx, result.ProductID); err != nil {
+			fail(ctx, c, consts.StatusBadGateway, apperror.Wrap(apperror.CodeInternal,
+				fmt.Sprintf("product %d created offline; publication preparation can be retried", result.ProductID), err))
+			return
+		}
 		identity.MerchantID = merchantID
 		callCtx := authctx.WithIdentity(ctx, identity)
 		if _, err = initializer.Initialize(callCtx, result.ProductID, inventoryRequestMeta(callCtx)); err != nil {
@@ -78,6 +83,12 @@ func MerchantProductUpdateHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 		if svcCtx.ProductCommands == nil {
 			failProductCommand(ctx, c, "merchant product update failed", errProductCommandUnavailable)
 			return
+		}
+		if req.Status != nil && *req.Status == 1 {
+			if err := prepareProductVisibility(ctx, svcCtx, req.ProductID); err != nil {
+				fail(ctx, c, consts.StatusBadGateway, err)
+				return
+			}
 		}
 		if err := svcCtx.ProductCommands.Update(ctx, req); err != nil {
 			failProductCommand(ctx, c, "merchant product update failed", err)
