@@ -179,7 +179,7 @@ export FLASH_MALL_INVENTORY_KITEX_ENDPOINT="127.0.0.1:8093"
 export INVENTORY_REDIS_HOST="127.0.0.1:6379"
 export INVENTORY_DATASOURCE="${FLASH_MALL_PRODUCT_DATASOURCE}"
 export INVENTORY_STOCK_SHARD_COUNT="4"
-export INVENTORY_FINAL_DEDUCT_ENABLED="false"
+export INVENTORY_FINAL_DEDUCT_ENABLED="true"
 
 smoke_gateway="${FLASH_MALL_SMOKE_GATEWAY:-hertz}"
 case "${smoke_gateway}" in
@@ -229,7 +229,12 @@ sed \
 start_go_service "order-rpc" "./app/order/rpc/order.go" "${order_rpc_smoke_config}"
 wait_for_port "order-rpc" "127.0.0.1" "8090" 90
 
-start_go_service "auth-api" "./app/auth/api/auth.go" "./app/auth/api/etc/auth-api.yaml"
+auth_api_smoke_config="${LOG_DIR}/auth-api-smoke.yaml"
+sed \
+  -e 's/ExposeDebugCode: false/ExposeDebugCode: true/' \
+  ./app/auth/api/etc/auth-api.yaml > "${auth_api_smoke_config}"
+
+start_go_service "auth-api" "./app/auth/api/auth.go" "${auth_api_smoke_config}"
 wait_for_port "auth-api" "127.0.0.1" "8890" 90
 
 if [[ "${smoke_gateway}" == "hertz" ]]; then
