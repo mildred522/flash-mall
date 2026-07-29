@@ -122,6 +122,10 @@ FLASH_MALL_GRAFANA_PORT=3001 docker compose -f deploy/docker-compose.yml --profi
 
 # 用真实管理员/用户链路验证哈希上传、中文/emoji 订单快照和图片读取
 node scripts/local/verify-durable-assets.mjs --allow-mutation /path/to/image.png 106
+
+# 对 origin/main 的 Go-zero Entry API 与当前 Hertz 网关执行成对性能对比
+# baseline worktree 必须干净且内容树与 origin/main 完全一致
+./scripts/perf/compare-entry-hertz.sh --runs 7 --requests 60000 --concurrency 30 --warmup 2000
 ```
 
 素材持久化验收脚本只允许连接本机回环地址，必须显式传入 `--allow-mutation`。脚本结束时会取消验收订单以释放库存，并恢复商品原始名称、图片、价格、供应商和状态；账号密码可用 `FLASH_MALL_VERIFY_*` 环境变量覆盖。
@@ -175,10 +179,18 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
 
-1. 在固定数据集和运行拓扑下补充 Go-zero Entry API 与 Hertz 网关的性能对比，形成可复现的面试叙事。
-2. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
+1. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
+2. 收口发布准备：固定演示数据、权限开关、部署说明、容量边界和最终真实浏览器验收。
 
 ## 验证基线
+
+2026-07-29 Go-zero Entry API 与 Hertz 对比基线：
+
+- 对比脚本要求基线 worktree 内容树与 `origin/main` 完全一致，并在同一 Docker 网络、Product RPC、Redis、MySQL 和 Etcd 上交替执行两条 `/api/shop/catalog` 链路；临时 Entry 容器在退出时自动删除。
+- 正式扩样为每端 7 轮、每轮 60,000 请求、并发 30、预热 2,000 请求；Entry 与 Hertz 最低成功率均为 100%。Hertz 响应包含 6 个商品、2,660 字节，Entry 包含 5 个商品、893 字节。
+- Entry 的 QPS/p95 中位数为 10,262.11/6.33 ms；Hertz 为 11,863.90/5.26 ms。Hertz 在响应体约为 2.98 倍的情况下，QPS 中位数高 15.61%，p95 中位数低 16.90%。另一组每端 5 轮、每轮 30,000 请求的重复实验同样保持 Hertz 更快的方向。
+- 扩样中的 QPS CV 已低于 10%，但两端 p95 CV 为 12.33%/10.82%，超过严格稳定门槛。因此结论限定为“迁移后的真实公开读链路未出现性能回退且方向可重复”，不把百分比包装成 Hertz 与 Go-zero 框架本身的隔离微基准。
+- 可复现工具、固定元数据与汇总规则进入 CI；冻结结果保存在 `benchmarks/results/entry-hertz-20260729.json`。历史 Entry 源码没有为测试改写，专用 Dockerfile 只增加 BuildKit 依赖/编译缓存以缩短重复构建时间。
 
 2026-07-27 故障注入与恢复演练完成以下验证：
 

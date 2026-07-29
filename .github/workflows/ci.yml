@@ -51,6 +51,8 @@ jobs:
             ci:
               - '.github/workflows/**'
               - 'scripts/ci/**'
+              - 'scripts/perf/**'
+              - 'tools/httpbench/**'
               - 'scripts/k8s/init-db.sql'
               - 'scripts/k8s/sql/**'
               - 'scripts/k8s/build-init-db.mjs'
@@ -174,6 +176,10 @@ jobs:
         run: node scripts/ci/check-observability.mjs
       - name: Check failure recovery verifier
         run: node scripts/ci/check-failure-recovery.mjs
+      - name: Check performance comparison
+        run: |
+          node --test scripts/perf/summarize-comparison.test.mjs
+          node scripts/ci/check-performance-comparison.mjs
       - name: Check Docker build contexts
         run: node scripts/ci/check-docker-contexts.mjs
       - name: Check Go toolchain configuration

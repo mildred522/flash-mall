@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-07-29",
+  "environment": "Ubuntu WSL Docker Engine on a shared Windows development host",
+  "route": "/api/shop/catalog",
+  "baseline": {
+    "branch": "origin/main",
+    "commit": "a321f51a6b8ba30f53f0f10bf55509e700338f7b",
+    "gateway": "Go-zero Entry API",
+    "catalog_items": 5,
+    "response_bytes": 893
+  },
+  "candidate": {
+    "branch": "codex/arch-hertz-kitex",
+    "commit": "b34c521a5ad1c820447b9037015dd2639931dd79",
+    "gateway": "Hertz",
+    "catalog_items": 6,
+    "response_bytes": 2660
+  },
+  "experiment": {
+    "runs": 7,
+    "requests_per_run": 60000,
+    "concurrency": 30,
+    "warmup_requests": 2000,
+    "alternating_order": true,
+    "minimum_success_rate": 1,
+    "cv_threshold": 0.1
+  },
+  "results": {
+    "entry": {
+      "qps_median": 10262.11,
+      "qps_cv": 0.0974,
+      "p50_median_ms": 2.42,
+      "p95_median_ms": 6.33,
+      "p95_cv": 0.1233,
+      "p99_median_ms": 9.29
+    },
+    "hertz": {
+      "qps_median": 11863.9,
+      "qps_cv": 0.0869,
+      "p50_median_ms": 2.09,
+      "p95_median_ms": 5.26,
+      "p95_cv": 0.1082,
+      "p99_median_ms": 7.84
+    },
+    "hertz_relative_change": {
+      "qps_percent": 15.61,
+      "p95_percent": -16.9
+    }
+  },
+  "assessment": {
+    "status": "directionally_repeatable_but_p95_cv_above_threshold",
+    "repeat_experiment_qps_change_percent": 29.8,
+    "repeat_experiment_p95_change_percent": -22.26,
+    "interpretation": "The migrated public read path did not regress in either experiment. This is an end-to-end architecture comparison with different real catalog payloads and cache orchestration, not an isolated HTTP framework microbenchmark."
+  }
+}
