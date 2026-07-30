@@ -54,6 +54,7 @@ jobs:
               - 'scripts/perf/**'
               - 'tools/httpbench/**'
               - 'tools/capacitybench/**'
+              - 'benchmarks/results/**'
               - 'deploy/observability/**'
               - 'scripts/k8s/schema.sql'
               - 'scripts/k8s/demo-seed.sql'

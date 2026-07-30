@@ -268,7 +268,8 @@ restore_needed=0
 echo "[capacity] report: $output_dir/report.md"
 cat "$output_dir/report.md"
 if ! node -e '
-  const summary = require(process.argv[1]);
+  const { readFileSync } = require("node:fs");
+  const summary = JSON.parse(readFileSync(process.argv[1], "utf8"));
   process.exit(summary.overall_passed ? 0 : 1);
 ' "$output_dir/summary.json"; then
   echo "[capacity] one or more SLO or correctness gates failed" >&2

@@ -75,6 +75,14 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - 商品过滤器保存所有历史商品 ID，不承担上下架、店铺状态、库存或权限判断。默认按 100 万商品、1% 假阳性率配置为 9,585,059 bit、7 次双哈希，负缓存基础 TTL 为 30 秒并带稳定抖动。
 - 多 Hertz 副本共享版本化 active generation；新 generation 完整构建后才通过 Lua 切换，重建失败保留旧版本。新商品创建、库存种子重试和既有商品上架均先幂等写入过滤器，再允许公开；商品变更同时精确清除负缓存。
 
+### 容量与 SLO
+
+- Hertz 全局中间件记录固定低基数 RED 指标：按 HTTP 方法、匹配后的路由模板和状态码类别统计请求数、耗时直方图与在途请求；未匹配 API 统一归为 `unmatched_api`，静态资源统一归为 `static`。
+- Prometheus 为 Hertz 5xx 比例和 p95 尾延迟提供告警，Grafana 的“容量与 SLO”面板展示 API 吞吐、成功率、p95/p99、在途请求与服务端错误率。
+- `tools/capacitybench` 直接使用真实登录、公开读、Kitex 库存预占驱动的订单生命周期、本地沙箱支付和幂等重放，不使用伪 Handler 或内存替身。
+- 容量实验只允许写入回环地址，必须显式授权修改与演示数据重置；运行前后备份并恢复固定数据，保留上传素材卷。结果同时校验重复订单、重复支付回调、负库存、悬挂预占、未清空 Outbox、支付库存未最终确认及 Redis/MySQL 库存桶差异。
+- “安全目标 RPS”表示当前固定 Compose 资源和开发机上最高已测且通过的档位；未出现失败档位时只能陈述“至少达到”，不能解释为系统极限或公网生产容量。
+
 ## 前端与静态资源
 
 - 唯一前端源码是 `frontend/packages` 下的 `shop`、`admin`、`merchant` 和 `shared`。
@@ -140,6 +148,9 @@ node scripts/local/verify-durable-assets.mjs --allow-mutation /path/to/image.png
 # 对 origin/main 的 Go-zero Entry API 与当前 Hertz 网关执行成对性能对比
 # baseline worktree 必须干净且内容树与 origin/main 完全一致
 ./scripts/perf/compare-entry-hertz.sh --runs 7 --requests 60000 --concurrency 30 --warmup 2000
+
+# 明确授权后执行可恢复的 Hertz 容量、支付、幂等与 Outbox 故障实验
+./scripts/perf/run-capacity-profile.sh --allow-mutation --confirm-reset
 ```
 
 素材持久化验收脚本只允许连接本机回环地址，必须显式传入 `--allow-mutation`。脚本结束时会取消验收订单以释放库存，并恢复商品原始名称、图片、价格、供应商和状态；账号密码可用 `FLASH_MALL_VERIFY_*` 环境变量覆盖。
@@ -191,14 +202,23 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 商品 RPC 卡片同时返回图片 URL 和商家 ID，Order RPC 下单直接写入名称/图片/商家快照；Hertz 用户、管理员和商家订单查询统一返回 `image_url`。
 - 商品缓存穿透防护已收口到独立 `existencefilter` 组件：普通 Redis Bitmap、版本化重建、分布式重建锁、短期负缓存、写链路可见性屏障、健康详情、固定低基数指标和 Grafana 面板均已接入；Go-zero Entry API 基线未复制该能力。
 
-本轮代码清理已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
+本轮代码清理和容量证据链均已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
 
 Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
 
-1. 完成发布准备：固定演示数据和统一控制台开关已经收口；下一步建立容量边界并完成最终真实浏览器验收。
+1. 完成发布准备：固定演示数据、统一控制台开关和本地容量基线已经收口；下一步执行最终真实浏览器验收，并整理面试演示顺序与部署配置清单。
 2. 支付宝真实沙箱只差在部署环境注入商户凭据与公网通知地址；不再扩展 Stripe 或微信支付，避免收尾阶段扩大维护面。
 
 ## 验证基线
+
+2026-07-30 Hertz 容量与 SLO 证据链验证：
+
+- 正式结果绑定提交 `f1be145d22fa3a6aa459c2c1902302f61ca2523c`，环境为 4 vCPU、约 7.76 GiB 内存的 Ubuntu WSL Docker Engine 和固定演示数据 `20260730_demo_fixture_v1`；冻结结果位于 `benchmarks/results/capacity-20260730.json`。
+- 公开读混合链路按商品目录 70%、商品详情 20%、店铺详情 10% 执行 100/300/600 RPS 阶梯；最高已测档位实际 594.68 QPS，8,921/8,921 成功，p95 0.734 ms、p99 1.566 ms，未观察到容量边界。
+- 订单完整生命周期按 2/5/10 RPS 执行真实登录、下单、Kitex 库存预占和取消补偿；最高已测档位 149/149 成功，p95 123.464 ms、p99 130.589 ms，未观察到容量边界。
+- 本地沙箱支付正常样本与 RabbitMQ 暂停样本合计 12/12 成功；RabbitMQ 恢复后 Outbox 在 90 秒窗口内清空。40 次相同幂等键重放全部返回成功，数据库只保留一个业务订单。
+- 实验后重复订单、重复支付回调、负库存、悬挂预占、未完成库存确认、Outbox 残留和 Redis/MySQL 库存桶差异均为 0；RabbitMQ 已恢复为 running/non-paused，演示数据重置校验通过，`flash-mall-uploads` 卷身份未改变。
+- Hertz 新 RED 指标已由 Prometheus 实际抓取，四个服务目标均为 `up`；`promtool` 校验 8 条规则通过，Grafana API 可见五个自动配置面板，其中容量面板 UID 为 `flashmall-capacity-slo`。
 
 2026-07-30 可复现演示环境与桌面控制中心收尾验证：
 

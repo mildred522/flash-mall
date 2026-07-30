@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "metadata": {
+    "commit": "f1be145d22fa3a6aa459c2c1902302f61ca2523c",
+    "environment": "Ubuntu WSL Docker Engine on a shared Windows development host",
+    "cpu_count": 4,
+    "total_memory_bytes": 8328425472,
+    "demo_fixture": "20260730_demo_fixture_v1",
+    "recorded_at": "2026-07-30T05:11:10.628Z"
+  },
+  "invariants": {
+    "passed": true,
+    "violations": []
+  },
+  "scenarios": {
+    "idempotency": {
+      "safe_target_rps": 20,
+      "first_failed_target_rps": 0,
+      "stages": [
+        {
+          "target_rps": 20,
+          "qps": 19.770070335569006,
+          "success_rate": 1,
+          "p95_ms": 3.002,
+          "p99_ms": 49.029,
+          "attempts": 40,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        }
+      ]
+    },
+    "order-cycle": {
+      "safe_target_rps": 10,
+      "first_failed_target_rps": 0,
+      "stages": [
+        {
+          "target_rps": 2,
+          "qps": 1.9332196038283784,
+          "success_rate": 1,
+          "p95_ms": 98.897,
+          "p99_ms": 102.226,
+          "attempts": 29,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        },
+        {
+          "target_rps": 5,
+          "qps": 4.933268376330854,
+          "success_rate": 1,
+          "p95_ms": 102.379,
+          "p99_ms": 120.716,
+          "attempts": 74,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        },
+        {
+          "target_rps": 10,
+          "qps": 9.932659056097664,
+          "success_rate": 1,
+          "p95_ms": 123.464,
+          "p99_ms": 130.589,
+          "attempts": 149,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        }
+      ]
+    },
+    "payment-cycle": {
+      "safe_target_rps": 2,
+      "first_failed_target_rps": 0,
+      "stages": [
+        {
+          "target_rps": 2,
+          "qps": 1.9975430749526994,
+          "success_rate": 1,
+          "p95_ms": 140.565,
+          "p99_ms": 140.565,
+          "attempts": 8,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        },
+        {
+          "target_rps": 2,
+          "qps": 1.9970597538875983,
+          "success_rate": 1,
+          "p95_ms": 93.953,
+          "p99_ms": 93.953,
+          "attempts": 4,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        }
+      ]
+    },
+    "read": {
+      "safe_target_rps": 600,
+      "first_failed_target_rps": 0,
+      "stages": [
+        {
+          "target_rps": 100,
+          "qps": 99.92661813135942,
+          "success_rate": 1,
+          "p95_ms": 1.103,
+          "p99_ms": 2.362,
+          "attempts": 1499,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        },
+        {
+          "target_rps": 300,
+          "qps": 299.7826795360665,
+          "success_rate": 1,
+          "p95_ms": 0.8,
+          "p99_ms": 1.659,
+          "attempts": 4497,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        },
+        {
+          "target_rps": 600,
+          "qps": 594.6835694193329,
+          "success_rate": 1,
+          "p95_ms": 0.734,
+          "p99_ms": 1.566,
+          "attempts": 8921,
+          "failed": 0,
+          "dropped": 0,
+          "passed": true
+        }
+      ]
+    }
+  },
+  "overall_passed": true,
+  "violations": []
+}

@@ -5,8 +5,9 @@ const root = resolve(import.meta.dirname, '../..');
 const profilePath = resolve(root, 'scripts/perf/run-capacity-profile.sh');
 const summarizerPath = resolve(root, 'scripts/perf/summarize-capacity.mjs');
 const toolPath = resolve(root, 'tools/capacitybench/main.go');
+const resultPath = resolve(root, 'benchmarks/results/capacity-20260730.json');
 
-for (const path of [profilePath, summarizerPath, toolPath]) {
+for (const path of [profilePath, summarizerPath, toolPath, resultPath]) {
   if (!existsSync(path)) throw new Error(`capacity artifact is missing: ${path}`);
 }
 
@@ -26,6 +27,7 @@ for (const [name, pattern] of [
   ['Outbox drain verification', /order_outbox.*status IN \(0,2,3\)/s],
   ['runtime resource snapshot', /docker stats/],
   ['observability network recreation', /--force-recreate prometheus grafana/],
+  ['relative output-safe summary gate', /readFileSync\(process\.argv\[1\].*summary\.overall_passed/s],
   ['failed capacity exit gate', /overall_passed.*exit 1/s],
 ]) {
   if (!pattern.test(profile)) throw new Error(`capacity profile lacks ${name}`);
@@ -41,6 +43,28 @@ for (const stale of [
 ]) {
   if (existsSync(resolve(root, stale))) {
     throw new Error(`stale pre-Hertz benchmark entry still exists: ${stale}`);
+  }
+}
+
+const result = JSON.parse(readFileSync(resultPath, 'utf8'));
+const minimumTargets = {
+  read: 600,
+  'order-cycle': 10,
+  'payment-cycle': 2,
+  idempotency: 20,
+};
+if (!result.overall_passed ||
+    !result.invariants?.passed ||
+    result.violations?.length !== 0 ||
+    !/^[0-9a-f]{40}$/.test(result.metadata?.commit ?? '')) {
+  throw new Error('frozen capacity result has lost its provenance or correctness gate');
+}
+for (const [scenario, minimumTarget] of Object.entries(minimumTargets)) {
+  const value = result.scenarios?.[scenario];
+  if (!value ||
+      value.safe_target_rps < minimumTarget ||
+      value.stages.some((stage) => !stage.passed || stage.failed !== 0 || stage.dropped !== 0)) {
+    throw new Error(`frozen capacity result is invalid for ${scenario}`);
   }
 }
 
