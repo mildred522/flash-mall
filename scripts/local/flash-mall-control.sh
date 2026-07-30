@@ -251,6 +251,7 @@ run_verify_demo() {
   check_docker
   if ! docker inspect mysql >/dev/null 2>&1; then
     fail demo demo_mysql_unavailable "MySQL is not running; start Flash Mall first"
+    return 1
   fi
 
   version_count=$(mysql_scalar "
@@ -259,6 +260,7 @@ run_verify_demo() {
   ")
   if [ "$version_count" != "1" ]; then
     fail demo demo_not_initialized "demo fixture state is missing"
+    return 1
   fi
   version_count=$(mysql_scalar "
     SELECT COUNT(*) FROM mall_order.demo_fixture_state
@@ -266,6 +268,7 @@ run_verify_demo() {
   ")
   if [ "$version_count" != "1" ]; then
     fail demo demo_version_stale "demo fixture version is stale; reset is required"
+    return 1
   fi
 
   core_count=$(mysql_scalar "
@@ -276,6 +279,7 @@ run_verify_demo() {
   ")
   if [ "$core_count" != "16" ]; then
     fail demo demo_core_incomplete "demo accounts, merchants or products are incomplete (${core_count}/16)"
+    return 1
   fi
 
   mismatch_count=$(mysql_scalar "
@@ -291,9 +295,11 @@ run_verify_demo() {
   ")
   if [ "$mismatch_count" != "0" ]; then
     fail demo demo_stock_inconsistent "demo stock facts are inconsistent for ${mismatch_count} products"
+    return 1
   fi
   if ! demo_redis_stock_matches; then
     fail demo demo_redis_stock_inconsistent "Redis stock does not match MySQL stock buckets"
+    return 1
   fi
 
   emit demo demo info "demo fixture 20260730_demo_fixture_v1 is ready" "" demo_ready

@@ -38,4 +38,26 @@ printf '%s' "$events" | grep -q 'quote: \\"safe\\"'
 tool_path=$(env PATH=/usr/bin:/bin FLASH_MALL_CONTROL_SOURCE_ONLY=1 sh -c '. "$1"; printf "%s" "$PATH"' sh "$control")
 printf '%s' "$tool_path" | grep -Fq "$HOME/.local/go/bin"
 
+if FLASH_MALL_CONTROL_SOURCE_ONLY=1 sh -c '
+  . "$1"
+  check_docker() { :; }
+  docker() { :; }
+  mysql_scalar() {
+    case "$1" in
+      *information_schema.tables*) printf "1\n" ;;
+      *fixture_version=*) printf "1\n" ;;
+      *mall_auth.users*) printf "16\n" ;;
+      *"COUNT(*) FROM ("*) printf "1\n" ;;
+    esac
+  }
+  if run_verify_demo; then
+    exit 0
+  fi
+  exit 1
+' sh "$control" >"$output" 2>&1; then
+  echo "inconsistent demo fixture unexpectedly verified" >&2
+  exit 1
+fi
+grep -q 'demo_stock_inconsistent' "$output"
+
 echo "flash-mall-control protocol tests passed"

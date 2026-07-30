@@ -61,3 +61,32 @@ groups:
         annotations:
           summary: "支付回调异常持续发生"
           description: "支付回调异常速率已连续 5 分钟超过每秒 0.05 次。"
+
+      - alert: HertzHTTPErrorRateHigh
+        expr: |
+          sum(rate(flashmall_http_requests_total{route=~"/api/.*",status_class="5xx"}[5m]))
+          /
+          clamp_min(sum(rate(flashmall_http_requests_total{route=~"/api/.*"}[5m])), 0.001)
+          > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hertz API 服务端错误率超过 1%"
+          description: "Hertz API 的 5xx 比例已连续 5 分钟超过容量 SLO。"
+
+      - alert: HertzHTTPTailLatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(flashmall_http_request_duration_seconds_bucket{route=~"/api/.*"}[5m])
+            )
+          )
+          > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Hertz API p95 超过 1 秒"
+          description: "Hertz API 的整体 p95 已连续 10 分钟超过运行告警阈值。"

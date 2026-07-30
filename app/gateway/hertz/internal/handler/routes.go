@@ -10,7 +10,7 @@ import (
 )
 
 func RegisterRoutes(h *server.Hertz, svcCtx *svc.ServiceContext, startedAt time.Time) {
-	h.Use(middleware.Recover(), middleware.Trace(), middleware.AccessLog())
+	h.Use(middleware.Recover(), middleware.Trace(), middleware.ObserveRequests(), middleware.AccessLog())
 
 	registerSystemRoutes(h, svcCtx, startedAt)
 	registerAuthRoutes(h, svcCtx)

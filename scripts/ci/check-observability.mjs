@@ -42,6 +42,8 @@ for (const alertName of [
   'OutboxDeadLettersPresent',
   'OutboxBacklogHigh',
   'PaymentCallbackErrors',
+  'HertzHTTPErrorRateHigh',
+  'HertzHTTPTailLatencyHigh',
 ]) {
   requireText(alerts, new RegExp(`alert:\\s*${alertName}\\b`), `missing alert ${alertName}`);
 }
@@ -51,6 +53,7 @@ const requiredDashboardQueries = new Map([
   ['inventory.json', ['inventory_kitex_commands_total', 'inventory_kitex_command_duration_seconds_bucket', 'inventory_reservations']],
   ['payment-outbox.json', ['flashmall_payment_state_transition_duration_seconds_bucket', 'flashmall_payment_callback_duration_seconds_bucket', 'flashmall_outbox_publish_duration_seconds_bucket', 'flashmall_outbox_events']],
   ['cache-rpc.json', ['flashmall_cache_requests_total', 'rpc_server_requests_duration_ms_bucket', 'rpc_server_requests_code_total']],
+  ['capacity-slo.json', ['flashmall_http_requests_total', 'flashmall_http_request_duration_seconds_bucket', 'flashmall_http_in_flight_requests']],
 ]);
 
 for (const [filename, queries] of requiredDashboardQueries) {
@@ -75,4 +78,4 @@ for (const [filename, queries] of requiredDashboardQueries) {
 }
 
 const dashboards = readdirSync(dashboardDir).filter((filename) => filename.endsWith('.json'));
-console.log(`Observability configuration verified: ${dashboards.length} dashboard(s), 6 alert(s)`);
+console.log(`Observability configuration verified: ${dashboards.length} dashboard(s), 8 alert(s)`);

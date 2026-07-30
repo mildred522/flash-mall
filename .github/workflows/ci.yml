@@ -53,6 +53,8 @@ jobs:
               - 'scripts/ci/**'
               - 'scripts/perf/**'
               - 'tools/httpbench/**'
+              - 'tools/capacitybench/**'
+              - 'deploy/observability/**'
               - 'scripts/k8s/schema.sql'
               - 'scripts/k8s/demo-seed.sql'
               - 'scripts/k8s/sql/**'
@@ -186,6 +188,10 @@ jobs:
         run: |
           node --test scripts/perf/summarize-comparison.test.mjs
           node scripts/ci/check-performance-comparison.mjs
+      - name: Check capacity profile
+        run: |
+          node --test scripts/perf/summarize-capacity.test.mjs
+          node scripts/ci/check-capacity-profile.mjs
       - name: Check Docker build contexts
         run: node scripts/ci/check-docker-contexts.mjs
       - name: Check Go toolchain configuration
