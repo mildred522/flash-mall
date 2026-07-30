@@ -53,9 +53,10 @@ jobs:
               - 'scripts/ci/**'
               - 'scripts/perf/**'
               - 'tools/httpbench/**'
-              - 'scripts/k8s/init-db.sql'
+              - 'scripts/k8s/schema.sql'
+              - 'scripts/k8s/demo-seed.sql'
               - 'scripts/k8s/sql/**'
-              - 'scripts/k8s/build-init-db.mjs'
+              - 'scripts/k8s/build-sql-bundles.mjs'
               - 'deploy/docker-compose.yml'
               - 'build/docker/**'
             entry_contract:
@@ -106,8 +107,13 @@ jobs:
       - name: Prepare test databases
         run: >-
           docker exec -i "${{ job.services.mysql.id }}"
-          mysql --force --default-character-set=utf8mb4 -uroot -p6494kj06
-          < scripts/k8s/init-db.sql
+          mysql --default-character-set=utf8mb4 -uroot -p6494kj06
+          < scripts/k8s/schema.sql
+      - name: Seed demo fixtures for tests
+        run: >-
+          docker exec -i "${{ job.services.mysql.id }}"
+          mysql --default-character-set=utf8mb4 -uroot -p6494kj06
+          < scripts/k8s/demo-seed.sql
 
       - name: Vet
         run: go vet ./...
