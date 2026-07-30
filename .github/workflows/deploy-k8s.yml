@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      seed_demo_data:
+        description: Explicitly install public demo accounts and fixtures
+        required: true
+        default: false
+        type: boolean
   workflow_run:
     workflows:
       - Release Images
@@ -65,12 +70,14 @@ jobs:
               echo "image_tag=${{ inputs.image_tag }}"
               echo "include_dependencies=${{ inputs.include_dependencies }}"
               echo "run_init_jobs=${{ inputs.run_init_jobs }}"
+              echo "seed_demo_data=${{ inputs.seed_demo_data }}"
             } >> "$GITHUB_OUTPUT"
           else
             {
               echo "image_tag=sha-${{ github.event.workflow_run.head_sha }}"
               echo "include_dependencies=false"
               echo "run_init_jobs=false"
+              echo "seed_demo_data=false"
             } >> "$GITHUB_OUTPUT"
           fi
 
@@ -110,8 +117,17 @@ jobs:
       - name: Run init jobs
         if: ${{ steps.vars.outputs.run_init_jobs == 'true' }}
         run: |
-          kubectl -n "$NAMESPACE" create configmap mysql-init-sql --from-file=init-db.sql=scripts/k8s/init-db.sql --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create configmap mysql-init-sql --from-file=schema.sql=scripts/k8s/schema.sql --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" delete job mysql-init redis-seed --ignore-not-found
           kubectl apply -f k8s/jobs/
+          kubectl -n "$NAMESPACE" wait --for=condition=complete job/mysql-init --timeout=180s
+
+      - name: Seed demo fixtures
+        if: ${{ steps.vars.outputs.seed_demo_data == 'true' }}
+        run: |
+          mysql_pod="$(kubectl -n "$NAMESPACE" get pod -l app=mysql -o jsonpath='{.items[0].metadata.name}')"
+          MYSQL_ROOT_PASSWORD="$(kubectl -n "$NAMESPACE" get secret flash-mall-runtime-secrets -o jsonpath='{.data.mysql-root-password}' | base64 --decode)"
+          kubectl -n "$NAMESPACE" exec -i "$mysql_pod" -- mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" < scripts/k8s/demo-seed.sql
 
       - name: Update images
         run: |
