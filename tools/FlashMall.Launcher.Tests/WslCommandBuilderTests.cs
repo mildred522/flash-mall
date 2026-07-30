@@ -17,7 +17,7 @@ public sealed class WslCommandBuilderTests
             {
                 "-d", "Ubuntu", "--cd", "/home/mildred/code/flash-mall", "--",
                 "./scripts/local/flash-mall-control.sh", "rebuild-service", "order-rpc",
-                "--wait-timeout", "180",
+                "--wait-timeout", "180", "--profile", "development",
             },
             psi.ArgumentList);
         Assert.True(psi.RedirectStandardOutput);

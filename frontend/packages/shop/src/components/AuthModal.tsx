@@ -70,11 +70,11 @@ export default function AuthModal({ open, onClose }: Props) {
           <div className="panel active">
             <div className="field">
               <label>手机号</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" />
+              <input name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
             </div>
             <div className="field">
               <label>密码</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" />
+              <input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" autoComplete="current-password" />
             </div>
             <div className="error">{error}</div>
             <button className="button primary submit" onClick={handleLogin} disabled={loading}>
@@ -85,18 +85,18 @@ export default function AuthModal({ open, onClose }: Props) {
           <div className="panel active">
             <div className="field">
               <label>手机号</label>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" />
+              <input name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
             </div>
             <div className="field">
               <label>验证码</label>
               <div className="code-row">
-                <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入验证码" />
+                <input name="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入验证码" autoComplete="one-time-code" />
                 <button className="button soft" onClick={sendCode}>发送验证码</button>
               </div>
             </div>
             <div className="field">
               <label>密码</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请设置密码" />
+              <input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请设置密码" autoComplete="new-password" />
             </div>
             <div className="error">{error}</div>
             <button className="button primary submit" onClick={handleRegister} disabled={loading}>

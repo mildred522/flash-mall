@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"flash-mall/app/auth/api/internal/sessionstate"
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
-	"golang.org/x/crypto/bcrypt"
 )
 
 const (
@@ -24,21 +22,14 @@ const (
 )
 
 type SQLStore struct {
-	conn         sqlx.SqlConn
-	stateStore   sessionstate.StateStore
-	demoPassword string
-	demoOnce     sync.Once
-	demoErr      error
+	conn       sqlx.SqlConn
+	stateStore sessionstate.StateStore
 }
 
-func NewSQLStore(conn sqlx.SqlConn, demoPassword string, stateStore sessionstate.StateStore) *SQLStore {
-	if demoPassword == "" {
-		demoPassword = "flashmall123"
-	}
+func NewSQLStore(conn sqlx.SqlConn, stateStore sessionstate.StateStore) *SQLStore {
 	return &SQLStore{
-		conn:         conn,
-		stateStore:   stateStore,
-		demoPassword: demoPassword,
+		conn:       conn,
+		stateStore: stateStore,
 	}
 }
 
@@ -47,90 +38,6 @@ func (s *SQLStore) rawDB() (*sql.DB, error) {
 		return nil, errors.New("sql conn not configured")
 	}
 	return s.conn.RawDB()
-}
-
-func (s *SQLStore) ensureDemoUser() error {
-	if s == nil {
-		return errors.New("sql store not configured")
-	}
-
-	s.demoOnce.Do(func() {
-		db, err := s.rawDB()
-		if err != nil {
-			s.demoErr = err
-			return
-		}
-
-		hash, err := bcrypt.GenerateFromPassword([]byte(s.demoPassword), bcrypt.DefaultCost)
-		if err != nil {
-			s.demoErr = err
-			return
-		}
-
-		ctx := context.Background()
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			s.demoErr = err
-			return
-		}
-		defer func() { _ = tx.Rollback() }()
-
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO users (id, display_name, status, session_version) VALUES (?, ?, ?, ?)",
-			int64(1001), "Flash Mall User 1001", statusActive, int64(1),
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO user_identities (user_id, identity_type, identity_value, is_verified, verified_at) VALUES (?, 'phone', ?, 1, NOW())",
-			int64(1001), "13800000001",
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO user_credentials (user_id, credential_type, password_hash, hash_algo, password_updated_at) VALUES (?, 'password', ?, 'bcrypt', NOW())",
-			int64(1001), string(hash),
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		adminHash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-		if err != nil {
-			s.demoErr = err
-			return
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO users (id, display_name, role, status, session_version) VALUES (?, ?, ?, ?, ?)",
-			int64(1002), "Flash Mall Admin", "admin", statusActive, int64(1),
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO user_identities (user_id, identity_type, identity_value, is_verified, verified_at) VALUES (?, 'phone', ?, 1, NOW())",
-			int64(1002), "13800000002",
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		if _, err = tx.ExecContext(ctx,
-			"INSERT IGNORE INTO user_credentials (user_id, credential_type, password_hash, hash_algo, password_updated_at) VALUES (?, 'password', ?, 'bcrypt', NOW())",
-			int64(1002), string(adminHash),
-		); err != nil {
-			s.demoErr = err
-			return
-		}
-		if err = tx.Commit(); err != nil {
-			s.demoErr = err
-			return
-		}
-		s.syncUserVersion(context.Background(), 1001, 1)
-		s.syncUserVersion(context.Background(), 1002, 1)
-	})
-
-	return s.demoErr
 }
 
 func (s *SQLStore) syncSessionState(session *Session) {

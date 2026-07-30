@@ -11,9 +11,6 @@ func (s *SQLStore) IssueCode(phone, scene string, ttlSeconds int64) (string, tim
 	if phone == "" || scene == "" {
 		return "", time.Time{}, ErrInvalidCode
 	}
-	if err := s.ensureDemoUser(); err != nil {
-		return "", time.Time{}, err
-	}
 	if ttlSeconds <= 0 {
 		ttlSeconds = 300
 	}
@@ -61,9 +58,6 @@ func (s *SQLStore) IssueCode(phone, scene string, ttlSeconds int64) (string, tim
 func (s *SQLStore) ConsumeCode(phone, scene, code string, maxAttempts int64) error {
 	if phone == "" || scene == "" || code == "" {
 		return ErrInvalidCode
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return err
 	}
 
 	db, err := s.rawDB()
@@ -151,9 +145,6 @@ func (s *SQLStore) ConsumeCode(phone, scene, code string, maxAttempts int64) err
 func (s *SQLStore) ResetCode(phone, scene string) error {
 	if phone == "" || scene == "" {
 		return nil
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return err
 	}
 
 	db, err := s.rawDB()

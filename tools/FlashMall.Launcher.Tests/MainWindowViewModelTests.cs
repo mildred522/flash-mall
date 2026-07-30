@@ -48,6 +48,19 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task DemoReadyEventUpdatesFixtureStatus()
+    {
+        var runner = new FakeRunner(
+            new LauncherEvent("demo", "demo", "info", "fixture ready", null, "demo_ready"),
+            0);
+        var vm = CreateViewModel(runner);
+
+        await vm.ExecuteAsync(ControlCommand.VerifyDemo);
+
+        Assert.Equal("演示数据正常", vm.DemoStateText);
+    }
+
+    [Fact]
     public async Task OpeningLocalEntryWritesAnOperationLog()
     {
         var logs = new MemoryLogStore();

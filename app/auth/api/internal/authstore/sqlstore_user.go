@@ -13,9 +13,6 @@ func (s *SQLStore) CreateUser(phone, displayName, password string) (*User, error
 	if phone == "" || password == "" {
 		return nil, ErrInvalidCredentials
 	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
-	}
 
 	db, err := s.rawDB()
 	if err != nil {
@@ -88,10 +85,6 @@ func (s *SQLStore) CreateUser(phone, displayName, password string) (*User, error
 }
 
 func (s *SQLStore) Authenticate(userID int64, phone, password string) (*User, error) {
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
-	}
-
 	var user *User
 	var err error
 	if phone != "" {
@@ -114,9 +107,6 @@ func (s *SQLStore) Authenticate(userID int64, phone, password string) (*User, er
 func (s *SQLStore) GetUserByPhone(phone string) (*User, error) {
 	if phone == "" {
 		return nil, ErrUserNotFound
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
 	}
 
 	db, err := s.rawDB()
@@ -148,9 +138,6 @@ func (s *SQLStore) GetUserByPhone(phone string) (*User, error) {
 func (s *SQLStore) GetUserByID(userID int64) (*User, error) {
 	if userID <= 0 {
 		return nil, ErrUserNotFound
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
 	}
 
 	db, err := s.rawDB()
@@ -193,9 +180,6 @@ func (s *SQLStore) GetUserByIDAnyStatus(userID int64) (*User, error) {
 func (s *SQLStore) UpdatePassword(phone, newPassword string) (*User, error) {
 	if phone == "" || newPassword == "" {
 		return nil, ErrInvalidCredentials
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
 	}
 
 	db, err := s.rawDB()
@@ -284,9 +268,6 @@ func (s *SQLStore) ListAllUsers() []*User {
 }
 
 func (s *SQLStore) ListUsers(page, pageSize, status int64, role, keyword string) ([]*User, int64, error) {
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, 0, err
-	}
 	db, err := s.rawDB()
 	if err != nil {
 		return nil, 0, err

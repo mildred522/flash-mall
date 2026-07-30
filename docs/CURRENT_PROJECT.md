@@ -106,6 +106,12 @@ pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
 # 在 Ubuntu WSL 中启动默认 Compose 拓扑
 ./scripts/local/start-compose-all.sh
 
+# 检查固定演示账号、商家、商品和 MySQL/Redis 库存一致性
+./scripts/local/flash-mall-control.sh verify-demo --profile interview
+
+# 明确确认后备份数据库、重置 MySQL/Redis 并恢复固定演示环境
+./scripts/local/flash-mall-control.sh reset-demo --confirm-reset --profile interview
+
 # 查看健康状态
 ./scripts/local/health-compose.sh
 
@@ -161,7 +167,9 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 管理员与商家的商品创建、元数据更新已统一进入 `application/productcommand` 与 `productmysql.ProductCommandRepository`；有效供应商/商家校验、商品行锁、最终价格约束、离线商品与库存初始化任务写入由事务保证，商家更新通过事务内 `merchant_id` 条件隔离所有权。商品初始库存仍在事务提交后通过 Inventory Kitex 写入，失败时商品保持离线并保留可重试种子任务。
 - 管理员商品、促销、订单和供应商页面已拆出列定义、编辑/详情/日志弹窗及页面模型；四个页面只保留状态、导航和 API 编排，并由架构测试限制体积与组件边界。
 - 管理员首页橱窗页已拆出草稿模型、12 槽编辑器和推荐候选面板；安全事件页已拆出事件语义、筛选条和列定义；用户页已拆出列定义、详情弹窗和角色/状态展示。页面仍保留各自的请求状态与业务动作，现有橱窗拖拽、商家多样性和版本冲突行为保持不变。
-- 数据库初始化源码已按 bootstrap、订单、支付渠道幂等迁移、商品 schema、商品种子、历史数据修复、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 八个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性和单模块体积。
+- 数据库结构迁移与演示数据已经彻底分离：七个结构模块生成 `scripts/k8s/schema.sql`，三个演示模块生成 `scripts/k8s/demo-seed.sql`，旧 `init-db.sql` 已删除。Compose 只在全新环境首次写入演示数据，已有完整演示环境只登记版本而不覆盖业务数据；K8s 默认只执行结构迁移。
+- Auth MySQL Store 不再在登录、会话或验证码请求中懒加载演示账号；四个演示账号及管理员一键登录凭据只由版本化演示种子维护。
+- Windows 桌面控制中心支持日常开发/面试演示运行配置、可观测组件开关、演示数据检查和确认后重置；重置前自动备份 MySQL，只删除当前 Compose 项目的 MySQL/Redis 卷并保留 `flash-mall-uploads`。
 - 管理员看板、Outbox 事件列表/重试已进入 `application/adminops` 与 `ordermysql.AdminOpsRepository`；看板统计由原先 17 次串行查询收敛为一次聚合查询。
 - 支付/退款/订单对账已进入 `application/reconciliation` 与 `ordermysql.ReconciliationRepository`；扫描、幂等问题键和列表查询不再位于 Handler，集成测试也不再运行时修改表结构。
 - 用户地址已进入 `application/useraddress` 与 `adapters/authmysql`；默认地址切换、地址保存及用户所有权检查在同一事务内完成。
@@ -187,10 +195,19 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
 
-1. 完成发布准备：固定演示数据、统一控制台开关、容量边界和最终真实浏览器验收。
+1. 完成发布准备：固定演示数据和统一控制台开关已经收口；下一步建立容量边界并完成最终真实浏览器验收。
 2. 支付宝真实沙箱只差在部署环境注入商户凭据与公网通知地址；不再扩展 Stripe 或微信支付，避免收尾阶段扩大维护面。
 
 ## 验证基线
+
+2026-07-30 可复现演示环境与桌面控制中心收尾验证：
+
+- 数据库结构与演示数据已分别生成 `scripts/k8s/schema.sql` 和 `scripts/k8s/demo-seed.sql`；演示版本标记固定在全部订单、商品和认证数据写入之后，任一中间语句失败都不能把半成品标记为就绪。CI 同时校验九个固定商品均具备库存快照。
+- Compose 默认启用版本化演示数据，旧环境只有在账号凭据、商家成员/店铺资料和 MySQL 库存事实均完整时才无损登记版本，否则要求显式重置；实测接管和正常停机再启动前后的商品、四个账号密码哈希和首页橱窗校验值完全一致。K8s 默认仅执行结构迁移，演示数据必须通过部署工作流的 `seed_demo_data` 显式开启。
+- `reset-demo --confirm-reset --profile interview` 实测先生成权限为 `0600` 的非空 MySQL gzip 备份，只删除当前 Compose 项目的 MySQL/Redis 数据卷并恢复固定数据；写入 `flash-mall-uploads` 的验收哨兵跨完整重置保留，验收结束后已清除。
+- 固定用户 `13800000001`、管理员 `13800000002`、商家 `13800001101` 和 `13800001102` 均通过最新 Auth 镜像登录；管理员看板可访问，两个商家账号分别只解析到商家 1101 和 1102。首页返回 6 个橱窗商品，商品图、商家 Logo 和店铺横幅全部返回 200。
+- Windows Chrome 实际完成首页、商品详情、商家店面、管理员一键登录和商家密码登录；页面无白屏、坏图或控制台错误。三套入口内联 favicon，登录/注册字段显式声明浏览器自动填充语义，静态产物守卫会阻止这两项回退。
+- Go 全仓 `vet`、测试和构建通过；前端 37 个测试文件、60 个用例和三套生产构建通过；桌面控制中心 38 个 Release 测试及构建通过；SQL 聚合、控制协议、持久化、可观测、Docker 上下文、Actionlint 和静态产物守卫全部通过。
 
 2026-07-30 支付链路收尾验证：
 

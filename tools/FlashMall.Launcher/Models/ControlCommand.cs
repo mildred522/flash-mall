@@ -7,5 +7,7 @@ public enum ControlCommand
     RebuildService,
     Stop,
     Status,
+    VerifyDemo,
+    ResetDemo,
     Logs,
 }

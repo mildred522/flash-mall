@@ -130,6 +130,25 @@
                     <Button Grid.Column="2" Content="停止项目" Command="{Binding StopCommand}" Height="40" />
                 </Grid>
 
+                <TextBlock Text="运行配置" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,23,0,8" />
+                <ComboBox ItemsSource="{Binding RunProfiles}" SelectedItem="{Binding RunProfileName}" />
+                <CheckBox Content="同时启动 Prometheus 与 Grafana"
+                          IsChecked="{Binding ObservabilityEnabled}"
+                          Margin="2,10,0,0" />
+                <Border Background="#151D26" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                        CornerRadius="7" Padding="11" Margin="0,10,0,0">
+                    <TextBlock Text="{Binding DemoStateText, StringFormat=演示数据：{0}}" />
+                </Border>
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="8" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Button Content="检查演示数据" Command="{Binding VerifyDemoCommand}" />
+                    <Button Grid.Column="2" Content="重置并启动" Click="ResetDemo_OnClick" />
+                </Grid>
+
                 <TextBlock Text="本地入口" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource MutedBrush}" Margin="0,23,0,8" />
                 <UniformGrid Columns="3">
                     <Button Content="商城" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/shop" Margin="0,0,5,0" Padding="5,8" />
@@ -137,6 +156,7 @@
                     <Button Content="商家后台" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:8889/merchant" Padding="5,8" />
                     <Button Content="MQ" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:15672" Margin="0,6,5,0" Padding="5,8" />
                     <Button Content="链路" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:16686" Margin="0,6,5,0" Padding="5,8" />
+                    <Button Content="Grafana" Command="{Binding OpenUrlCommand}" CommandParameter="http://127.0.0.1:3000" Margin="0,6,0,0" Padding="5,8" />
                 </UniformGrid>
 
                 <Expander Margin="0,24,0,0" Foreground="#DCE5EC">

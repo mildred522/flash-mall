@@ -29,7 +29,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 			panic("auth storage mode mysql requires DataSource")
 		}
 		mysqlguard.MustUTF8MB4("auth", c.DataSource)
-		return newServiceContext(c, authstore.NewSQLStore(sqlx.NewMysql(c.DataSource), c.DemoPassword, stateStore), limiter, recorder)
+		return newServiceContext(c, authstore.NewSQLStore(sqlx.NewMysql(c.DataSource), stateStore), limiter, recorder)
 	case "memory":
 		return newServiceContext(c, authstore.NewStoreWithState(c.DemoPassword, stateStore), limiter, recorder)
 	default:

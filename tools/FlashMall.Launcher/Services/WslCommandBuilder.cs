@@ -40,6 +40,8 @@ public static class WslCommandBuilder
             ControlCommand.RebuildService => "rebuild-service",
             ControlCommand.Stop => "stop",
             ControlCommand.Status => "status",
+            ControlCommand.VerifyDemo => "verify-demo",
+            ControlCommand.ResetDemo => "reset-demo",
             ControlCommand.Logs => "logs",
             _ => throw new ArgumentOutOfRangeException(nameof(command), command, "Unknown control command."),
         };
@@ -66,6 +68,18 @@ public static class WslCommandBuilder
         }
 
         AddArguments(startInfo, "--wait-timeout", settings.WaitTimeoutSeconds.ToString());
+        AddArguments(
+            startInfo,
+            "--profile",
+            settings.RunProfile == RunProfile.Interview ? "interview" : "development");
+        if (settings.ObservabilityEnabled)
+        {
+            startInfo.ArgumentList.Add("--observability");
+        }
+        if (command == ControlCommand.ResetDemo)
+        {
+            startInfo.ArgumentList.Add("--confirm-reset");
+        }
         return startInfo;
     }
 

@@ -34,8 +34,8 @@ spec:
               until mysqladmin ping -h mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" --silent; do
                 sleep 2
               done
-              echo "init schema..."
-              mysql --default-character-set=utf8mb4 -h mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+              echo "migrate schema..."
+              mysql --default-character-set=utf8mb4 -h mysql -uroot -p"${MYSQL_ROOT_PASSWORD}" < /init/schema.sql
               echo "done"
           volumeMounts:
             - name: init-sql

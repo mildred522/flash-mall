@@ -42,9 +42,11 @@ fi
 
 kubectl apply -f k8s/deps/
 kubectl -n "$namespace" create configmap mysql-init-sql \
-  --from-file=init-db.sql=scripts/k8s/init-db.sql \
+  --from-file=schema.sql=scripts/k8s/schema.sql \
   --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n "$namespace" delete job mysql-init redis-seed --ignore-not-found
 kubectl apply -f k8s/jobs/
+kubectl -n "$namespace" wait --for=condition=complete job/mysql-init --timeout=180s
 kubectl apply -f k8s/apps/
 
 kubectl -n "$namespace" get pods -o wide

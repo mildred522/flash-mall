@@ -56,7 +56,7 @@ func TestHertzRuntimeDoesNotExecuteDDL(t *testing.T) {
 			(strings.Contains(strings.ToUpper(content), "CREATE TABLE") || strings.Contains(strings.ToUpper(content), "ALTER TABLE"))
 	})
 	if len(violations) > 0 {
-		t.Fatalf("runtime DDL is forbidden in Hertz; move schema changes to deploy/mysql/init-db.sql: %s", strings.Join(violations, ", "))
+		t.Fatalf("runtime DDL is forbidden in Hertz; move schema changes to scripts/k8s/schema.sql modules: %s", strings.Join(violations, ", "))
 	}
 }
 

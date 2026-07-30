@@ -438,17 +438,9 @@ if (-not $SkipCompose) {
 }
 
 if (-not $SkipDbInit) {
-  $sqlFile = Join-Path $repoRoot "scripts\k8s\init-db.sql"
   Write-Host "[STEP] initialize mysql schema"
   Wait-MySQLReady -TimeoutSeconds $PortWaitSeconds
-  $oldPref = $ErrorActionPreference
-  try {
-    $ErrorActionPreference = "Continue"
-    Get-Content -Raw -Encoding UTF8 $sqlFile | & docker exec -i mysql mysql --force --default-character-set=utf8mb4 -uroot -p6494kj06 2>&1
-  } finally { $ErrorActionPreference = $oldPref }
-  if ($LASTEXITCODE -ne 0) {
-    Write-Warning "mysql init returned non-zero. Existing schema may already exist; continue startup."
-  }
+  Invoke-Compose -Command $composeCmd -ComposeArgs @("-f", $composeFile, "run", "--rm", "mysql-init")
 }
 
 if (-not $SkipSeedStock) {

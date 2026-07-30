@@ -41,10 +41,10 @@ export default function LoginPage({ onLogin }: Props) {
         <Title level={3} style={{ textAlign: 'center', marginBottom: 24 }}>Flash Mall 管理后台</Title>
         <Form onFinish={onFinish} autoComplete="off">
           <Form.Item name="phone" rules={[{ required: true, message: '请输入手机号' }]}>
-            <Input prefix={<UserOutlined />} placeholder="手机号" />
+            <Input prefix={<UserOutlined />} placeholder="手机号" autoComplete="username" />
           </Form.Item>
           <Form.Item name="password" rules={[{ required: true, message: '请输入密码' }]}>
-            <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+            <Input.Password prefix={<LockOutlined />} placeholder="密码" autoComplete="current-password" />
           </Form.Item>
           <Form.Item>
             <Button type="primary" htmlType="submit" loading={loading === 'form'} disabled={loading === 'demo'} block>

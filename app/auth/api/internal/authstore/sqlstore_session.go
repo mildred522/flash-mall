@@ -11,9 +11,6 @@ func (s *SQLStore) GetActiveSession(sessionID string) (*Session, error) {
 	if sessionID == "" {
 		return nil, ErrSessionNotFound
 	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, err
-	}
 
 	db, err := s.rawDB()
 	if err != nil {
@@ -53,9 +50,6 @@ func (s *SQLStore) CreateSession(userID int64, ttlSeconds int64) (string, string
 func (s *SQLStore) CreateSessionForDevice(userID int64, deviceType string, ttlSeconds int64) (string, string, error) {
 	if userID <= 0 {
 		return "", "", ErrUserNotFound
-	}
-	if err := s.ensureDemoUser(); err != nil {
-		return "", "", err
 	}
 	if ttlSeconds <= 0 {
 		ttlSeconds = 7 * 24 * 60 * 60
@@ -160,9 +154,6 @@ func (s *SQLStore) RefreshSession(refreshToken string, ttlSeconds int64) (*Sessi
 	if refreshToken == "" {
 		return nil, "", ErrRefreshTokenInvalid
 	}
-	if err := s.ensureDemoUser(); err != nil {
-		return nil, "", err
-	}
 	if ttlSeconds <= 0 {
 		ttlSeconds = 7 * 24 * 60 * 60
 	}
@@ -260,9 +251,6 @@ func (s *SQLStore) Logout(refreshToken string) error {
 	if refreshToken == "" {
 		return ErrRefreshTokenInvalid
 	}
-	if err := s.ensureDemoUser(); err != nil {
-		return err
-	}
 	sessionID, tokenGeneration, signature, ok := parseRefreshToken(refreshToken)
 	if !ok {
 		return ErrRefreshTokenInvalid
@@ -335,9 +323,6 @@ func (s *SQLStore) Logout(refreshToken string) error {
 
 func (s *SQLStore) LogoutAll(userID int64) {
 	if userID <= 0 || s == nil {
-		return
-	}
-	if err := s.ensureDemoUser(); err != nil {
 		return
 	}
 

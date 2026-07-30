@@ -28,6 +28,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
     private string _workspace;
     private int _waitTimeoutSeconds;
     private string _selectedService;
+    private string _runProfileName;
+    private bool _observabilityEnabled;
+    private string _demoStateText = "尚未检查";
 
     public MainWindowViewModel(
         IControlRunner runner,
@@ -46,11 +49,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         _workspace = settings.Workspace;
         _waitTimeoutSeconds = settings.WaitTimeoutSeconds;
         _selectedService = BusinessServices[0];
+        _runProfileName = settings.RunProfile == RunProfile.Interview ? "面试演示" : "日常开发";
+        _observabilityEnabled = settings.ObservabilityEnabled;
 
         StartCommand = BusyCommand(ControlCommand.Start);
         RebuildCommand = BusyCommand(ControlCommand.Rebuild);
         StopCommand = BusyCommand(ControlCommand.Stop);
         RefreshCommand = BusyCommand(ControlCommand.Status);
+        VerifyDemoCommand = BusyCommand(ControlCommand.VerifyDemo);
+        ResetDemoCommand = BusyCommand(ControlCommand.ResetDemo);
         RebuildServiceCommand = new AsyncCommand(
             _ => ExecuteAsync(ControlCommand.RebuildService, SelectedService),
             _ => !IsBusy && !string.IsNullOrWhiteSpace(SelectedService));
@@ -151,13 +158,34 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         }
     }
 
+    public string RunProfileName
+    {
+        get => _runProfileName;
+        set => SetField(ref _runProfileName, value);
+    }
+
+    public bool ObservabilityEnabled
+    {
+        get => _observabilityEnabled;
+        set => SetField(ref _observabilityEnabled, value);
+    }
+
+    public string DemoStateText
+    {
+        get => _demoStateText;
+        private set => SetField(ref _demoStateText, value);
+    }
+
     public IReadOnlyList<string> Services => BusinessServices;
+    public IReadOnlyList<string> RunProfiles { get; } = ["日常开发", "面试演示"];
     public ObservableCollection<ServiceStatusItem> ServiceStatuses { get; } = [];
 
     public AsyncCommand StartCommand { get; }
     public AsyncCommand RebuildCommand { get; }
     public AsyncCommand StopCommand { get; }
     public AsyncCommand RefreshCommand { get; }
+    public AsyncCommand VerifyDemoCommand { get; }
+    public AsyncCommand ResetDemoCommand { get; }
     public AsyncCommand RebuildServiceCommand { get; }
     public AsyncCommand LoadLogsCommand { get; }
     public AsyncCommand OpenUrlCommand { get; }
@@ -229,7 +257,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         new(_ => ExecuteAsync(command), _ => !IsBusy);
 
     private LauncherSettings CurrentSettings() =>
-        new(Distro.Trim(), Workspace.Trim(), WaitTimeoutSeconds);
+        new(
+            Distro.Trim(),
+            Workspace.Trim(),
+            WaitTimeoutSeconds,
+            RunProfileName == "面试演示" ? RunProfile.Interview : RunProfile.Development,
+            ObservabilityEnabled);
 
     private async Task SaveSettingsAsync()
     {
@@ -298,8 +331,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (evt.Type.Equals("demo", StringComparison.OrdinalIgnoreCase))
+        {
+            DemoStateText = evt.Code == "demo_ready" ? "演示数据正常" : evt.Message;
+            return;
+        }
+
         if (evt.Type.Equals("error", StringComparison.OrdinalIgnoreCase))
         {
+            if (evt.Code?.StartsWith("demo_", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                DemoStateText = evt.Message;
+            }
             var kind = LauncherErrorClassifier.Classify(evt.Code, evt.Message);
             if (State != ProjectState.Partial)
             {
@@ -367,6 +410,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         ControlCommand.RebuildService => "正在重新构建选中的服务…",
         ControlCommand.Stop => "正在停止服务并保留数据卷…",
         ControlCommand.Status => "正在刷新服务状态…",
+        ControlCommand.VerifyDemo => "正在检查演示账号、商家和库存一致性…",
+        ControlCommand.ResetDemo => "正在备份并重置演示环境…",
         ControlCommand.Logs => "正在读取服务日志…",
         _ => "正在执行操作…",
     };
@@ -389,6 +434,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged
         RebuildCommand?.RaiseCanExecuteChanged();
         StopCommand?.RaiseCanExecuteChanged();
         RefreshCommand?.RaiseCanExecuteChanged();
+        VerifyDemoCommand?.RaiseCanExecuteChanged();
+        ResetDemoCommand?.RaiseCanExecuteChanged();
         RebuildServiceCommand?.RaiseCanExecuteChanged();
         LoadLogsCommand?.RaiseCanExecuteChanged();
         SaveSettingsCommand?.RaiseCanExecuteChanged();

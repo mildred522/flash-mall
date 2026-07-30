@@ -348,8 +348,7 @@ func TestSQLStoreRefreshSession_LocksSessionRowBeforeRotating(t *testing.T) {
 	}
 	defer func() { _ = db.Close() }()
 
-	store := NewSQLStore(sqlx.NewSqlConnFromDB(db), "pwd", nil)
-	store.demoOnce.Do(func() {})
+	store := NewSQLStore(sqlx.NewSqlConnFromDB(db), nil)
 
 	session, tokenB, err := store.RefreshSession(buildRefreshToken("sess-123", 1, "family-secret"), 3600)
 	if err != nil {

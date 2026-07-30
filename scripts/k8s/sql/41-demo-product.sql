@@ -1,3 +1,12 @@
+USE mall_product;
+
+INSERT INTO supplier (id, name, status)
+VALUES
+  (200, 'Flash Supplier', 1),
+  (201, '山岚食品工坊', 1),
+  (211, '北纬户外供应', 1)
+ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
+
 -- 初始化示例商品
 INSERT INTO product (id, merchant_id, name, image_url, stock, version, origin_price_fen, sale_price_fen, status, supplier_id)
 VALUES (100, 1000, '首发风衣', '/products/100.svg', 10000, 0, 12900, 11900, 1, 200)
@@ -111,6 +120,20 @@ INSERT INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES
   (103, 0, 2500, 0), (103, 1, 2500, 0), (103, 2, 2500, 0), (103, 3, 2500, 0),
   (104, 0, 2500, 0), (104, 1, 2500, 0), (104, 2, 2500, 0), (104, 3, 2500, 0)
 ON DUPLICATE KEY UPDATE stock = VALUES(stock), version = VALUES(version);
+
+INSERT INTO product_stock_snapshot (product_id, available, reserved, total, source, version)
+VALUES
+  (100, 10000, 0, 10000, 'demo-seed', 1),
+  (101, 10000, 0, 10000, 'demo-seed', 1),
+  (102, 10000, 0, 10000, 'demo-seed', 1),
+  (103, 10000, 0, 10000, 'demo-seed', 1),
+  (104, 10000, 0, 10000, 'demo-seed', 1)
+ON DUPLICATE KEY UPDATE
+  available = VALUES(available),
+  reserved = VALUES(reserved),
+  total = VALUES(total),
+  source = VALUES(source),
+  version = VALUES(version);
 
 -- 示例商家库存只在首次初始化时创建；项目重启不能覆盖已经发生的预占和扣减。
 INSERT IGNORE INTO product_stock_bucket (product_id, bucket_idx, stock, version) VALUES

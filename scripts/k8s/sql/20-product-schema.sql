@@ -346,13 +346,3 @@ CREATE TABLE IF NOT EXISTS barrier (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_barrier (gid, branch_id, op, barrier_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
-INSERT INTO supplier (id, name, status)
-VALUES (200, 'Flash Supplier', 1)
-ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);
-
-INSERT INTO supplier (id, name, status)
-VALUES
-  (201, '山岚食品工坊', 1),
-  (211, '北纬户外供应', 1)
-ON DUPLICATE KEY UPDATE name = VALUES(name), status = VALUES(status);

@@ -91,10 +91,10 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
   const loginForm = (
     <Form<LoginValues> onFinish={login} autoComplete="off" layout="vertical">
       <Form.Item label="手机号" name="phone" rules={[{ required: true, message: '请输入手机号' }]}>
-        <Input prefix={<UserOutlined />} placeholder="手机号" />
+        <Input prefix={<UserOutlined />} placeholder="手机号" autoComplete="username" />
       </Form.Item>
       <Form.Item label="密码" name="password" rules={[{ required: true, message: '请输入密码' }]}>
-        <Input.Password prefix={<LockOutlined />} placeholder="密码" />
+        <Input.Password prefix={<LockOutlined />} placeholder="密码" autoComplete="current-password" />
       </Form.Item>
       <Button type="primary" htmlType="submit" loading={loading} block>登录商家后台</Button>
     </Form>
@@ -110,12 +110,12 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
           { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号' },
         ]}
       >
-        <Input prefix={<UserOutlined />} placeholder="手机号" />
+        <Input prefix={<UserOutlined />} placeholder="手机号" autoComplete="username" />
       </Form.Item>
       <Form.Item label="验证码" required>
         <Space.Compact block>
           <Form.Item name="code" noStyle rules={[{ required: true, message: '请输入验证码' }]}>
-            <Input aria-label="验证码" placeholder="验证码" />
+            <Input aria-label="验证码" placeholder="验证码" autoComplete="one-time-code" />
           </Form.Item>
           <Button onClick={sendCode} loading={sending} disabled={cooldown > 0}>
             {cooldown > 0 ? `重新发送（${cooldown}s）` : '发送验证码'}
@@ -128,7 +128,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
         name="password"
         rules={[{ required: true, min: 6, message: '密码至少需要 6 位' }]}
       >
-        <Input.Password prefix={<LockOutlined />} placeholder="至少 6 位密码" />
+        <Input.Password prefix={<LockOutlined />} placeholder="至少 6 位密码" autoComplete="new-password" />
       </Form.Item>
       <Button type="primary" htmlType="submit" loading={loading} block>注册账号</Button>
     </Form>

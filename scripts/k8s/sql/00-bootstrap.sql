@@ -1,5 +1,5 @@
-﻿-- 本目录 SQL 模块是数据库初始化源码；修改后运行 node scripts/k8s/build-init-db.mjs。
--- scripts/k8s/init-db.sql 是供 Docker、K8s 和冒烟脚本使用的兼容聚合文件。
+﻿-- 本目录 SQL 模块是数据库初始化源码；修改后运行 node scripts/k8s/build-sql-bundles.mjs。
+-- scripts/k8s/schema.sql 仅聚合可重复执行的结构迁移；演示数据单独生成到 demo-seed.sql。
 -- 初始化数据库与表结构（K8s MySQL）
 
 SET NAMES utf8mb4;

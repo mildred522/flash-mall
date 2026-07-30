@@ -23,7 +23,7 @@ func TestRepositoryDoesNotExecuteDDL(t *testing.T) {
 		}
 		upper := strings.ToUpper(string(content))
 		if strings.Contains(upper, "CREATE TABLE") || strings.Contains(upper, "ALTER TABLE") {
-			t.Errorf("%s contains runtime DDL; schema changes belong in scripts/k8s/init-db.sql", entry.Name())
+			t.Errorf("%s contains runtime DDL; schema changes belong in scripts/k8s/schema.sql modules", entry.Name())
 		}
 	}
 }

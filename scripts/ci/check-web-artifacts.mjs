@@ -14,6 +14,21 @@ const targets = files.length > 0
     ];
 
 let failed = false;
+const autocompleteContracts = new Map([
+  ['frontend/packages/admin/src/pages/LoginPage.tsx', ['autoComplete="username"', 'autoComplete="current-password"']],
+  ['frontend/packages/merchant/src/pages/LoginPage.tsx', ['autoComplete="username"', 'autoComplete="current-password"', 'autoComplete="one-time-code"', 'autoComplete="new-password"']],
+  ['frontend/packages/shop/src/components/AuthModal.tsx', ['autoComplete="username"', 'autoComplete="current-password"', 'autoComplete="one-time-code"', 'autoComplete="new-password"']],
+]);
+for (const [path, expectedTokens] of autocompleteContracts) {
+  const source = readFileSync(resolve(repositoryRoot, path), 'utf8');
+  for (const token of expectedTokens) {
+    if (!source.includes(token)) {
+      console.error(`[FAIL] ${path}: missing ${token}`);
+      failed = true;
+    }
+  }
+}
+
 for (const legacyPath of [
   resolve(repositoryRoot, 'web/package.json'),
   resolve(repositoryRoot, 'app/entry/api/internal/handler/web/admin.html'),
@@ -35,6 +50,11 @@ for (const target of targets) {
   }
 
   let targetFailed = false;
+  if (!/<link\b[^>]*\brel=["']icon["'][^>]*>/i.test(html)) {
+    console.error(`[FAIL] ${target}: favicon declaration is missing`);
+    failed = true;
+    targetFailed = true;
+  }
   const scripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)]
     .filter((match) => !/\bsrc\s*=/.test(match[1]));
 

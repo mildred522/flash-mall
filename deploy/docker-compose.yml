@@ -172,15 +172,20 @@ services:
     container_name: flash-mall-mysql-init
     environment:
       MYSQL_ROOT_PASSWORD: ${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}
+      FLASH_MALL_DEMO_SEED_ENABLED: ${FLASH_MALL_DEMO_SEED_ENABLED:-true}
     volumes:
-      - ../scripts/k8s/init-db.sql:/init/init-db.sql:ro
+      - ../scripts/k8s/schema.sql:/init/schema.sql:ro
+      - ../scripts/k8s/demo-seed.sql:/init/demo-seed.sql:ro
+      - ../scripts/k8s/apply-demo-seed.sh:/init/apply-demo-seed.sh:ro
     depends_on:
       mysql:
         condition: service_healthy
     command:
       - sh
       - -c
-      - mysql --default-character-set=utf8mb4 -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/init-db.sql
+      - |
+        mysql --default-character-set=utf8mb4 -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" < /init/schema.sql
+        sh /init/apply-demo-seed.sh
     restart: "no"
 
   auth-api:
