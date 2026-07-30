@@ -77,6 +77,21 @@ func TestCreateOrderLogic_CreateOrder_RejectsExpectedPriceMismatch(t *testing.T)
 	}
 }
 
+func TestOutTradeNoForIsProviderNeutralAndBounded(t *testing.T) {
+	longOrderID := "order-" + strings.Repeat("x", 100)
+	first := outTradeNoFor(longOrderID)
+	second := outTradeNoFor(longOrderID)
+	if first != second {
+		t.Fatalf("out trade number is not deterministic: %q != %q", first, second)
+	}
+	if strings.Contains(strings.ToLower(first), "mock") {
+		t.Fatalf("out trade number exposes mock provider: %q", first)
+	}
+	if len(first) > 64 {
+		t.Fatalf("out trade number length = %d, want <= 64", len(first))
+	}
+}
+
 func TestCreateOrderLogic_CreateOrder_PersistsSnapshotAndPaymentOrder(t *testing.T) {
 	dtmimp.BarrierTableName = "barrier"
 

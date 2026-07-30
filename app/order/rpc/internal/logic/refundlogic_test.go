@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"flash-mall/app/order/rpc/internal/config"
+	"flash-mall/app/order/rpc/internal/paymentprovider"
 	"flash-mall/app/order/rpc/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -92,6 +93,52 @@ func TestAuditRefund_ApproveIsIdempotent(t *testing.T) {
 	}
 	if inventory.releaseCalls != 2 {
 		t.Fatalf("idempotent stock release calls=%d, want 2", inventory.releaseCalls)
+	}
+	var providerRecord struct {
+		ProviderStatus   string `db:"provider_status"`
+		ProviderRefundID string `db:"provider_refund_id"`
+	}
+	if err = svcCtx.SqlConn.QueryRowCtx(context.Background(), &providerRecord,
+		"SELECT provider_status, provider_refund_id FROM refund_order WHERE id=?", requested.RefundId); err != nil {
+		t.Fatalf("query provider refund status: %v", err)
+	}
+	if providerRecord.ProviderStatus != "SUCCESS" || providerRecord.ProviderRefundID != providerRefundIDFor(requested.RefundId) {
+		t.Fatalf("provider status=%q refund_id=%q", providerRecord.ProviderStatus, providerRecord.ProviderRefundID)
+	}
+}
+
+func TestAuditRefund_AlipayUsesStableProviderRefundAndCompletes(t *testing.T) {
+	svcCtx, inventory := newRefundRPCServiceContext(t)
+	provider := &paymentProviderStub{refundResult: paymentprovider.RefundResult{Status: "SUCCESS"}}
+	svcCtx.PaymentProvider = provider
+	orderID := refundTestOrderID("alipay")
+	cleanupRefundRPCRows(t, svcCtx, orderID)
+	seedRefundRPCOrder(t, svcCtx, orderID, 7001, 1)
+	if _, err := svcCtx.SqlConn.ExecCtx(context.Background(),
+		"UPDATE payment_order SET provider=? WHERE order_id=?", paymentprovider.NameAlipaySandbox, orderID); err != nil {
+		t.Fatalf("set payment provider: %v", err)
+	}
+	t.Cleanup(func() { cleanupRefundRPCRows(t, svcCtx, orderID) })
+	requested, err := NewRequestRefundLogic(context.Background(), svcCtx).RequestRefund(&orderpb.RequestRefundReq{
+		OrderId: orderID, RequesterId: 7001, RequesterRole: "user", Reason: "sandbox refund",
+	})
+	if err != nil {
+		t.Fatalf("request refund: %v", err)
+	}
+
+	resp, err := NewAuditRefundLogic(context.Background(), svcCtx).AuditRefund(&orderpb.AuditRefundReq{
+		RefundId: requested.RefundId, OperatorId: 9001, Approve: true, Remark: "approved",
+	})
+	if err != nil || resp.GetRefundStatus() != refundStatusSuccess {
+		t.Fatalf("audit refund: resp=%#v err=%v", resp, err)
+	}
+	if provider.refundRequest.OutTradeNo != "trade:"+orderID ||
+		provider.refundRequest.RefundID != providerRefundIDFor(requested.RefundId) ||
+		provider.refundRequest.AmountFen != 9900 {
+		t.Fatalf("provider refund request=%#v", provider.refundRequest)
+	}
+	if inventory.releaseCalls != 1 {
+		t.Fatalf("release calls=%d, want 1", inventory.releaseCalls)
 	}
 }
 
@@ -226,19 +273,34 @@ func ensureRefundRPCSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 	ensureRefundRPCColumn(t, svcCtx, "merchant_id", "ALTER TABLE orders ADD COLUMN merchant_id bigint NOT NULL DEFAULT 1000 AFTER user_id")
 	ensureRefundRPCColumn(t, svcCtx, "refund_requested_at", "ALTER TABLE orders ADD COLUMN refund_requested_at timestamp NULL DEFAULT NULL AFTER status")
 	ensureRefundRPCColumn(t, svcCtx, "refunded_at", "ALTER TABLE orders ADD COLUMN refunded_at timestamp NULL DEFAULT NULL AFTER refund_requested_at")
+	ensureRefundRPCTableColumn(t, svcCtx, "payment_order", "provider",
+		"ALTER TABLE payment_order ADD COLUMN provider varchar(32) NOT NULL DEFAULT 'local_sandbox'")
+	ensureRefundRPCTableColumn(t, svcCtx, "refund_order", "provider",
+		"ALTER TABLE refund_order ADD COLUMN provider varchar(32) NOT NULL DEFAULT 'local_sandbox'")
+	ensureRefundRPCTableColumn(t, svcCtx, "refund_order", "provider_refund_id",
+		"ALTER TABLE refund_order ADD COLUMN provider_refund_id varchar(64) NOT NULL DEFAULT ''")
+	ensureRefundRPCTableColumn(t, svcCtx, "refund_order", "provider_status",
+		"ALTER TABLE refund_order ADD COLUMN provider_status varchar(32) NOT NULL DEFAULT ''")
+	ensureRefundRPCTableColumn(t, svcCtx, "refund_order", "provider_error",
+		"ALTER TABLE refund_order ADD COLUMN provider_error varchar(255) NOT NULL DEFAULT ''")
 }
 
 func ensureRefundRPCColumn(t *testing.T, svcCtx *svc.ServiceContext, column, alterSQL string) {
+	ensureRefundRPCTableColumn(t, svcCtx, "orders", column, alterSQL)
+}
+
+func ensureRefundRPCTableColumn(t *testing.T, svcCtx *svc.ServiceContext, table, column, alterSQL string) {
 	t.Helper()
 	var count int64
 	err := svcCtx.SqlConn.QueryRowCtx(context.Background(), &count,
-		"SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='orders' AND COLUMN_NAME=?", column)
+		"SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?",
+		table, column)
 	if err != nil {
-		t.Fatalf("inspect orders.%s: %v", column, err)
+		t.Fatalf("inspect %s.%s: %v", table, column, err)
 	}
 	if count == 0 {
 		if _, err = svcCtx.SqlConn.ExecCtx(context.Background(), alterSQL); err != nil {
-			t.Fatalf("add orders.%s: %v", column, err)
+			t.Fatalf("add %s.%s: %v", table, column, err)
 		}
 	}
 }

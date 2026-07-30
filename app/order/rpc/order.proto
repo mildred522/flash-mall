@@ -38,6 +38,32 @@ message MarkOrderPaidResp {
   string order_status = 2;
 }
 
+message CreatePaymentReq {
+  string order_id = 1;
+  int64 user_id = 2;
+}
+
+message CreatePaymentResp {
+  string order_id = 1;
+  string payment_order_id = 2;
+  string out_trade_no = 3;
+  int64 payable_amount_fen = 4;
+  string payment_status = 5;
+  string provider = 6;
+  string qr_url = 7;
+  int64 expires_at = 8;
+}
+
+message HandlePaymentNotificationReq {
+  string provider = 1;
+  string raw_body = 2;
+}
+
+message HandlePaymentNotificationResp {
+  bool accepted = 1;
+  string order_status = 2;
+}
+
 message GetOrderDetailReq {
   string order_id = 1;
 }
@@ -141,6 +167,8 @@ service Order {
   rpc CreateOrder(CreateOrderReq) returns (CreateOrderResp);
   // 订单回滚/关闭（补偿）
   rpc CreateOrderRollback(CreateOrderReq) returns (Empty);
+  rpc CreatePayment(CreatePaymentReq) returns (CreatePaymentResp);
+  rpc HandlePaymentNotification(HandlePaymentNotificationReq) returns (HandlePaymentNotificationResp);
   rpc MarkOrderPaid(MarkOrderPaidReq) returns (MarkOrderPaidResp);
   rpc GetOrderDetail(GetOrderDetailReq) returns (GetOrderDetailResp);
   rpc RequestRefund(RequestRefundReq) returns (RequestRefundResp);

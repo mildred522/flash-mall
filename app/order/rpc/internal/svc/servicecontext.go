@@ -7,6 +7,7 @@ import (
 	"flash-mall/app/common/mysqlguard"
 	"flash-mall/app/order/rpc/internal/config"
 	"flash-mall/app/order/rpc/internal/inventoryclient"
+	"flash-mall/app/order/rpc/internal/paymentprovider"
 	productclient "flash-mall/app/product/rpc/productclient"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -21,6 +22,7 @@ type ServiceContext struct {
 	Redis           *redis.Redis
 	ProductRpc      productclient.Product
 	InventoryClient inventoryclient.Client
+	PaymentProvider paymentprovider.Provider
 }
 
 func NewServiceContext(c config.Config) *ServiceContext {
@@ -49,9 +51,23 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if c.RequireInventoryReserve && svcCtx.InventoryClient == nil {
 		logx.Must(errors.New("RequireInventoryReserve=true requires a ready inventory kitex client"))
 	}
+	provider, err := buildPaymentProvider(c)
+	if err != nil {
+		logx.Must(err)
+	}
+	svcCtx.PaymentProvider = provider
 	logInventoryReserveMode(c, svcCtx.InventoryClient != nil)
+	logx.Infof("order payment provider: mode=%s ready=%t", normalizedPaymentProvider(c), provider != nil)
 
 	return svcCtx
+}
+
+func normalizedPaymentProvider(c config.Config) string {
+	mode := strings.ToLower(strings.TrimSpace(c.PaymentProvider))
+	if mode == "" {
+		return paymentprovider.NameLocalSandbox
+	}
+	return mode
 }
 
 func validateInventoryReserveConfig(c config.Config) {

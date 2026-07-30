@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.27.3
-// source: app/order/rpc/order.proto
+// source: order.proto
 
 package order
 
@@ -19,19 +19,21 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Order_PreDeduct_FullMethodName           = "/order.Order/PreDeduct"
-	Order_PreDeductRollback_FullMethodName   = "/order.Order/PreDeductRollback"
-	Order_CreateOrder_FullMethodName         = "/order.Order/CreateOrder"
-	Order_CreateOrderRollback_FullMethodName = "/order.Order/CreateOrderRollback"
-	Order_MarkOrderPaid_FullMethodName       = "/order.Order/MarkOrderPaid"
-	Order_GetOrderDetail_FullMethodName      = "/order.Order/GetOrderDetail"
-	Order_RequestRefund_FullMethodName       = "/order.Order/RequestRefund"
-	Order_AuditRefund_FullMethodName         = "/order.Order/AuditRefund"
-	Order_CancelUserOrder_FullMethodName     = "/order.Order/CancelUserOrder"
-	Order_CloseAdminOrder_FullMethodName     = "/order.Order/CloseAdminOrder"
-	Order_ShipAdminOrder_FullMethodName      = "/order.Order/ShipAdminOrder"
-	Order_ShipMerchantOrder_FullMethodName   = "/order.Order/ShipMerchantOrder"
-	Order_ConfirmReceipt_FullMethodName      = "/order.Order/ConfirmReceipt"
+	Order_PreDeduct_FullMethodName                 = "/order.Order/PreDeduct"
+	Order_PreDeductRollback_FullMethodName         = "/order.Order/PreDeductRollback"
+	Order_CreateOrder_FullMethodName               = "/order.Order/CreateOrder"
+	Order_CreateOrderRollback_FullMethodName       = "/order.Order/CreateOrderRollback"
+	Order_CreatePayment_FullMethodName             = "/order.Order/CreatePayment"
+	Order_HandlePaymentNotification_FullMethodName = "/order.Order/HandlePaymentNotification"
+	Order_MarkOrderPaid_FullMethodName             = "/order.Order/MarkOrderPaid"
+	Order_GetOrderDetail_FullMethodName            = "/order.Order/GetOrderDetail"
+	Order_RequestRefund_FullMethodName             = "/order.Order/RequestRefund"
+	Order_AuditRefund_FullMethodName               = "/order.Order/AuditRefund"
+	Order_CancelUserOrder_FullMethodName           = "/order.Order/CancelUserOrder"
+	Order_CloseAdminOrder_FullMethodName           = "/order.Order/CloseAdminOrder"
+	Order_ShipAdminOrder_FullMethodName            = "/order.Order/ShipAdminOrder"
+	Order_ShipMerchantOrder_FullMethodName         = "/order.Order/ShipMerchantOrder"
+	Order_ConfirmReceipt_FullMethodName            = "/order.Order/ConfirmReceipt"
 )
 
 // OrderClient is the client API for Order service.
@@ -46,6 +48,8 @@ type OrderClient interface {
 	CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
+	CreatePayment(ctx context.Context, in *CreatePaymentReq, opts ...grpc.CallOption) (*CreatePaymentResp, error)
+	HandlePaymentNotification(ctx context.Context, in *HandlePaymentNotificationReq, opts ...grpc.CallOption) (*HandlePaymentNotificationResp, error)
 	MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
 	GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
 	RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error)
@@ -101,6 +105,26 @@ func (c *orderClient) CreateOrderRollback(ctx context.Context, in *CreateOrderRe
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Empty)
 	err := c.cc.Invoke(ctx, Order_CreateOrderRollback_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) CreatePayment(ctx context.Context, in *CreatePaymentReq, opts ...grpc.CallOption) (*CreatePaymentResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreatePaymentResp)
+	err := c.cc.Invoke(ctx, Order_CreatePayment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *orderClient) HandlePaymentNotification(ctx context.Context, in *HandlePaymentNotificationReq, opts ...grpc.CallOption) (*HandlePaymentNotificationResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(HandlePaymentNotificationResp)
+	err := c.cc.Invoke(ctx, Order_HandlePaymentNotification_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +233,8 @@ type OrderServer interface {
 	CreateOrder(context.Context, *CreateOrderReq) (*CreateOrderResp, error)
 	// 订单回滚/关闭（补偿）
 	CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error)
+	CreatePayment(context.Context, *CreatePaymentReq) (*CreatePaymentResp, error)
+	HandlePaymentNotification(context.Context, *HandlePaymentNotificationReq) (*HandlePaymentNotificationResp, error)
 	MarkOrderPaid(context.Context, *MarkOrderPaidReq) (*MarkOrderPaidResp, error)
 	GetOrderDetail(context.Context, *GetOrderDetailReq) (*GetOrderDetailResp, error)
 	RequestRefund(context.Context, *RequestRefundReq) (*RequestRefundResp, error)
@@ -241,6 +267,12 @@ func (UnimplementedOrderServer) CreateOrder(context.Context, *CreateOrderReq) (*
 }
 func (UnimplementedOrderServer) CreateOrderRollback(context.Context, *CreateOrderReq) (*Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateOrderRollback not implemented")
+}
+func (UnimplementedOrderServer) CreatePayment(context.Context, *CreatePaymentReq) (*CreatePaymentResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreatePayment not implemented")
+}
+func (UnimplementedOrderServer) HandlePaymentNotification(context.Context, *HandlePaymentNotificationReq) (*HandlePaymentNotificationResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HandlePaymentNotification not implemented")
 }
 func (UnimplementedOrderServer) MarkOrderPaid(context.Context, *MarkOrderPaidReq) (*MarkOrderPaidResp, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MarkOrderPaid not implemented")
@@ -358,6 +390,42 @@ func _Order_CreateOrderRollback_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(OrderServer).CreateOrderRollback(ctx, req.(*CreateOrderReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_CreatePayment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreatePaymentReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).CreatePayment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_CreatePayment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).CreatePayment(ctx, req.(*CreatePaymentReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Order_HandlePaymentNotification_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HandlePaymentNotificationReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OrderServer).HandlePaymentNotification(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Order_HandlePaymentNotification_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OrderServer).HandlePaymentNotification(ctx, req.(*HandlePaymentNotificationReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -548,6 +616,14 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Order_CreateOrderRollback_Handler,
 		},
 		{
+			MethodName: "CreatePayment",
+			Handler:    _Order_CreatePayment_Handler,
+		},
+		{
+			MethodName: "HandlePaymentNotification",
+			Handler:    _Order_HandlePaymentNotification_Handler,
+		},
+		{
 			MethodName: "MarkOrderPaid",
 			Handler:    _Order_MarkOrderPaid_Handler,
 		},
@@ -585,5 +661,5 @@ var Order_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "app/order/rpc/order.proto",
+	Metadata: "order.proto",
 }

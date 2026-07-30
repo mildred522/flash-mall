@@ -7,6 +7,7 @@ import (
 
 	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/common/tracectx"
+	"flash-mall/app/order/rpc/internal/paymentprovider"
 	"flash-mall/app/order/rpc/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -58,10 +59,16 @@ func TestCancelUserOrder_CommitsThenReleasesAndPropagatesTrace(t *testing.T) {
 	mock.ExpectExec("UPDATE orders SET status = \\?, update_time = NOW\\(\\) WHERE id = \\? AND status = \\?").
 		WithArgs(orderstatus.Closed, "order-1", orderstatus.PendingPayment).
 		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE payment_order SET status").
+		WithArgs(int64(3), "order-1", int64(0)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO order_status_log").
 		WithArgs("order-1", orderstatus.PendingPayment, orderstatus.Closed, int64(9), "user cancelled: changed mind").
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
+	mock.ExpectExec("UPDATE payment_order SET inventory_release_status=1").
+		WithArgs("order-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	resp, err := NewCancelUserOrderLogic(context.Background(), svcCtx).CancelUserOrder(&orderpb.CancelUserOrderReq{
 		OrderId: "order-1", Reason: "changed mind", UserId: 9, Meta: commandMeta(),
@@ -83,6 +90,39 @@ func TestCancelUserOrder_CommitsThenReleasesAndPropagatesTrace(t *testing.T) {
 	}
 }
 
+func TestCancelUserOrderClosesAlipayBeforeLocalOrder(t *testing.T) {
+	svcCtx, mock, _ := newLifecycleTestContext(t)
+	provider := &paymentProviderStub{}
+	svcCtx.PaymentProvider = provider
+	mock.ExpectQuery("SELECT provider, out_trade_no, provider_status FROM payment_order").
+		WithArgs("order-alipay").
+		WillReturnRows(sqlmock.NewRows([]string{"provider", "out_trade_no", "provider_status"}).
+			AddRow(paymentprovider.NameAlipaySandbox, "FM-ALIPAY", "WAIT_BUYER_PAY"))
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT status FROM orders WHERE id = \\? AND user_id = \\? FOR UPDATE").
+		WithArgs("order-alipay", int64(9)).
+		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(orderstatus.PendingPayment))
+	mock.ExpectExec("UPDATE orders SET status").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE payment_order SET status").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO order_status_log").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectExec("UPDATE payment_order SET inventory_release_status=1").
+		WithArgs("order-alipay").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	_, err := NewCancelUserOrderLogic(context.Background(), svcCtx).CancelUserOrder(&orderpb.CancelUserOrderReq{
+		OrderId: "order-alipay", UserId: 9, Reason: "cancel", Meta: commandMeta(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if provider.closeOutTradeNo != "FM-ALIPAY" {
+		t.Fatalf("provider close trade = %q", provider.closeOutTradeNo)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCancelUserOrder_ReleaseFailureCanRetryAfterOrderClosed(t *testing.T) {
 	svcCtx, mock, inventory := newLifecycleTestContext(t)
 	inventory.releaseErr = errors.New("inventory unavailable")
@@ -92,8 +132,14 @@ func TestCancelUserOrder_ReleaseFailureCanRetryAfterOrderClosed(t *testing.T) {
 		WithArgs("order-2", int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(orderstatus.PendingPayment))
 	mock.ExpectExec("UPDATE orders SET status").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE payment_order SET status").
+		WithArgs(int64(3), "order-2", int64(0)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectExec("INSERT INTO order_status_log").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
+	mock.ExpectExec("UPDATE payment_order SET inventory_release_status=2").
+		WithArgs(sqlmock.AnyArg(), "order-2").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 
 	logic := NewCancelUserOrderLogic(context.Background(), svcCtx)
 	_, err := logic.CancelUserOrder(&orderpb.CancelUserOrderReq{OrderId: "order-2", Reason: "retry", UserId: 9, Meta: commandMeta()})
@@ -107,6 +153,9 @@ func TestCancelUserOrder_ReleaseFailureCanRetryAfterOrderClosed(t *testing.T) {
 		WithArgs("order-2", int64(9)).
 		WillReturnRows(sqlmock.NewRows([]string{"status"}).AddRow(orderstatus.Closed))
 	mock.ExpectCommit()
+	mock.ExpectExec("UPDATE payment_order SET inventory_release_status=1").
+		WithArgs("order-2").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	resp, err := logic.CancelUserOrder(&orderpb.CancelUserOrderReq{OrderId: "order-2", Reason: "retry", UserId: 9, Meta: commandMeta()})
 	if err != nil || !resp.GetRepeated() {
 		t.Fatalf("retry response=%#v error=%v", resp, err)

@@ -43,6 +43,10 @@ func PaymentStatusHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 				return
 			}
 			payment, err = loadUserPaymentOrderByID(ctx, svcCtx, paymentOrderID, identity.UserID)
+			if err == nil {
+				expiresAt = payment.ExpiresAt
+				expired = expiresAt > 0 && time.Now().Unix() >= expiresAt
+			}
 		}
 		if err != nil {
 			fail(ctx, c, paymentLookupStatusCode(err), err)
@@ -81,6 +85,9 @@ func paymentMatchesClaims(payment userPaymentOrder, claims paymentTokenClaims) b
 }
 
 func paymentStatusResponse(payment userPaymentOrder, expiresAt int64, expired bool) PaymentStatusResp {
+	if expiresAt <= 0 {
+		expiresAt = payment.ExpiresAt
+	}
 	return PaymentStatusResp{
 		OrderID: payment.OrderID, PaymentOrderID: payment.PaymentOrderID, OutTradeNo: payment.OutTradeNo,
 		PayableAmountFen: payment.PayableAmountFen, Status: sandboxPaymentStatus(payment.PaymentStatus, expired), ExpiresAt: expiresAt,

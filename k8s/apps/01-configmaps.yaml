@@ -228,6 +228,18 @@ data:
     InventoryKitexEndpoint: inventory-kitex:8093
     RequireInventoryReserve: true
 
+    PaymentProvider: ${FLASH_MALL_PAYMENT_PROVIDER}
+    PaymentExpireMinutes: 15
+    PaymentSweepIntervalSec: 10
+    PaymentFinalizeIntervalSec: 10
+    AlipaySandbox:
+      AppID: ${FLASH_MALL_ALIPAY_APP_ID}
+      GatewayURL: ${FLASH_MALL_ALIPAY_GATEWAY_URL}
+      PrivateKey: ${FLASH_MALL_ALIPAY_PRIVATE_KEY}
+      AlipayPublicKey: ${FLASH_MALL_ALIPAY_PUBLIC_KEY}
+      NotifyURL: ${FLASH_MALL_ALIPAY_NOTIFY_URL}
+      RequestTimeoutMs: 8000
+
     PprofAddr: 0.0.0.0:6061
     MetricsAddr: 0.0.0.0:9091
 

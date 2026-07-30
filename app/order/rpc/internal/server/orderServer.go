@@ -46,6 +46,16 @@ func (s *OrderServer) CreateOrderRollback(ctx context.Context, in *order.CreateO
 	return l.CreateOrderRollback(in)
 }
 
+func (s *OrderServer) CreatePayment(ctx context.Context, in *order.CreatePaymentReq) (*order.CreatePaymentResp, error) {
+	l := logic.NewCreatePaymentLogic(ctx, s.svcCtx)
+	return l.CreatePayment(in)
+}
+
+func (s *OrderServer) HandlePaymentNotification(ctx context.Context, in *order.HandlePaymentNotificationReq) (*order.HandlePaymentNotificationResp, error) {
+	l := logic.NewHandlePaymentNotificationLogic(ctx, s.svcCtx)
+	return l.HandlePaymentNotification(in)
+}
+
 func (s *OrderServer) MarkOrderPaid(ctx context.Context, in *order.MarkOrderPaidReq) (*order.MarkOrderPaidResp, error) {
 	l := logic.NewMarkOrderPaidLogic(ctx, s.svcCtx)
 	return l.MarkPaid(in)
@@ -66,11 +76,13 @@ func (s *OrderServer) AuditRefund(ctx context.Context, in *order.AuditRefundReq)
 	return l.AuditRefund(in)
 }
 
+// 用户取消待支付订单；重复调用仍会重试幂等库存释放。
 func (s *OrderServer) CancelUserOrder(ctx context.Context, in *order.CancelUserOrderReq) (*order.OrderCommandResp, error) {
 	l := logic.NewCancelUserOrderLogic(ctx, s.svcCtx)
 	return l.CancelUserOrder(in)
 }
 
+// 管理员关闭待支付订单；重复调用仍会重试幂等库存释放。
 func (s *OrderServer) CloseAdminOrder(ctx context.Context, in *order.CloseAdminOrderReq) (*order.OrderCommandResp, error) {
 	l := logic.NewCloseAdminOrderLogic(ctx, s.svcCtx)
 	return l.CloseAdminOrder(in)

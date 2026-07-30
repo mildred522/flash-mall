@@ -43,16 +43,17 @@ func (l *RequestRefundLogic) RequestRefund(in *orderpb.RequestRefundReq) (*order
 	defer func() { _ = tx.Rollback() }()
 
 	var userID, merchantID, productID, currentStatus int64
-	var paymentOrderID string
+	var paymentOrderID, provider string
 	var refundAmountFen, currentPaymentStatus int64
 	err = tx.QueryRowContext(l.ctx, `
 SELECT o.user_id, o.merchant_id, o.product_id, o.status,
-       COALESCE(p.id,''), COALESCE(p.payable_amount_fen,0), COALESCE(p.status,0)
+       COALESCE(p.id,''), COALESCE(p.payable_amount_fen,0), COALESCE(p.status,0),
+       COALESCE(p.provider,'local_sandbox')
 FROM orders o
 LEFT JOIN payment_order p ON p.order_id=o.id
 WHERE o.id=? FOR UPDATE`, orderID).Scan(
 		&userID, &merchantID, &productID, &currentStatus,
-		&paymentOrderID, &refundAmountFen, &currentPaymentStatus,
+		&paymentOrderID, &refundAmountFen, &currentPaymentStatus, &provider,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "order not found")
@@ -92,8 +93,9 @@ WHERE o.id=? FOR UPDATE`, orderID).Scan(
 		return nil, status.Error(codes.Aborted, "order status changed concurrently")
 	}
 	_, err = tx.ExecContext(l.ctx, `INSERT INTO refund_order
-  (id, order_id, payment_order_id, user_id, merchant_id, product_id, refund_amount_fen, status, reason)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, refundID, orderID, paymentOrderID, userID, merchantID, productID, refundAmountFen, refundStatusRequested, in.GetReason())
+  (id, order_id, payment_order_id, user_id, merchant_id, product_id, refund_amount_fen, status, reason, provider)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, refundID, orderID, paymentOrderID, userID, merchantID, productID,
+		refundAmountFen, refundStatusRequested, in.GetReason(), provider)
 	if err != nil {
 		return nil, err
 	}

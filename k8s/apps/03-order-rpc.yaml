@@ -35,6 +35,36 @@ spec:
                 secretKeyRef:
                   name: flash-mall-runtime-secrets
                   key: rabbitmq-url
+            - name: FLASH_MALL_PAYMENT_PROVIDER
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: payment-provider
+            - name: FLASH_MALL_ALIPAY_APP_ID
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: alipay-app-id
+            - name: FLASH_MALL_ALIPAY_GATEWAY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: alipay-gateway-url
+            - name: FLASH_MALL_ALIPAY_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: alipay-private-key
+            - name: FLASH_MALL_ALIPAY_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: alipay-public-key
+            - name: FLASH_MALL_ALIPAY_NOTIFY_URL
+              valueFrom:
+                secretKeyRef:
+                  name: flash-mall-runtime-secrets
+                  key: alipay-notify-url
           ports:
             - name: grpc
               containerPort: 8090

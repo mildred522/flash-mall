@@ -51,30 +51,33 @@ LEFT JOIN merchant m ON m.id = o.merchant_id WHERE o.id = ? AND o.user_id = ? LI
 
 func (r *QueryRepository) PaymentByUser(ctx context.Context, orderID string, userID int64) (orderquery.PaymentOrder, bool, error) {
 	var payment orderquery.PaymentOrder
-	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen
+	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen,
+COALESCE(UNIX_TIMESTAMP(p.expires_at), 0)
 FROM orders o JOIN payment_order p ON p.order_id = o.id WHERE o.id = ? AND o.user_id = ? LIMIT 1`, orderID, userID).Scan(
 		&payment.OrderID, &payment.UserID, &payment.OrderStatus, &payment.PaymentOrderID,
-		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen)
+		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen, &payment.ExpiresAt)
 	return payment, !errors.Is(err, sql.ErrNoRows), normalizeNotFound(err)
 }
 
 func (r *QueryRepository) PaymentByID(ctx context.Context, paymentOrderID string, userID int64) (orderquery.PaymentOrder, bool, error) {
 	var payment orderquery.PaymentOrder
-	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen
+	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen,
+COALESCE(UNIX_TIMESTAMP(p.expires_at), 0)
 FROM orders o JOIN payment_order p ON p.order_id = o.id
 WHERE p.id = ? AND o.user_id = ? LIMIT 1`, paymentOrderID, userID).Scan(
 		&payment.OrderID, &payment.UserID, &payment.OrderStatus, &payment.PaymentOrderID,
-		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen)
+		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen, &payment.ExpiresAt)
 	return payment, !errors.Is(err, sql.ErrNoRows), normalizeNotFound(err)
 }
 
 func (r *QueryRepository) PaymentByClaims(ctx context.Context, paymentOrderID, orderID, outTradeNo string) (orderquery.PaymentOrder, bool, error) {
 	var payment orderquery.PaymentOrder
-	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen
+	err := r.db.QueryRowContext(ctx, `SELECT o.id, o.user_id, o.status, p.id, p.status, p.out_trade_no, p.payable_amount_fen,
+COALESCE(UNIX_TIMESTAMP(p.expires_at), 0)
 FROM orders o JOIN payment_order p ON p.order_id = o.id
 WHERE p.id = ? AND p.order_id = ? AND p.out_trade_no = ? LIMIT 1`, paymentOrderID, orderID, outTradeNo).Scan(
 		&payment.OrderID, &payment.UserID, &payment.OrderStatus, &payment.PaymentOrderID,
-		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen)
+		&payment.PaymentStatus, &payment.OutTradeNo, &payment.PayableAmountFen, &payment.ExpiresAt)
 	return payment, !errors.Is(err, sql.ErrNoRows), normalizeNotFound(err)
 }
 

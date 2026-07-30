@@ -9,7 +9,9 @@ import (
 
 	"flash-mall/app/common/authctx"
 	"flash-mall/app/common/orderstatus"
+	"flash-mall/app/common/paymentstatus"
 	"flash-mall/app/common/tracectx"
+	"flash-mall/app/order/rpc/internal/paymentprovider"
 	"flash-mall/app/order/rpc/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
 
@@ -27,6 +29,7 @@ type lifecycleTransition struct {
 	toStatus      int64
 	timestampKind string
 	remark        string
+	closePayment  bool
 }
 
 type lifecycleResult struct {
@@ -90,6 +93,17 @@ func executeLifecycleTransition(ctx context.Context, svcCtx *svc.ServiceContext,
 	rows, err := result.RowsAffected()
 	if err != nil || rows != 1 {
 		return lifecycleResult{}, status.Error(codes.Aborted, "order status changed concurrently")
+	}
+	if command.closePayment {
+		paymentResult, paymentErr := tx.ExecContext(ctx, `UPDATE payment_order SET status=?,
+provider_status=CASE WHEN provider='alipay_sandbox' THEN 'TRADE_CLOSED' ELSE 'CLOSED' END, update_time=NOW()
+WHERE order_id=? AND status=?`, paymentstatus.Closed, command.orderID, paymentstatus.Init)
+		if paymentErr != nil {
+			return lifecycleResult{}, status.Error(codes.Internal, "close payment order failed")
+		}
+		if _, paymentErr = paymentResult.RowsAffected(); paymentErr != nil {
+			return lifecycleResult{}, status.Error(codes.Internal, "inspect closed payment order failed")
+		}
 	}
 	if _, err = tx.ExecContext(ctx,
 		"INSERT INTO order_status_log (order_id, from_status, to_status, operator_id, remark) VALUES (?, ?, ?, ?, ?)",
@@ -158,7 +172,39 @@ func releaseClosedOrder(ctx context.Context, svcCtx *svc.ServiceContext, orderID
 	}
 	if err := svcCtx.InventoryClient.ReleaseStock(ctx, orderID, reason); err != nil {
 		logx.WithContext(ctx).Errorf("release closed order stock failed: order_id=%s err=%v", orderID, err)
+		_, _ = svcCtx.SqlConn.ExecCtx(ctx, `UPDATE payment_order SET inventory_release_status=2,
+inventory_release_attempts=inventory_release_attempts+1, inventory_release_error=?, update_time=NOW()
+WHERE order_id=?`, trimRefundError(err), orderID)
 		return status.Error(codes.Unavailable, "release order stock failed; retry the same command")
+	}
+	if _, err := svcCtx.SqlConn.ExecCtx(ctx, `UPDATE payment_order SET inventory_release_status=1,
+inventory_release_attempts=inventory_release_attempts+1, inventory_release_error='',
+inventory_released_at=NOW(), update_time=NOW() WHERE order_id=?`, orderID); err != nil {
+		return status.Error(codes.Internal, "record inventory release success failed")
+	}
+	return nil
+}
+
+func closeProviderPayment(ctx context.Context, svcCtx *svc.ServiceContext, orderID string) error {
+	if svcCtx.PaymentProvider == nil {
+		return nil
+	}
+	var providerName, outTradeNo, providerStatus string
+	db, err := svcCtx.SqlConn.RawDB()
+	if err != nil {
+		return status.Error(codes.Unavailable, "payment datasource is unavailable")
+	}
+	err = db.QueryRowContext(ctx,
+		`SELECT provider, out_trade_no, provider_status FROM payment_order WHERE order_id=? LIMIT 1`,
+		orderID).Scan(&providerName, &outTradeNo, &providerStatus)
+	if err != nil {
+		return status.Error(codes.Unavailable, "query provider payment failed")
+	}
+	if providerName != paymentprovider.NameAlipaySandbox || providerStatus == "TRADE_CLOSED" {
+		return nil
+	}
+	if err = svcCtx.PaymentProvider.Close(ctx, outTradeNo); err != nil {
+		return status.Error(codes.Unavailable, "close provider payment failed")
 	}
 	return nil
 }
@@ -181,9 +227,13 @@ func (l *CancelUserOrderLogic) CancelUserOrder(in *orderpb.CancelUserOrderReq) (
 		reason = "user cancel"
 	}
 	ctx := commandContext(l.ctx, in.GetMeta())
+	if err := closeProviderPayment(ctx, l.ServiceContext, in.GetOrderId()); err != nil {
+		return nil, err
+	}
 	result, err := executeLifecycleTransition(ctx, l.ServiceContext, lifecycleTransition{
 		orderID: in.GetOrderId(), ownerColumn: "user_id", ownerID: in.GetUserId(), operatorID: in.GetUserId(),
 		fromStatus: orderstatus.PendingPayment, toStatus: orderstatus.Closed, remark: "user cancelled: " + reason,
+		closePayment: true,
 	})
 	if err != nil {
 		return nil, err
@@ -212,9 +262,12 @@ func (l *CloseAdminOrderLogic) CloseAdminOrder(in *orderpb.CloseAdminOrderReq) (
 		reason = "admin close"
 	}
 	ctx := commandContext(l.ctx, in.GetMeta())
+	if err := closeProviderPayment(ctx, l.ServiceContext, in.GetOrderId()); err != nil {
+		return nil, err
+	}
 	result, err := executeLifecycleTransition(ctx, l.ServiceContext, lifecycleTransition{
 		orderID: in.GetOrderId(), operatorID: in.GetOperatorId(), fromStatus: orderstatus.PendingPayment,
-		toStatus: orderstatus.Closed, remark: "admin closed: " + reason,
+		toStatus: orderstatus.Closed, remark: "admin closed: " + reason, closePayment: true,
 	})
 	if err != nil {
 		return nil, err

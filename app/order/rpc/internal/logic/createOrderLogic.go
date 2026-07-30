@@ -2,7 +2,9 @@ package logic
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -211,5 +213,6 @@ func paymentOrderIDFor(orderID string) string {
 }
 
 func outTradeNoFor(orderID string) string {
-	return fmt.Sprintf("mock-%s", orderID)
+	digest := sha256.Sum256([]byte(orderID))
+	return "FM" + hex.EncodeToString(digest[:])[:40]
 }

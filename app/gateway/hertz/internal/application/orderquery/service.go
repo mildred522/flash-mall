@@ -51,6 +51,7 @@ type PaymentOrder struct {
 	PaymentStatus    int64
 	OutTradeNo       string
 	PayableAmountFen int64
+	ExpiresAt        int64
 }
 
 type CreateOrderResult struct {

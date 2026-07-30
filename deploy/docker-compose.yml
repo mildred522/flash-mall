@@ -32,8 +32,10 @@ services:
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
     environment:
       MYSQL_ROOT_PASSWORD: ${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}
+      TZ: Asia/Shanghai
     ports:
       - "3307:3306"
     volumes:
@@ -238,6 +240,12 @@ services:
       FLASH_MALL_AUTH_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_auth?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       FLASH_MALL_RABBITMQ_URL: "amqp://${FLASH_MALL_RABBITMQ_USER:-flashmall}:${FLASH_MALL_RABBITMQ_PASSWORD:-flashmall-local}@rabbitmq:5672/"
       FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
+      FLASH_MALL_PAYMENT_PROVIDER: ${FLASH_MALL_PAYMENT_PROVIDER:-local_sandbox}
+      FLASH_MALL_ALIPAY_APP_ID: ${FLASH_MALL_ALIPAY_APP_ID:-}
+      FLASH_MALL_ALIPAY_GATEWAY_URL: ${FLASH_MALL_ALIPAY_GATEWAY_URL:-https://openapi-sandbox.dl.alipaydev.com/gateway.do}
+      FLASH_MALL_ALIPAY_PRIVATE_KEY: ${FLASH_MALL_ALIPAY_PRIVATE_KEY:-}
+      FLASH_MALL_ALIPAY_PUBLIC_KEY: ${FLASH_MALL_ALIPAY_PUBLIC_KEY:-}
+      FLASH_MALL_ALIPAY_NOTIFY_URL: ${FLASH_MALL_ALIPAY_NOTIFY_URL:-}
     volumes:
       - ./config/order.yaml:/etc/flash-mall/order.yaml:ro
     command: ["-f", "/etc/flash-mall/order.yaml"]

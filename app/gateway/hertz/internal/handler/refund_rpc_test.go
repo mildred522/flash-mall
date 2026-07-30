@@ -13,8 +13,9 @@ import (
 )
 
 type refundOrderRPCStub struct {
-	requestReq *orderclient.RequestRefundReq
-	auditReq   *orderclient.AuditRefundReq
+	requestReq      *orderclient.RequestRefundReq
+	auditReq        *orderclient.AuditRefundReq
+	notificationReq *orderclient.HandlePaymentNotificationReq
 }
 
 func (*refundOrderRPCStub) PreDeduct(context.Context, *orderclient.PreDeductReq, ...grpc.CallOption) (*orderclient.Empty, error) {
@@ -31,6 +32,15 @@ func (*refundOrderRPCStub) CreateOrder(context.Context, *orderclient.CreateOrder
 
 func (*refundOrderRPCStub) CreateOrderRollback(context.Context, *orderclient.CreateOrderReq, ...grpc.CallOption) (*orderclient.Empty, error) {
 	panic("unexpected CreateOrderRollback call")
+}
+
+func (*refundOrderRPCStub) CreatePayment(context.Context, *orderclient.CreatePaymentReq, ...grpc.CallOption) (*orderclient.CreatePaymentResp, error) {
+	panic("unexpected CreatePayment call")
+}
+
+func (s *refundOrderRPCStub) HandlePaymentNotification(_ context.Context, in *orderclient.HandlePaymentNotificationReq, _ ...grpc.CallOption) (*orderclient.HandlePaymentNotificationResp, error) {
+	s.notificationReq = in
+	return &orderclient.HandlePaymentNotificationResp{Accepted: true, OrderStatus: "PAID"}, nil
 }
 
 func (*refundOrderRPCStub) MarkOrderPaid(context.Context, *orderclient.MarkOrderPaidReq, ...grpc.CallOption) (*orderclient.MarkOrderPaidResp, error) {

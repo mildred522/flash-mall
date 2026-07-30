@@ -55,6 +55,7 @@ export interface PaymentIntentResp {
   out_trade_no: string;
   payable_amount_fen: number;
   status: string;
+  provider: string;
   qr_url: string;
   expires_at: number;
 }

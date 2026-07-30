@@ -58,7 +58,11 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 ### 订单和支付
 
 - 下单写入订单并通过 Kitex 预占库存；失败按既定 SAGA/补偿规则恢复。
-- 支付回调使用业务订单号、支付单号和幂等状态机防止重复入账。
+- 默认支付渠道是 `local_sandbox`，保证离线演示和 CI 可重复；设置 `FLASH_MALL_PAYMENT_PROVIDER=alipay_sandbox` 并注入支付宝开放平台沙箱凭据后，Order RPC 通过 `alipay.trade.precreate` 创建原生付款码。
+- 支付宝请求使用 RSA2 签名并验证同步响应签名；异步通知 `/api/payment/alipay/notify` 校验 RSA2、应用 ID、支付渠道、外部交易号和实付金额，再进入统一支付状态机。
+- 支付回调使用业务订单号、支付单号、渠道事件号和幂等状态机防止重复入账；支付成功事务提交后即向渠道确认成功，库存最终扣减失败进入持久化重试，不让已经收款的订单因瞬时 Kitex 故障反复回调。
+- 支付单保存付款渠道、渠道交易号、二维码内容、渠道状态和截止时间；恢复任务在截止前后查询支付宝交易状态，先补偿漏通知的已付款交易，再关闭未付款交易并释放库存。
+- 取消和超时关单在本地状态迁移前调用渠道关单；退款审核使用稳定的渠道退款请求号调用原路退款，渠道成功、库存释放和本地退款完成可以分阶段重试。
 - 支付成功状态与 Outbox 事件在同一 MySQL 事务提交，消息发布失败由后台发布器重试。
 - 取消、关闭、发货、确认收货等写命令由 Hertz 经 Go-zero Order RPC 执行，Hertz 不直接更新订单状态。
 
@@ -111,6 +115,10 @@ docker compose -f deploy/docker-compose.yml --profile observability up -d promet
 # 主机 3000 被占用时只改宿主端口，容器内配置保持不变
 FLASH_MALL_GRAFANA_PORT=3001 docker compose -f deploy/docker-compose.yml --profile observability up -d prometheus grafana
 
+# 启用支付宝沙箱前复制 deploy/.env.example，填入沙箱 AppID、应用私钥、
+# 支付宝公钥和公网可访问的通知地址；密钥只放本地 .env 或 K8s Secret。
+# 未配置这些值时保持 local_sandbox，不影响商城演示。
+
 # 显式授权后执行可自动恢复的本地故障演练
 ./scripts/local/verify-failure-recovery.sh --allow-disruption --scenario all
 
@@ -153,7 +161,7 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 管理员与商家的商品创建、元数据更新已统一进入 `application/productcommand` 与 `productmysql.ProductCommandRepository`；有效供应商/商家校验、商品行锁、最终价格约束、离线商品与库存初始化任务写入由事务保证，商家更新通过事务内 `merchant_id` 条件隔离所有权。商品初始库存仍在事务提交后通过 Inventory Kitex 写入，失败时商品保持离线并保留可重试种子任务。
 - 管理员商品、促销、订单和供应商页面已拆出列定义、编辑/详情/日志弹窗及页面模型；四个页面只保留状态、导航和 API 编排，并由架构测试限制体积与组件边界。
 - 管理员首页橱窗页已拆出草稿模型、12 槽编辑器和推荐候选面板；安全事件页已拆出事件语义、筛选条和列定义；用户页已拆出列定义、详情弹窗和角色/状态展示。页面仍保留各自的请求状态与业务动作，现有橱窗拖拽、商家多样性和版本冲突行为保持不变。
-- 数据库初始化源码已按 bootstrap、订单、商品 schema、商品种子、历史数据修复、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 七个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性。
+- 数据库初始化源码已按 bootstrap、订单、支付渠道幂等迁移、商品 schema、商品种子、历史数据修复、Auth schema、Auth 种子拆成 `scripts/k8s/sql` 八个模块；`scripts/k8s/init-db.sql` 由生成器聚合，现有 Docker/K8s 入口保持不变，CI 校验聚合物一致性和单模块体积。
 - 管理员看板、Outbox 事件列表/重试已进入 `application/adminops` 与 `ordermysql.AdminOpsRepository`；看板统计由原先 17 次串行查询收敛为一次聚合查询。
 - 支付/退款/订单对账已进入 `application/reconciliation` 与 `ordermysql.ReconciliationRepository`；扫描、幂等问题键和列表查询不再位于 Handler，集成测试也不再运行时修改表结构。
 - 用户地址已进入 `application/useraddress` 与 `adapters/authmysql`；默认地址切换、地址保存及用户所有权检查在同一事务内完成。
@@ -179,10 +187,21 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
 
-1. 继续完善支付、退款、商家经营和首页推荐等业务能力；只有发现明确边界泄漏时才安排新的重构。
-2. 收口发布准备：固定演示数据、权限开关、部署说明、容量边界和最终真实浏览器验收。
+1. 完成发布准备：固定演示数据、统一控制台开关、容量边界和最终真实浏览器验收。
+2. 支付宝真实沙箱只差在部署环境注入商户凭据与公网通知地址；不再扩展 Stripe 或微信支付，避免收尾阶段扩大维护面。
 
 ## 验证基线
+
+2026-07-30 支付链路收尾验证：
+
+- 支付渠道边界已从 Hertz 下沉到 Order RPC，Hertz 只创建支付意图、转发支付宝通知和展示二维码；本地沙箱与支付宝沙箱共用支付单、幂等入账、Outbox、库存确认、关单和退款状态机。
+- RSA2 请求签名、同步响应验签、通知验签、分金额精确转换、上海时区请求时间、二维码预创建、查询、关单和退款均由带签名的模拟支付宝网关测试覆盖。
+- Go 全仓 `vet`、测试和六个服务构建通过；前端 37 个测试文件、60 个用例和三套生产构建通过；数据库聚合、持久化、可观测、故障恢复、性能对比、Docker 构建上下文、工具链、Action 版本、冒烟配置和静态产物检查全部通过。
+- 最终 Docker 链路订单 `final-payment-1785377746847` 完成登录、Kitex 预占、二维码创建、同一令牌重复付款、支付状态查询、用户退款申请和管理员审核；最终订单为 refunded，支付回调事件只有 1 条，Outbox 的 created/paid/refund requested/refund succeeded 均发布成功，库存日志各有 1 条 RESERVE/CONFIRM/RELEASE。
+- 最终超时订单 `final-expiry-1785377873015` 人工推进到过期后，由恢复任务自动关闭订单和支付单，数据库状态为 `order=closed/payment=closed/provider_status=CLOSED`，库存释放成功且仅尝试一次。
+- MySQL Compose 和 K8s 部署显式使用 `Asia/Shanghai` 与 `+08:00`，截止时间由 MySQL `NOW()` 计算；订单直达页 `/orders` 已补齐 Hertz SPA 路由，Chrome 刷新后显示本地时间 `2026-07-30 10:15:48`，当前视口没有坏图或控制台错误。
+- 当前支付配置仍使用 `local_sandbox`；伪造支付宝通知实测返回 `failure`，RSA2 正向链路由带签名的模拟网关覆盖。
+- 当前机器未保存支付宝沙箱商户密钥，因此没有向支付宝公网发起真实交易；注入 `deploy/.env.example` 中五项沙箱参数即可切换，真实密钥不得进入 Git。
 
 2026-07-29 Go-zero Entry API 与 Hertz 对比基线：
 

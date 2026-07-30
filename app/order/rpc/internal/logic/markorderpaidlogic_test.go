@@ -111,6 +111,22 @@ func TestMarkOrderPaidLogic_MarkPaid_RejectsAmountMismatch(t *testing.T) {
 	}
 }
 
+func TestParsePaymentCallbackPayloadKeepsProviderTradeNo(t *testing.T) {
+	payload, err := parsePaymentCallbackPayload(`{
+		"trade_status":"SUCCESS",
+		"provider":"alipay_sandbox",
+		"event_id":"notify-100",
+		"paid_amount_fen":1234,
+		"provider_trade_no":"ALI-100"
+	}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if payload.ProviderTradeNo != "ALI-100" {
+		t.Fatalf("ProviderTradeNo = %q", payload.ProviderTradeNo)
+	}
+}
+
 func newMarkPaidServiceContext() *svc.ServiceContext {
 	return &svc.ServiceContext{
 		Config:  config.Config{DataSource: markPaidTestDSN},
@@ -188,6 +204,12 @@ func ensureMarkPaidSchema(t *testing.T, svcCtx *svc.ServiceContext) {
 
 	ensurePaymentOrderColumn(t, svcCtx, "paid_at", "ALTER TABLE payment_order ADD COLUMN paid_at timestamp NULL DEFAULT NULL")
 	ensurePaymentOrderColumn(t, svcCtx, "callback_payload", "ALTER TABLE payment_order ADD COLUMN callback_payload json DEFAULT NULL")
+	ensurePaymentOrderColumn(t, svcCtx, "provider_trade_no", "ALTER TABLE payment_order ADD COLUMN provider_trade_no varchar(64) NOT NULL DEFAULT ''")
+	ensurePaymentOrderColumn(t, svcCtx, "provider_status", "ALTER TABLE payment_order ADD COLUMN provider_status varchar(32) NOT NULL DEFAULT ''")
+	ensurePaymentOrderColumn(t, svcCtx, "inventory_finalize_status", "ALTER TABLE payment_order ADD COLUMN inventory_finalize_status tinyint NOT NULL DEFAULT 0")
+	ensurePaymentOrderColumn(t, svcCtx, "inventory_finalize_attempts", "ALTER TABLE payment_order ADD COLUMN inventory_finalize_attempts int NOT NULL DEFAULT 0")
+	ensurePaymentOrderColumn(t, svcCtx, "inventory_finalize_error", "ALTER TABLE payment_order ADD COLUMN inventory_finalize_error varchar(255) NOT NULL DEFAULT ''")
+	ensurePaymentOrderColumn(t, svcCtx, "inventory_finalized_at", "ALTER TABLE payment_order ADD COLUMN inventory_finalized_at timestamp NULL DEFAULT NULL")
 }
 
 func cleanupMarkPaidRows(t *testing.T, svcCtx *svc.ServiceContext, orderID, paymentOrderID string) {

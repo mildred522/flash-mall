@@ -33,6 +33,7 @@ func registerAuthRoutes(h *server.Hertz, svcCtx *svc.ServiceContext) {
 	h.POST("/api/auth/password/forgot", AuthProxyHandler(svcCtx, "/api/auth/password/forgot"))
 	h.POST("/api/auth/password/reset", AuthProxyHandler(svcCtx, "/api/auth/password/reset"))
 	h.POST("/api/payment/callback", PaymentCallbackHandler(svcCtx))
+	h.POST("/api/payment/alipay/notify", AlipayPaymentNotificationHandler(svcCtx))
 	h.GET("/api/payment/status", middleware.OptionalIdentity(svcCtx.Config.JwtAuthSecret), PaymentStatusHandler(svcCtx))
 	h.POST("/api/payment/sandbox/confirm", SandboxPaymentConfirmHandler(svcCtx))
 }

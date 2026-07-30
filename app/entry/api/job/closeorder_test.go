@@ -89,6 +89,14 @@ func (o *closeOrderOrderRPC) CreateOrderRollback(context.Context, *orderclient.C
 	panic("unexpected CreateOrderRollback call")
 }
 
+func (o *closeOrderOrderRPC) CreatePayment(context.Context, *orderclient.CreatePaymentReq, ...grpc.CallOption) (*orderclient.CreatePaymentResp, error) {
+	panic("unexpected CreatePayment call")
+}
+
+func (o *closeOrderOrderRPC) HandlePaymentNotification(context.Context, *orderclient.HandlePaymentNotificationReq, ...grpc.CallOption) (*orderclient.HandlePaymentNotificationResp, error) {
+	panic("unexpected HandlePaymentNotification call")
+}
+
 func (o *closeOrderOrderRPC) MarkOrderPaid(context.Context, *orderclient.MarkOrderPaidReq, ...grpc.CallOption) (*orderclient.MarkOrderPaidResp, error) {
 	panic("unexpected MarkOrderPaid call")
 }

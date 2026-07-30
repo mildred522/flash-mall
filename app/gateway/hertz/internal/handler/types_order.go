@@ -25,6 +25,7 @@ type PayOrderResp struct {
 	OutTradeNo       string `json:"out_trade_no,omitempty"`
 	PayableAmountFen int64  `json:"payable_amount_fen,omitempty"`
 	Status           string `json:"status"`
+	Provider         string `json:"provider,omitempty"`
 	QRURL            string `json:"qr_url,omitempty"`
 	ExpiresAt        int64  `json:"expires_at,omitempty"`
 }

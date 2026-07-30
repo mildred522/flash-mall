@@ -13,25 +13,29 @@ import (
 )
 
 type (
-	PreDeductReq         = order.PreDeductReq
-	CreateOrderReq       = order.CreateOrderReq
-	CreateOrderResp      = order.CreateOrderResp
-	MarkOrderPaidReq     = order.MarkOrderPaidReq
-	MarkOrderPaidResp    = order.MarkOrderPaidResp
-	GetOrderDetailReq    = order.GetOrderDetailReq
-	GetOrderDetailResp   = order.GetOrderDetailResp
-	RequestRefundReq     = order.RequestRefundReq
-	RequestRefundResp    = order.RequestRefundResp
-	AuditRefundReq       = order.AuditRefundReq
-	AuditRefundResp      = order.AuditRefundResp
-	OrderCommandMeta     = order.OrderCommandMeta
-	CancelUserOrderReq   = order.CancelUserOrderReq
-	CloseAdminOrderReq   = order.CloseAdminOrderReq
-	ShipAdminOrderReq    = order.ShipAdminOrderReq
-	ShipMerchantOrderReq = order.ShipMerchantOrderReq
-	ConfirmReceiptReq    = order.ConfirmReceiptReq
-	OrderCommandResp     = order.OrderCommandResp
-	Empty                = order.Empty
+	PreDeductReq                  = order.PreDeductReq
+	CreateOrderReq                = order.CreateOrderReq
+	CreateOrderResp               = order.CreateOrderResp
+	MarkOrderPaidReq              = order.MarkOrderPaidReq
+	MarkOrderPaidResp             = order.MarkOrderPaidResp
+	CreatePaymentReq              = order.CreatePaymentReq
+	CreatePaymentResp             = order.CreatePaymentResp
+	HandlePaymentNotificationReq  = order.HandlePaymentNotificationReq
+	HandlePaymentNotificationResp = order.HandlePaymentNotificationResp
+	GetOrderDetailReq             = order.GetOrderDetailReq
+	GetOrderDetailResp            = order.GetOrderDetailResp
+	RequestRefundReq              = order.RequestRefundReq
+	RequestRefundResp             = order.RequestRefundResp
+	AuditRefundReq                = order.AuditRefundReq
+	AuditRefundResp               = order.AuditRefundResp
+	OrderCommandMeta              = order.OrderCommandMeta
+	CancelUserOrderReq            = order.CancelUserOrderReq
+	CloseAdminOrderReq            = order.CloseAdminOrderReq
+	ShipAdminOrderReq             = order.ShipAdminOrderReq
+	ShipMerchantOrderReq          = order.ShipMerchantOrderReq
+	ConfirmReceiptReq             = order.ConfirmReceiptReq
+	OrderCommandResp              = order.OrderCommandResp
+	Empty                         = order.Empty
 
 	Order interface {
 		// Redis 预扣库存（正向）
@@ -42,6 +46,8 @@ type (
 		CreateOrder(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*CreateOrderResp, error)
 		// 订单回滚/关闭（补偿）
 		CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error)
+		CreatePayment(ctx context.Context, in *CreatePaymentReq, opts ...grpc.CallOption) (*CreatePaymentResp, error)
+		HandlePaymentNotification(ctx context.Context, in *HandlePaymentNotificationReq, opts ...grpc.CallOption) (*HandlePaymentNotificationResp, error)
 		MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error)
 		GetOrderDetail(ctx context.Context, in *GetOrderDetailReq, opts ...grpc.CallOption) (*GetOrderDetailResp, error)
 		RequestRefund(ctx context.Context, in *RequestRefundReq, opts ...grpc.CallOption) (*RequestRefundResp, error)
@@ -82,6 +88,16 @@ func (m *defaultOrder) CreateOrder(ctx context.Context, in *CreateOrderReq, opts
 func (m *defaultOrder) CreateOrderRollback(ctx context.Context, in *CreateOrderReq, opts ...grpc.CallOption) (*Empty, error) {
 	client := order.NewOrderClient(m.cli.Conn())
 	return client.CreateOrderRollback(ctx, in, opts...)
+}
+
+func (m *defaultOrder) CreatePayment(ctx context.Context, in *CreatePaymentReq, opts ...grpc.CallOption) (*CreatePaymentResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.CreatePayment(ctx, in, opts...)
+}
+
+func (m *defaultOrder) HandlePaymentNotification(ctx context.Context, in *HandlePaymentNotificationReq, opts ...grpc.CallOption) (*HandlePaymentNotificationResp, error) {
+	client := order.NewOrderClient(m.cli.Conn())
+	return client.HandlePaymentNotification(ctx, in, opts...)
 }
 
 func (m *defaultOrder) MarkOrderPaid(ctx context.Context, in *MarkOrderPaidReq, opts ...grpc.CallOption) (*MarkOrderPaidResp, error) {

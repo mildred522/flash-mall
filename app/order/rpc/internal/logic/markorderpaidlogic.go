@@ -26,10 +26,11 @@ type MarkOrderPaidLogic struct {
 }
 
 type paymentCallbackPayload struct {
-	TradeStatus   string `json:"trade_status"`
-	Provider      string `json:"provider"`
-	EventID       string `json:"event_id"`
-	PaidAmountFen int64  `json:"paid_amount_fen"`
+	TradeStatus     string `json:"trade_status"`
+	Provider        string `json:"provider"`
+	EventID         string `json:"event_id"`
+	PaidAmountFen   int64  `json:"paid_amount_fen"`
+	ProviderTradeNo string `json:"provider_trade_no"`
 }
 
 func NewMarkOrderPaidLogic(ctx context.Context, svcCtx *svc.ServiceContext) *MarkOrderPaidLogic {
@@ -102,7 +103,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 			return nil, err
 		}
 		if err := l.confirmInventoryDeduct(in.OrderId); err != nil {
-			return nil, err
+			l.Errorf("inventory finalization deferred after idempotent payment callback: order_id=%s err=%v", in.OrderId, err)
 		}
 		result = "idempotent"
 		return &order.MarkOrderPaidResp{Updated: false, OrderStatus: "PAID"}, nil
@@ -137,8 +138,11 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 	}
 
 	paymentResult, err := tx.ExecContext(l.ctx,
-		"UPDATE payment_order SET status = ?, paid_at = NOW(), callback_payload = CAST(? AS JSON), update_time = NOW() WHERE id = ? AND out_trade_no = ? AND order_id = ? AND status = ?",
-		paymentstatus.Success, in.CallbackBody, in.PaymentOrderId, in.OutTradeNo, in.OrderId, paymentstatus.Init)
+		`UPDATE payment_order SET status = ?, paid_at = NOW(), callback_payload = CAST(? AS JSON),
+provider_trade_no = ?, provider_status = 'TRADE_SUCCESS', update_time = NOW()
+WHERE id = ? AND out_trade_no = ? AND order_id = ? AND status = ?`,
+		paymentstatus.Success, in.CallbackBody, callback.ProviderTradeNo,
+		in.PaymentOrderId, in.OutTradeNo, in.OrderId, paymentstatus.Init)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +172,7 @@ FOR UPDATE`, in.PaymentOrderId, in.OutTradeNo, in.OrderId).Scan(&orderStatus, &p
 		return nil, err
 	}
 	if err := l.confirmInventoryDeduct(in.OrderId); err != nil {
-		return nil, err
+		l.Errorf("inventory finalization deferred after durable payment: order_id=%s err=%v", in.OrderId, err)
 	}
 
 	result = "success"
@@ -179,16 +183,32 @@ func (l *MarkOrderPaidLogic) confirmInventoryDeduct(orderID string) error {
 	if l.svcCtx.InventoryClient != nil {
 		if err := l.svcCtx.InventoryClient.ConfirmDeduct(l.ctx, orderID); err != nil {
 			l.Errorf("inventory confirm deduct failed: order_id=%s err=%v", orderID, err)
-			if l.svcCtx.Config.RequireInventoryReserve {
-				return status.Error(codes.Internal, "inventory confirm deduct failed")
-			}
+			_, _ = l.svcCtx.SqlConn.ExecCtx(l.ctx, `UPDATE payment_order SET inventory_finalize_status=2,
+inventory_finalize_attempts=inventory_finalize_attempts+1, inventory_finalize_error=? WHERE order_id=?`,
+				shortPaymentError(err), orderID)
+			return err
 		}
-		return nil
+		_, err := l.svcCtx.SqlConn.ExecCtx(l.ctx, `UPDATE payment_order SET inventory_finalize_status=1,
+inventory_finalize_attempts=inventory_finalize_attempts+1, inventory_finalize_error='',
+inventory_finalized_at=NOW() WHERE order_id=?`, orderID)
+		return err
 	}
 	if l.svcCtx.Config.RequireInventoryReserve {
-		return status.Error(codes.Internal, "inventory client not configured")
+		err := errors.New("inventory client not configured")
+		_, _ = l.svcCtx.SqlConn.ExecCtx(l.ctx, `UPDATE payment_order SET inventory_finalize_status=2,
+inventory_finalize_attempts=inventory_finalize_attempts+1, inventory_finalize_error=? WHERE order_id=?`,
+			shortPaymentError(err), orderID)
+		return err
 	}
 	return nil
+}
+
+func shortPaymentError(err error) string {
+	value := err.Error()
+	if len(value) > 255 {
+		return value[:255]
+	}
+	return value
 }
 
 func parsePaymentCallbackPayload(body string) (paymentCallbackPayload, error) {

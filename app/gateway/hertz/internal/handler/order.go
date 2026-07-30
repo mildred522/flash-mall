@@ -8,7 +8,6 @@ import (
 
 	"flash-mall/app/common/apperror"
 	"flash-mall/app/common/authctx"
-	"flash-mall/app/common/orderstatus"
 	"flash-mall/app/gateway/hertz/internal/application/orderquery"
 	"flash-mall/app/gateway/hertz/internal/svc"
 	orderpb "flash-mall/app/order/rpc/order"
@@ -96,16 +95,14 @@ func PayOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
-		payment, err := loadUserPaymentOrder(ctx, svcCtx, req.OrderID, identity.UserID)
+		payment, err := svcCtx.OrderRpc.CreatePayment(ctx, &orderpb.CreatePaymentReq{
+			OrderId: req.OrderID, UserId: identity.UserID,
+		})
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
 		}
-		if !orderstatus.CanPay(payment.OrderStatus) && payment.OrderStatus != orderstatus.Paid {
-			fail(ctx, c, consts.StatusConflict, apperror.New(apperror.CodeOrderStatusInvalid, "order is not payable"))
-			return
-		}
-		resp, err := buildPaymentIntentResp(c, svcCtx, payment, time.Now())
+		resp, err := buildPaymentIntentFromRPC(c, svcCtx, payment, time.Now())
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return

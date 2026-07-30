@@ -5,6 +5,7 @@ const root = resolve(import.meta.dirname, '../..');
 const modules = [
   'scripts/k8s/sql/00-bootstrap.sql',
   'scripts/k8s/sql/10-order.sql',
+  'scripts/k8s/sql/11-payment-provider-migrations.sql',
   'scripts/k8s/sql/20-product-schema.sql',
   'scripts/k8s/sql/21-product-seed.sql',
   'scripts/k8s/sql/22-data-repair.sql',

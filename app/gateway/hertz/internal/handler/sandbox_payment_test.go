@@ -104,6 +104,18 @@ func TestSandboxPaymentStatus(t *testing.T) {
 	}
 }
 
+func TestPaymentStatusResponseUsesProviderExpiry(t *testing.T) {
+	payment := userPaymentOrder{
+		OrderID: "order-1", PaymentOrderID: "pay:order-1",
+		OutTradeNo: "FM-1", PayableAmountFen: 100, PaymentStatus: paymentstatus.Init,
+		ExpiresAt: 1_800_000_900,
+	}
+	resp := paymentStatusResponse(payment, 0, true)
+	if resp.ExpiresAt != payment.ExpiresAt || resp.Status != "expired" {
+		t.Fatalf("unexpected status response: %#v", resp)
+	}
+}
+
 func TestSandboxEventIDIsStable(t *testing.T) {
 	if got := sandboxPaymentEventID("pay:o-1"); got != "sandbox:pay:o-1" {
 		t.Fatalf("event id=%q", got)

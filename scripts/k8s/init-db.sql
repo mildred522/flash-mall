@@ -207,11 +207,27 @@ CREATE TABLE IF NOT EXISTS payment_order (
   payable_amount_fen bigint NOT NULL DEFAULT 0 COMMENT '应付金额分',
   status tinyint NOT NULL DEFAULT 0 COMMENT '支付单状态 0-init 1-success 2-failed 3-closed',
   out_trade_no varchar(64) NOT NULL DEFAULT '' COMMENT '外部交易号',
+  provider varchar(32) NOT NULL DEFAULT 'local_sandbox' COMMENT '支付渠道',
+  provider_trade_no varchar(64) NOT NULL DEFAULT '' COMMENT '渠道交易号',
+  provider_qr_url varchar(1024) NOT NULL DEFAULT '' COMMENT '渠道付款二维码内容',
+  provider_status varchar(32) NOT NULL DEFAULT '' COMMENT '渠道状态',
+  expires_at timestamp NULL DEFAULT NULL COMMENT '付款截止时间',
+  inventory_finalize_status tinyint NOT NULL DEFAULT 0 COMMENT '库存确认 0-pending 1-success 2-failed',
+  inventory_finalize_attempts int NOT NULL DEFAULT 0,
+  inventory_finalize_error varchar(255) NOT NULL DEFAULT '',
+  inventory_finalized_at timestamp NULL DEFAULT NULL,
+  inventory_release_status tinyint NOT NULL DEFAULT 0 COMMENT '库存释放 0-pending 1-success 2-failed',
+  inventory_release_attempts int NOT NULL DEFAULT 0,
+  inventory_release_error varchar(255) NOT NULL DEFAULT '',
+  inventory_released_at timestamp NULL DEFAULT NULL,
   create_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   update_time timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uniq_order_id (order_id),
-  UNIQUE KEY uniq_out_trade_no (out_trade_no)
+  UNIQUE KEY uniq_out_trade_no (out_trade_no),
+  KEY ix_payment_expiry (status, expires_at),
+  KEY ix_inventory_finalize (status, inventory_finalize_status, update_time),
+  KEY ix_inventory_release (status, inventory_release_status, update_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET @sql = IF(
@@ -275,6 +291,10 @@ CREATE TABLE IF NOT EXISTS refund_order (
   reason varchar(255) NOT NULL DEFAULT '' COMMENT '申请原因',
   audit_remark varchar(255) NOT NULL DEFAULT '' COMMENT '审核备注',
   operator_id bigint NOT NULL DEFAULT 0 COMMENT '审核人',
+  provider varchar(32) NOT NULL DEFAULT 'local_sandbox' COMMENT '退款渠道',
+  provider_refund_id varchar(64) NOT NULL DEFAULT '' COMMENT '渠道退款请求号',
+  provider_status varchar(32) NOT NULL DEFAULT '' COMMENT '渠道退款状态',
+  provider_error varchar(255) NOT NULL DEFAULT '' COMMENT '渠道退款错误',
   request_time timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   audit_time timestamp NULL DEFAULT NULL,
   finish_time timestamp NULL DEFAULT NULL,
@@ -378,6 +398,88 @@ CREATE TABLE IF NOT EXISTS barrier (
   PRIMARY KEY (id),
   UNIQUE KEY uniq_barrier (gid, branch_id, op, barrier_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+USE mall_order;
+
+-- 支付渠道和库存收尾字段：为已有数据库提供幂等迁移；新库由 10-order.sql 直接建出完整表结构。
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'provider');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN provider varchar(32) NOT NULL DEFAULT ''local_sandbox'' AFTER out_trade_no', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'provider_trade_no');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN provider_trade_no varchar(64) NOT NULL DEFAULT '''' AFTER provider', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'provider_qr_url');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN provider_qr_url varchar(1024) NOT NULL DEFAULT '''' AFTER provider_trade_no', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'provider_status');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN provider_status varchar(32) NOT NULL DEFAULT '''' AFTER provider_qr_url', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'expires_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN expires_at timestamp NULL DEFAULT NULL AFTER provider_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_finalize_status');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_finalize_status tinyint NOT NULL DEFAULT 0 AFTER expires_at', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_finalize_attempts');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_finalize_attempts int NOT NULL DEFAULT 0 AFTER inventory_finalize_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_finalize_error');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_finalize_error varchar(255) NOT NULL DEFAULT '''' AFTER inventory_finalize_attempts', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_finalized_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_finalized_at timestamp NULL DEFAULT NULL AFTER inventory_finalize_error', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_release_status');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_release_status tinyint NOT NULL DEFAULT 0 AFTER inventory_finalized_at', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_release_attempts');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_release_attempts int NOT NULL DEFAULT 0 AFTER inventory_release_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_release_error');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_release_error varchar(255) NOT NULL DEFAULT '''' AFTER inventory_release_attempts', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND COLUMN_NAME = 'inventory_released_at');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE payment_order ADD COLUMN inventory_released_at timestamp NULL DEFAULT NULL AFTER inventory_release_error', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND INDEX_NAME = 'ix_payment_expiry');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE payment_order ADD KEY ix_payment_expiry (status, expires_at)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND INDEX_NAME = 'ix_inventory_finalize');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE payment_order ADD KEY ix_inventory_finalize (status, inventory_finalize_status, update_time)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_idx = (SELECT COUNT(1) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'payment_order' AND INDEX_NAME = 'ix_inventory_release');
+SET @sql = IF(@has_idx = 0, 'ALTER TABLE payment_order ADD KEY ix_inventory_release (status, inventory_release_status, update_time)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'refund_order' AND COLUMN_NAME = 'provider');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE refund_order ADD COLUMN provider varchar(32) NOT NULL DEFAULT ''local_sandbox'' AFTER operator_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'refund_order' AND COLUMN_NAME = 'provider_refund_id');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE refund_order ADD COLUMN provider_refund_id varchar(64) NOT NULL DEFAULT '''' AFTER provider', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'refund_order' AND COLUMN_NAME = 'provider_status');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE refund_order ADD COLUMN provider_status varchar(32) NOT NULL DEFAULT '''' AFTER provider_refund_id', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @has_col = (SELECT COUNT(1) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'refund_order' AND COLUMN_NAME = 'provider_error');
+SET @sql = IF(@has_col = 0, 'ALTER TABLE refund_order ADD COLUMN provider_error varchar(255) NOT NULL DEFAULT '''' AFTER provider_status', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 USE mall_product;
 
 CREATE TABLE IF NOT EXISTS product (

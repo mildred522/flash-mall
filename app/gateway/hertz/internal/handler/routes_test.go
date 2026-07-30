@@ -65,6 +65,26 @@ func TestPaymentRoutesExposeIntentStatusAndSandboxConfirmation(t *testing.T) {
 	}
 }
 
+func TestShopHistoryRoutesSupportDirectReload(t *testing.T) {
+	h := server.Default()
+	registerSystemRoutes(h, &svc.ServiceContext{}, time.Now())
+
+	want := map[string]bool{
+		"GET /orders": false,
+	}
+	for _, route := range h.Routes() {
+		key := route.Method + " " + route.Path
+		if _, ok := want[key]; ok {
+			want[key] = true
+		}
+	}
+	for route, found := range want {
+		if !found {
+			t.Errorf("shop history route is missing: %s", route)
+		}
+	}
+}
+
 func TestMerchantPageAndImageUploadRoutesAreIndependent(t *testing.T) {
 	h := server.Default()
 	svcCtx := &svc.ServiceContext{}

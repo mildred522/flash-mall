@@ -36,6 +36,18 @@ ProductRpcConf:
 InventoryKitexEndpoint: ''
 RequireInventoryReserve: false
 
+PaymentProvider: local_sandbox
+PaymentExpireMinutes: 15
+PaymentSweepIntervalSec: 10
+PaymentFinalizeIntervalSec: 10
+AlipaySandbox:
+  AppID: ''
+  GatewayURL: https://openapi-sandbox.dl.alipaydev.com/gateway.do
+  PrivateKey: ''
+  AlipayPublicKey: ''
+  NotifyURL: ''
+  RequestTimeoutMs: 8000
+
 PprofAddr: 0.0.0.0:6061
 MetricsAddr: 0.0.0.0:9091
 
