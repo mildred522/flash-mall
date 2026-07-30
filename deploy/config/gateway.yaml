@@ -51,3 +51,11 @@ OrderRpcConf:
       - etcd:2379
     Key: order.rpc
   Timeout: 3000
+
+Observability:
+  Tracing:
+    Enabled: true
+    ServiceName: hertz-gateway
+    Exporter: otlphttp
+    Endpoint: http://jaeger:4318/v1/traces
+    SampleRatio: 1

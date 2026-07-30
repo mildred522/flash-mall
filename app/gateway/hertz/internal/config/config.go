@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	commonobs "flash-mall/app/common/observability"
 	gatewaycache "flash-mall/app/gateway/hertz/internal/cache"
 	"flash-mall/app/gateway/hertz/internal/existencefilter"
 
@@ -30,24 +31,25 @@ type Config struct {
 	EnableLiveStockOverlay                  bool  `json:",default=false"` //nolint:staticcheck // go-zero config uses default in json tags.
 	ProductRpcConf                          zrpc.RpcClientConf
 	OrderRpcConf                            zrpc.RpcClientConf
-	UploadDir                               string  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheRedisAddr                          string  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CachePrefix                             string  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheEnableL1                           bool    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheEnableL2                           bool    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheStaleWhileRevalidate               bool    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheAllowStaleOnError                  bool    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheL1TTLMillis                        int64   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheSoftTTLSeconds                     int64   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheHardTTLSeconds                     int64   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	CacheMaxEntries                         int     `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterEnabled           bool    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterPrefix            string  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterExpectedItems     uint64  `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterFalsePositiveRate float64 `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterRebuildHours      int64   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductExistenceFilterBatchSize         int     `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	ProductNegativeCacheTTLSeconds          int64   `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	Observability                           commonobs.Config `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	UploadDir                               string           `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheRedisAddr                          string           `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CachePrefix                             string           `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheEnableL1                           bool             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheEnableL2                           bool             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheStaleWhileRevalidate               bool             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheAllowStaleOnError                  bool             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheL1TTLMillis                        int64            `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheSoftTTLSeconds                     int64            `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheHardTTLSeconds                     int64            `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	CacheMaxEntries                         int              `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterEnabled           bool             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterPrefix            string           `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterExpectedItems     uint64           `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterFalsePositiveRate float64          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterRebuildHours      int64            `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductExistenceFilterBatchSize         int              `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	ProductNegativeCacheTTLSeconds          int64            `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 }
 
 func (c Config) CacheConfig() gatewaycache.Config {

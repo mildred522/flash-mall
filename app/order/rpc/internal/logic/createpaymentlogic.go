@@ -14,6 +14,7 @@ import (
 	orderpb "flash-mall/app/order/rpc/order"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -43,6 +44,14 @@ func (l *CreatePaymentLogic) CreatePayment(in *orderpb.CreatePaymentReq) (*order
 	if in == nil || strings.TrimSpace(in.GetOrderId()) == "" || in.GetUserId() <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "order_id and user_id are required")
 	}
+	spanCtx, span := startOrderSpan(
+		l.ctx,
+		"create_payment",
+		attribute.String("order.id", in.GetOrderId()),
+		attribute.Int64("user.id", in.GetUserId()),
+	)
+	defer span.End()
+	l.ctx = spanCtx
 	var record createPaymentRecord
 	err := l.svcCtx.SqlConn.QueryRowCtx(l.ctx, &record, `SELECT o.status AS order_status, p.id AS payment_id,
 p.out_trade_no, p.payable_amount_fen AS amount, p.status AS payment_status,

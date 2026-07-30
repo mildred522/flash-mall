@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"time"
 
+	"flash-mall/app/common/observability"
 	"flash-mall/app/gateway/hertz/internal/config"
 	"flash-mall/app/gateway/hertz/internal/handler"
 	"flash-mall/app/gateway/hertz/internal/svc"
@@ -19,6 +21,12 @@ func main() {
 
 	var c config.Config
 	conf.MustLoad(*configFile, &c, conf.UseEnv())
+
+	shutdownTracing, err := observability.SetupTracing(context.Background(), c.Observability.Tracing)
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	svcCtx := svc.NewServiceContext(c)
 	defer svcCtx.Close()

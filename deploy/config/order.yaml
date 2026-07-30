@@ -49,7 +49,7 @@ MetricsAddr: 0.0.0.0:9091
 
 Observability:
   Tracing:
-    Enabled: false
+    Enabled: true
     ServiceName: order-rpc
     Exporter: otlphttp
     Endpoint: http://jaeger:4318/v1/traces

@@ -15,6 +15,7 @@ import (
 	order "flash-mall/app/order/rpc/order"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -42,9 +43,20 @@ func NewMarkOrderPaidLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Mar
 }
 
 func (l *MarkOrderPaidLogic) MarkPaid(in *order.MarkOrderPaidReq) (*order.MarkOrderPaidResp, error) {
+	spanCtx, span := startOrderSpan(
+		l.ctx,
+		"mark_paid",
+		attribute.String("order.id", in.GetOrderId()),
+		attribute.String("payment.order_id", in.GetPaymentOrderId()),
+	)
+	l.ctx = spanCtx
 	started := time.Now()
 	result := "error"
-	defer func() { recordPaymentTransition(result, time.Since(started)) }()
+	defer func() {
+		span.SetAttributes(attribute.String("payment.result", result))
+		span.End()
+		recordPaymentTransition(result, time.Since(started))
+	}()
 	if in.OrderId == "" {
 		return nil, status.Error(codes.InvalidArgument, "order_id is required")
 	}

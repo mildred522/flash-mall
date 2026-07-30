@@ -20,7 +20,6 @@ import (
 	"github.com/dtm-labs/dtm/client/dtmgrpc"
 	"github.com/zeromicro/go-zero/core/logx"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -62,14 +61,17 @@ func (l *CreateOrderLogic) CreateOrder(in *order.CreateOrderReq) (*order.CreateO
 	}
 	paymentOrderID := paymentOrderIDFor(in.OrderId)
 
-	span := trace.SpanFromContext(l.ctx)
-	span.SetAttributes(
+	spanCtx, span := startOrderSpan(
+		l.ctx,
+		"create",
 		attribute.String("order.id", in.GetOrderId()),
 		attribute.String("order.request_id", requestID),
 		attribute.Int64("user.id", in.GetUserId()),
 		attribute.Int64("product.id", in.GetProductId()),
 		attribute.Int64("order.amount", in.GetAmount()),
 	)
+	defer span.End()
+	l.ctx = spanCtx
 	l.Infow("order rpc create order", commonobs.OrderFields(l.ctx, in.GetOrderId(), requestID)...)
 
 	card, err := l.svcCtx.ProductRpc.GetProductCard(l.ctx, &productclient.GetProductCardReq{

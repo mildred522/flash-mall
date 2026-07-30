@@ -57,8 +57,8 @@ export default function AuthModal({ open, onClose }: Props) {
 
   return (
     <div className={`auth-modal ${open ? 'open' : ''}`} onClick={onClose}>
-      <div className="auth-box" onClick={(e) => e.stopPropagation()}>
-        <h2>欢迎来到 Flash Mall</h2>
+      <div className="auth-box" role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="auth-modal-title">欢迎来到 Flash Mall</h2>
         <p className="note">登录后即可下单购买</p>
 
         <div className="tabs">
@@ -69,12 +69,12 @@ export default function AuthModal({ open, onClose }: Props) {
         {tab === 'login' ? (
           <div className="panel active">
             <div className="field">
-              <label>手机号</label>
-              <input name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
+              <label htmlFor="auth-login-phone">手机号</label>
+              <input id="auth-login-phone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
             </div>
             <div className="field">
-              <label>密码</label>
-              <input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" autoComplete="current-password" />
+              <label htmlFor="auth-login-password">密码</label>
+              <input id="auth-login-password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请输入密码" autoComplete="current-password" />
             </div>
             <div className="error">{error}</div>
             <button className="button primary submit" onClick={handleLogin} disabled={loading}>
@@ -84,19 +84,19 @@ export default function AuthModal({ open, onClose }: Props) {
         ) : (
           <div className="panel active">
             <div className="field">
-              <label>手机号</label>
-              <input name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
+              <label htmlFor="auth-register-phone">手机号</label>
+              <input id="auth-register-phone" name="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="请输入手机号" autoComplete="username" />
             </div>
             <div className="field">
-              <label>验证码</label>
+              <label htmlFor="auth-register-code">验证码</label>
               <div className="code-row">
-                <input name="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入验证码" autoComplete="one-time-code" />
+                <input id="auth-register-code" name="code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="请输入验证码" autoComplete="one-time-code" />
                 <button className="button soft" onClick={sendCode}>发送验证码</button>
               </div>
             </div>
             <div className="field">
-              <label>密码</label>
-              <input name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请设置密码" autoComplete="new-password" />
+              <label htmlFor="auth-register-password">密码</label>
+              <input id="auth-register-password" name="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="请设置密码" autoComplete="new-password" />
             </div>
             <div className="error">{error}</div>
             <button className="button primary submit" onClick={handleRegister} disabled={loading}>

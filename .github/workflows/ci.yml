@@ -52,6 +52,7 @@ jobs:
               - '.github/workflows/**'
               - 'scripts/ci/**'
               - 'scripts/perf/**'
+              - 'scripts/local/verify-release-readiness*.mjs'
               - 'tools/httpbench/**'
               - 'tools/capacitybench/**'
               - 'benchmarks/results/**'
@@ -193,6 +194,10 @@ jobs:
         run: |
           node --test scripts/perf/summarize-capacity.test.mjs
           node scripts/ci/check-capacity-profile.mjs
+      - name: Check release readiness
+        run: |
+          node --test scripts/local/verify-release-readiness.test.mjs
+          node scripts/ci/check-release-readiness.mjs
       - name: Check Docker build contexts
         run: node scripts/ci/check-docker-contexts.mjs
       - name: Check Go toolchain configuration

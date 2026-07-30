@@ -8,6 +8,11 @@ import (
 	common "flash-mall/app/inventory/kitex/kitex_gen/flashmall/common"
 	inventory "flash-mall/app/inventory/kitex/kitex_gen/flashmall/inventory"
 	"flash-mall/app/inventory/service"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // InventoryServiceImpl adapts the generated Kitex interface to the domain service.
@@ -69,33 +74,69 @@ func stockChangeMeta(meta *common.RequestMeta, reason string) domain.StockChange
 }
 
 func (s *InventoryServiceImpl) ReserveStock(ctx context.Context, req *inventory.ReserveStockRequest) (*common.Empty, error) {
+	ctx, span := startInventoryCommandSpan(ctx, "reserve_stock", req.GetOrderId(), req.GetMeta())
+	defer span.End()
+	span.SetAttributes(
+		attribute.Int64("product.id", req.GetProductId()),
+		attribute.Int64("stock.quantity", req.GetQuantity()),
+	)
 	err := s.metrics.observe("reserve", func() error {
 		return s.svc.ReserveStock(ctx, req.GetOrderId(), req.GetProductId(), req.GetQuantity(), stockChangeMeta(req.GetMeta(), "reserve stock"))
 	})
 	if err != nil {
+		recordInventorySpanError(span, err)
 		return nil, toBizException(err, req.GetMeta())
 	}
 	return &common.Empty{}, nil
 }
 
 func (s *InventoryServiceImpl) ConfirmDeduct(ctx context.Context, req *inventory.ConfirmDeductRequest) (*common.Empty, error) {
+	ctx, span := startInventoryCommandSpan(ctx, "confirm_deduct", req.GetOrderId(), req.GetMeta())
+	defer span.End()
 	err := s.metrics.observe("confirm", func() error {
 		return s.svc.ConfirmDeduct(ctx, req.GetOrderId(), stockChangeMeta(req.GetMeta(), "confirm stock deduct"))
 	})
 	if err != nil {
+		recordInventorySpanError(span, err)
 		return nil, toBizException(err, req.GetMeta())
 	}
 	return &common.Empty{}, nil
 }
 
 func (s *InventoryServiceImpl) ReleaseStock(ctx context.Context, req *inventory.ReleaseStockRequest) (*common.Empty, error) {
+	ctx, span := startInventoryCommandSpan(ctx, "release_stock", req.GetOrderId(), req.GetMeta())
+	defer span.End()
+	span.SetAttributes(attribute.String("stock.release_reason", req.GetReason()))
 	err := s.metrics.observe("release", func() error {
 		return s.svc.ReleaseStock(ctx, req.GetOrderId(), req.GetReason(), stockChangeMeta(req.GetMeta(), req.GetReason()))
 	})
 	if err != nil {
+		recordInventorySpanError(span, err)
 		return nil, toBizException(err, req.GetMeta())
 	}
 	return &common.Empty{}, nil
+}
+
+func startInventoryCommandSpan(
+	ctx context.Context,
+	operation string,
+	orderID string,
+	meta *common.RequestMeta,
+) (context.Context, trace.Span) {
+	ctx, span := otel.Tracer("flash-mall/inventory-kitex").Start(ctx, "inventory."+operation)
+	span.SetAttributes(attribute.String("order.id", orderID))
+	if meta != nil {
+		span.SetAttributes(
+			attribute.String("flashmall.request_id", meta.GetRequestId()),
+			attribute.String("flashmall.business_trace_id", meta.GetTraceId()),
+		)
+	}
+	return ctx, span
+}
+
+func recordInventorySpanError(span trace.Span, err error) {
+	span.RecordError(err)
+	span.SetStatus(otelcodes.Error, string(apperror.CodeOf(err)))
 }
 
 func (s *InventoryServiceImpl) ReconcileStock(ctx context.Context, req *inventory.ReconcileStockRequest) (*inventory.ReconcileStockResponse, error) {

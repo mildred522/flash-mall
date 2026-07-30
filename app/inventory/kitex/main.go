@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"flash-mall/app/common/observability"
 	"flash-mall/app/inventory/domain"
 	"flash-mall/app/inventory/kitex/kitex_gen/flashmall/inventory/inventoryservice"
 	"flash-mall/app/inventory/repository"
@@ -38,6 +39,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("resolve inventory listen addr %q: %v", listenOn, err)
 	}
+	shutdownTracing, err := observability.SetupTracing(context.Background(), tracingConfigFromEnvironment())
+	if err != nil {
+		log.Fatalf("configure inventory tracing: %v", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(shutdownCtx); err != nil {
+			log.Printf("shutdown inventory tracing: %v", err)
+		}
+	}()
 
 	shardCount := envIntOrDefault("INVENTORY_STOCK_SHARD_COUNT", defaultStockShardCount)
 	finalDeductEnabled := envBoolOrDefault("INVENTORY_FINAL_DEDUCT_ENABLED", false)
@@ -203,4 +215,26 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return parsed
+}
+
+func envFloatOrDefault(key string, fallback float64) float64 {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func tracingConfigFromEnvironment() observability.TracingConfig {
+	return observability.TracingConfig{
+		Enabled:     envBoolOrDefault("INVENTORY_TRACING_ENABLED", false),
+		ServiceName: envOrDefault("INVENTORY_TRACING_SERVICE_NAME", "inventory-kitex"),
+		Exporter:    envOrDefault("INVENTORY_TRACING_EXPORTER", "otlphttp"),
+		Endpoint:    os.Getenv("INVENTORY_TRACING_ENDPOINT"),
+		SampleRatio: envFloatOrDefault("INVENTORY_TRACING_SAMPLE_RATIO", 1),
+	}
 }

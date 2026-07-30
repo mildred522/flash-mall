@@ -33,6 +33,20 @@ func TestRuntimeStateRejectsUnknownLedgerMode(t *testing.T) {
 	}
 }
 
+func TestTracingConfigFromEnvironment(t *testing.T) {
+	t.Setenv("INVENTORY_TRACING_ENABLED", "true")
+	t.Setenv("INVENTORY_TRACING_ENDPOINT", "http://jaeger:4318/v1/traces")
+	t.Setenv("INVENTORY_TRACING_SAMPLE_RATIO", "0.75")
+
+	cfg := tracingConfigFromEnvironment()
+	if !cfg.Enabled || cfg.ServiceName != "inventory-kitex" || cfg.Exporter != "otlphttp" {
+		t.Fatalf("unexpected tracing identity: %+v", cfg)
+	}
+	if cfg.Endpoint != "http://jaeger:4318/v1/traces" || cfg.SampleRatio != 0.75 {
+		t.Fatalf("unexpected tracing transport: %+v", cfg)
+	}
+}
+
 func TestRunReservationRecoveryOnce(t *testing.T) {
 	svc := service.New(repository.NewMemoryStockRepository(), 4)
 	if err := runReservationRecoveryOnce(context.Background(), svc, nil, 10); err != nil {

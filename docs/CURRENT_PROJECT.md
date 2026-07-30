@@ -83,6 +83,13 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - 容量实验只允许写入回环地址，必须显式授权修改与演示数据重置；运行前后备份并恢复固定数据，保留上传素材卷。结果同时校验重复订单、重复支付回调、负库存、悬挂预占、未清空 Outbox、支付库存未最终确认及 Redis/MySQL 库存桶差异。
 - “安全目标 RPS”表示当前固定 Compose 资源和开发机上最高已测且通过的档位；未出现失败档位时只能陈述“至少达到”，不能解释为系统极限或公网生产容量。
 
+### 指标、日志与追踪
+
+- Prometheus 持续抓取 Hertz、Order RPC、Product RPC 和 Inventory Kitex 四个业务目标；Grafana 自动装载总览、库存一致性、支付与 Outbox、缓存与 RPC、容量与 SLO 五个面板。
+- Hertz 的全局 Trace 中间件为每个业务 API 请求创建 OTel 服务端 Span，并记录路由模板、状态码、请求 ID 和业务追踪 ID；探针、Prometheus 抓取和静态资源不写入 Jaeger，避免观测流量淹没业务链路。
+- Order RPC 为订单创建、支付意图和支付确认创建业务 Span；Inventory Kitex 为预占、确认和释放创建库存命令 Span，并记录订单、商品、数量和关联 ID。OTLP/HTTP 统一写入 Jaeger。
+- 商品列表和详情仍以低跳数读路径、缓存指标和 Product RPC 指标为主，不为了形式上的全链路统一给高频读取增加 Kitex 调用。
+
 ## 前端与静态资源
 
 - 唯一前端源码是 `frontend/packages` 下的 `shop`、`admin`、`merchant` 和 `shared`。
@@ -112,7 +119,11 @@ pwsh -NoProfile -File scripts/local/install-desktop-launcher.ps1
 
 ```bash
 # 在 Ubuntu WSL 中启动默认 Compose 拓扑
-./scripts/local/start-compose-all.sh
+./scripts/local/flash-mall-control.sh start --profile interview --observability
+
+# 对当前运行环境执行只读发布就绪检查：三套页面、图片、四个角色、
+# 商家隔离、Prometheus、Grafana、Jaeger 和 RabbitMQ
+node scripts/local/verify-release-readiness.mjs
 
 # 检查固定演示账号、商家、商品和 MySQL/Redis 库存一致性
 ./scripts/local/flash-mall-control.sh verify-demo --profile interview
@@ -181,6 +192,7 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 数据库结构迁移与演示数据已经彻底分离：七个结构模块生成 `scripts/k8s/schema.sql`，三个演示模块生成 `scripts/k8s/demo-seed.sql`，旧 `init-db.sql` 已删除。Compose 只在全新环境首次写入演示数据，已有完整演示环境只登记版本而不覆盖业务数据；K8s 默认只执行结构迁移。
 - Auth MySQL Store 不再在登录、会话或验证码请求中懒加载演示账号；四个演示账号及管理员一键登录凭据只由版本化演示种子维护。
 - Windows 桌面控制中心支持日常开发/面试演示运行配置、可观测组件开关、演示数据检查和确认后重置；重置前自动备份 MySQL，只删除当前 Compose 项目的 MySQL/Redis 卷并保留 `flash-mall-uploads`。
+- 旧版 8888 原生进程启动链 `launcher.ps1`、`start-all.ps1`、`stop-all.ps1`、`prepare-local-exes.ps1` 和 `test-launcher.ps1` 已删除；本地操作只保留 WSL Docker 与 Windows 桌面控制中心两层入口。
 - 管理员看板、Outbox 事件列表/重试已进入 `application/adminops` 与 `ordermysql.AdminOpsRepository`；看板统计由原先 17 次串行查询收敛为一次聚合查询。
 - 支付/退款/订单对账已进入 `application/reconciliation` 与 `ordermysql.ReconciliationRepository`；扫描、幂等问题键和列表查询不再位于 Handler，集成测试也不再运行时修改表结构。
 - 用户地址已进入 `application/useraddress` 与 `adapters/authmysql`；默认地址切换、地址保存及用户所有权检查在同一事务内完成。
@@ -202,14 +214,32 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 商品 RPC 卡片同时返回图片 URL 和商家 ID，Order RPC 下单直接写入名称/图片/商家快照；Hertz 用户、管理员和商家订单查询统一返回 `image_url`。
 - 商品缓存穿透防护已收口到独立 `existencefilter` 组件：普通 Redis Bitmap、版本化重建、分布式重建锁、短期负缓存、写链路可见性屏障、健康详情、固定低基数指标和 Grafana 面板均已接入；Go-zero Entry API 基线未复制该能力。
 
-本轮代码清理和容量证据链均已收口。后续不再围绕已经完成的分层重复重构，优先转入以下产品与工程验证：
+本轮代码清理、容量证据链、可观测闭环、故障恢复和真实浏览器验收均已收口。仓库不再围绕已经完成的分层重复重构；功能层面的剩余工作仅是实际部署时注入支付宝沙箱凭据和公网通知地址，或根据目标环境配置域名、TLS、Secret 与资源限额。收尾阶段不再扩展 Stripe 或微信支付，避免扩大维护面。
 
-Grafana 观测闭环和本地故障恢复演练已经收口：监控覆盖服务、数据库、库存、支付、Outbox、缓存与 RPC；可恢复演练覆盖 Inventory Kitex、Order RPC、Redis、MySQL 与 RabbitMQ，不删除容器或数据卷。后续优先级为：
+## 15 分钟面试演示顺序
 
-1. 完成发布准备：固定演示数据、统一控制台开关和本地容量基线已经收口；下一步执行最终真实浏览器验收，并整理面试演示顺序与部署配置清单。
-2. 支付宝真实沙箱只差在部署环境注入商户凭据与公网通知地址；不再扩展 Stripe 或微信支付，避免收尾阶段扩大维护面。
+1. **0–2 分钟：启动与拓扑。** 从 Windows 桌面控制中心选择“面试演示 + 可观测”，说明外部入口是 Hertz 8889，Go-zero Entry API 8888 只保留为 `main` 基线；展示 `verify-release-readiness.mjs` 的 34 项只读检查。
+2. **2–4 分钟：商城与店铺。** 浏览首页六槽商品、商品详情和两个独立店铺；强调商家负责店内上架，管理员通过推荐候选和 12 槽橱窗决定首页曝光。
+3. **4–7 分钟：支付与幂等。** 使用固定用户下单，展示 Kitex 库存预占、二维码和本地沙箱付款页；连续两次确认同一令牌，说明支付回调事件唯一、Outbox 的 `order.created/order.paid` 各唯一、库存只最终扣减一次。
+4. **7–9 分钟：商家与管理员隔离。** 登录商家 1101/1102，分别只能看到自己的店铺、商品和订单；用“一键管理员登录”展示橱窗、订单、对账和事件入口。
+5. **9–12 分钟：架构取舍。** 说明商品读继续走 Product RPC、卡片快照和 L1/L2 缓存；库存写走 Kitex；支付后派生工作走 MySQL Outbox + RabbitMQ，安全、鉴权、幂等不与传输框架绑定。
+6. **12–14 分钟：稳定性与观测。** 在 Grafana 展示五个面板，在 Jaeger 检索 Hertz/Order/Inventory 业务 Span；说明布隆过滤、负缓存、singleflight、Redis 分布式锁、SAGA 补偿和库存恢复任务。
+7. **14–15 分钟：迁移证据。** 展示冻结的 Entry/Hertz 成对压测结果：真实响应更大的 Hertz 链路未出现性能回退；结论限定为本项目真实链路结果，不包装成框架微基准。
+
+演示结束若产生订单，执行 `reset-demo --confirm-reset --profile interview --observability`；该命令先备份 MySQL，仅重置本项目 MySQL/Redis 卷并保留上传素材卷。随后运行 `verify-demo` 和发布就绪检查恢复固定现场。
 
 ## 验证基线
+
+2026-07-30 最终发布就绪与浏览器验收：
+
+- 从当前源码重新构建并运行 Auth、Product RPC、Order RPC、Inventory Kitex 和 Hertz 五个业务镜像；固定演示夹具为 `20260730_demo_fixture_v1`。
+- 发布就绪脚本 34/34 通过：`/live`、`/ready`、系统健康、商城/管理员/商家页面、六个橱窗商品、十个商品/店铺素材、四个固定账号、两个商家隔离、Prometheus 四目标、Grafana 五面板、Jaeger 业务服务和 RabbitMQ 均正常。报告不会保存或打印登录令牌。
+- Windows Chrome 实际完成普通用户登录、商家商品下单、二维码展示、本机沙箱付款、同一令牌重复确认和订单已支付回读；商品 201 库存只从 36 降到 35，预占状态为 `CONFIRMED`，支付回调事件只有 1 条，`order.created` 与 `order.paid` 各只有 1 条且均已发布。
+- 商家 1101 只看到山岚烘焙两件商品，商家 1102 只看到北纬三十六两件商品和对应店铺资料；管理员一键登录、六槽首页橱窗、全部图片自然尺寸和中文文本均正常。
+- Grafana 总览实际显示 Hertz 读取和 Inventory reserve/confirm 成功数据；Jaeger UI 可检索 Hertz 业务 API、Order 支付和 Inventory 库存命令 Span，探针、指标抓取和静态资源已从追踪噪声中排除。
+- 验收发现并修复商城登录/注册标签未关联输入框的问题；组件回归测试和 Chrome 控制台复验均通过，无商城错误、警告或可访问性问题。
+- 真实付款产生的数据已在备份后通过受控重置清除；重置后固定商品 201 库存恢复为 36，`verify-demo` 与 34/34 发布就绪检查再次通过。
+- Go 全仓 `vet`、测试和六个服务构建通过；前端 38 个测试文件、61 个用例和三套单文件生产构建通过，提交产物解析检查通过。
 
 2026-07-30 Hertz 容量与 SLO 证据链验证：
 
