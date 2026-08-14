@@ -90,6 +90,7 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 - `tools/capacitybench` 直接使用真实登录、公开读、Kitex 库存预占驱动的订单生命周期、本地沙箱支付和幂等重放，不使用伪 Handler 或内存替身。
 - 容量实验只允许写入回环地址，必须显式授权修改与演示数据重置；运行前后备份并恢复固定数据，保留上传素材卷。结果同时校验重复订单、重复支付回调、负库存、悬挂预占、未清空 Outbox、支付库存未最终确认及 Redis/MySQL 库存桶差异。
 - “安全目标 RPS”表示当前固定 Compose 资源和开发机上最高已测且通过的档位；未出现失败档位时只能陈述“至少达到”，不能解释为系统极限或公网生产容量。
+- 完整套件区分三轮基准、预期负载、压力阶梯、五分钟混合稳定性和故障恢复；同时采集业务步骤延迟、Go CPU profile、容器 CPU/内存、MySQL、Redis 与主机资源。稳定性阶段若单服务内存增长超过 128 MiB、Redis 出现阻塞或主机可用内存异常下降会直接失败。
 
 ### 指标、日志与追踪
 
@@ -168,8 +169,9 @@ node scripts/local/verify-durable-assets.mjs --allow-mutation /path/to/image.png
 # baseline worktree 必须干净且内容树与 origin/main 完全一致
 ./scripts/perf/compare-entry-hertz.sh --runs 7 --requests 60000 --concurrency 30 --warmup 2000
 
-# 明确授权后执行可恢复的 Hertz 容量、支付、幂等与 Outbox 故障实验
-./scripts/perf/run-capacity-profile.sh --allow-mutation --confirm-reset
+# 快速验证性能链路，或执行完整基准、负载、压力、稳定性与恢复套件
+./scripts/perf/run-performance-suite.sh --suite quick --allow-mutation --confirm-reset
+./scripts/perf/run-performance-suite.sh --suite full --allow-mutation --confirm-reset
 ```
 
 素材持久化验收脚本只允许连接本机回环地址，必须显式传入 `--allow-mutation`。脚本结束时会取消验收订单以释放库存，并恢复商品原始名称、图片、价格、供应商和状态；账号密码可用 `FLASH_MALL_VERIFY_*` 环境变量覆盖。
@@ -257,6 +259,14 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 本地沙箱支付正常样本与 RabbitMQ 暂停样本合计 12/12 成功；RabbitMQ 恢复后 Outbox 在 90 秒窗口内清空。40 次相同幂等键重放全部返回成功，数据库只保留一个业务订单。
 - 实验后重复订单、重复支付回调、负库存、悬挂预占、未完成库存确认、Outbox 残留和 Redis/MySQL 库存桶差异均为 0；RabbitMQ 已恢复为 running/non-paused，演示数据重置校验通过，`flash-mall-uploads` 卷身份未改变。
 - Hertz 新 RED 指标已由 Prometheus 实际抓取，四个服务目标均为 `up`；`promtool` 校验 8 条规则通过，Grafana API 可见五个自动配置面板，其中容量面板 UID 为 `flashmall-capacity-slo`。
+
+2026-08-15 完整性能套件收口：
+
+- 正式结果绑定提交 `ab99259bb847db10bbb00c45fef7407cd52657ff`，冻结在 `benchmarks/results/performance-20260815.json`；完整方法和解释边界见 `docs/PERFORMANCE_TESTING.md`。
+- 600 RPS 预期公开读实际 599.99 QPS、p95 0.376 ms；公开读压力升至 3000 RPS 仍 100% 成功、实际 2999.93 QPS、p95 0.476 ms，当前只可陈述“至少达到 3000 RPS”。
+- 订单 10 RPS 预期负载 100% 成功、p95 139.773 ms；25 RPS 压力档通过，40 RPS 首次失败。失败档主要延迟集中在 `create_order`，MySQL 活跃线程峰值 8，而 Hertz、Order RPC、Inventory Kitex 均未出现 CPU 饱和。
+- 五分钟 500 RPS 读与 5 RPS 订单混合稳定性全部成功；Trace 默认采样率从 100% 降为 10% 后，Jaeger 内存增长由旧轮次的 406.5 MiB 降至 37.4 MiB，资源门禁通过。
+- 正常支付、40 次同幂等键重放、RabbitMQ 暂停支付及恢复排空全部通过，最终全部业务不变量通过，演示数据和上传卷已恢复。
 
 2026-07-30 可复现演示环境与桌面控制中心收尾验证：
 

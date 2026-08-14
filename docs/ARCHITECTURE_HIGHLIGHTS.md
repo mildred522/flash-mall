@@ -340,14 +340,15 @@ sequenceDiagram
 - `app/common/observability`
 - `deploy/observability`
 - `scripts/local/verify-failure-recovery.sh`
-- `scripts/perf/run-capacity-profile.sh`
-- `benchmarks/results/capacity-20260730.json`
+- `scripts/perf/run-performance-suite.sh`
+- `benchmarks/results/performance-20260815.json`
 
 **量化证据：**
 
-- 公开读：最高已测目标600 RPS，实际约594.68 QPS，8,921/8,921成功，p95约0.734ms。
-- 订单生命周期：最高已测目标10 RPS，149/149成功，p95约123.464ms。
-- 支付与RabbitMQ故障样本：12/12成功，恢复后Outbox清空。
+- 公开读：最高已测目标3000 RPS，实际约2999.93 QPS、全部成功、p95约0.476ms，尚未达到失败边界。
+- 订单生命周期：25 RPS压力档全部成功，40 RPS首次失败；主要尾延迟集中在创建订单，MySQL活跃线程上升而业务服务CPU未饱和。
+- 五分钟混合稳定性：500 RPS读与5 RPS订单均100%成功；Jaeger内存增长在10%采样后由406.5 MiB降至37.4 MiB并通过资源门禁。
+- 支付、幂等重放与RabbitMQ暂停恢复全部成功，恢复后Outbox清空。
 - 40次相同幂等键重放全部返回成功，数据库只保留一个业务订单。
 - 实验结束后重复订单、重复回调、负库存、悬挂预占、未完成库存确认和Redis/MySQL库存差异均为0。
 
