@@ -50,6 +50,14 @@ for (const [name, pattern] of [
   if (!pattern.test(collector)) throw new Error(`resource collector lacks ${name}`);
 }
 
+const summarizer = readFileSync(files.summarizer, 'utf8');
+for (const [name, pattern] of [
+  ['container memory trend', /memory_bytes/],
+  ['stability resource gate', /stabilityResourceGate/],
+]) {
+  if (!pattern.test(summarizer)) throw new Error(`performance summary lacks ${name}`);
+}
+
 const stats = readFileSync(files.stats, 'utf8');
 if (!/Operations.*latencySummary/s.test(stats) || !/Steps.*latencySummary/s.test(stats)) {
   throw new Error('capacity reports must preserve operation and business-step latency');

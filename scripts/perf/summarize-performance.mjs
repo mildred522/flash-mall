@@ -109,6 +109,27 @@ function bottleneckEvidence(profiles, resources) {
   return evidence;
 }
 
+function stabilityResourceGate(resources) {
+  const violations = [];
+  const stages = Object.entries(resources).filter(([stage]) => stage.startsWith('stability'));
+  for (const [stage, resource] of stages) {
+    for (const [name, values] of Object.entries(resource.containers ?? {})) {
+      if (name.includes('loadgen')) continue;
+      const growth = values.memory_bytes?.delta ?? 0;
+      if (growth > 128 * 1024 ** 2) {
+        violations.push(`${stage}: ${name} memory grew ${(growth / 1024 ** 2).toFixed(1)} MiB`);
+      }
+    }
+    if ((resource.redis?.blocked_clients?.max ?? 0) > 0) {
+      violations.push(`${stage}: Redis reported blocked clients`);
+    }
+    if ((resource.host?.available_memory_kb?.delta ?? 0) < -1024 * 1024) {
+      violations.push(`${stage}: host available memory fell by more than 1 GiB`);
+    }
+  }
+  return { observed: stages.length > 0, passed: violations.length === 0, violations };
+}
+
 export function summarizePerformance({ results, invariants, metadata, resources }) {
   const grouped = {};
   for (const result of results) {
@@ -129,15 +150,17 @@ export function summarizePerformance({ results, invariants, metadata, resources 
   const requiredKinds = ['baseline', 'load', 'stability', 'recovery'];
   const requiredPassed = requiredKinds.every((kind) => profiles[kind] &&
     Object.values(profiles[kind]).length > 0 && Object.values(profiles[kind]).every((item) => item.passed));
+  const stabilityResources = stabilityResourceGate(resources);
   return {
     schema_version: 2,
     metadata,
     invariants,
     profiles,
     resources,
+    resource_gates: { stability: stabilityResources },
     bottlenecks: bottleneckEvidence(profiles, resources),
-    overall_passed: requiredPassed && invariants.passed,
-    violations: [...new Set(invariants.violations ?? [])],
+    overall_passed: requiredPassed && invariants.passed && (!stabilityResources.observed || stabilityResources.passed),
+    violations: [...new Set([...(invariants.violations ?? []), ...stabilityResources.violations])],
   };
 }
 
@@ -158,6 +181,16 @@ function parsePercent(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function parseByteSize(value) {
+  const match = String(value ?? '').trim().match(/^([0-9.]+)\s*([kmgt]?i?b)$/i);
+  if (!match) return 0;
+  const units = { b: 1, kb: 1e3, mb: 1e6, gb: 1e9, tb: 1e12,
+    kib: 1024, mib: 1024 ** 2, gib: 1024 ** 3, tib: 1024 ** 4 };
+  const multiplier = units[match[2].toLowerCase()];
+  const parsed = Number.parseFloat(match[1]);
+  return Number.isFinite(parsed) && multiplier ? parsed * multiplier : 0;
+}
+
 function readResources(inputDir) {
   const resources = {};
   const dockerPath = `${inputDir}/resources-docker.jsonl`;
@@ -168,15 +201,19 @@ function readResources(inputDir) {
       const stage = item.stage;
       const name = item.Name ?? item.Container ?? 'unknown';
       const key = `${stage}\u0000${name}`;
-      (grouped[key] ??= []).push(parsePercent(item.CPUPerc));
+      const group = (grouped[key] ??= { cpu: [], memory: [] });
+      group.cpu.push(parsePercent(item.CPUPerc));
+      group.memory.push(parseByteSize(String(item.MemUsage ?? '').split('/')[0]));
     }
     for (const [key, values] of Object.entries(grouped)) {
       const [stage, name] = key.split('\u0000');
-      const summary = numericSummary(values);
+      const cpu = numericSummary(values.cpu);
+      const memory = numericSummary(values.memory);
       (((resources[stage] ??= {}).containers ??= {})[name]) = {
-        samples: summary.samples,
-        average_cpu_percent: values.reduce((sum, value) => sum + value, 0) / values.length,
-        max_cpu_percent: summary.max,
+        samples: cpu.samples,
+        average_cpu_percent: values.cpu.reduce((sum, value) => sum + value, 0) / values.cpu.length,
+        max_cpu_percent: cpu.max,
+        memory_bytes: memory,
       };
     }
   }
@@ -259,6 +296,10 @@ function markdown(summary) {
   for (const [scenario, profile] of Object.entries(summary.profiles.baseline ?? {})) {
     lines.push(`- ${scenario}: median p95 ${formatNumber(profile.median_p95_ms, 3)} ms, median p99 ${formatNumber(profile.median_p99_ms, 3)} ms, p95 spread ${formatNumber(profile.p95_spread_ms, 3)} ms.`);
   }
+  const stability = summary.resource_gates?.stability;
+  lines.push('', '## 稳定性资源门禁', '');
+  lines.push(`- resource sampling: ${stability?.observed ? 'observed' : 'missing'}; gate: ${stability?.passed ? 'pass' : 'fail'}.`);
+  for (const violation of stability?.violations ?? []) lines.push(`- ${violation}.`);
   if (summary.violations.length > 0) lines.push('', `Violations: ${summary.violations.join(', ')}`);
   lines.push('', '> 压力档失败用于确定容量边界，不会单独导致套件失败；基准、负载、稳定性、恢复或业务不变量失败才会阻断结果。', '');
   return lines.join('\n');

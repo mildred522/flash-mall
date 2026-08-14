@@ -59,4 +59,4 @@ Observability:
     ServiceName: hertz-gateway
     Exporter: otlphttp
     Endpoint: http://jaeger:4318/v1/traces
-    SampleRatio: 1
+    SampleRatio: 0.1

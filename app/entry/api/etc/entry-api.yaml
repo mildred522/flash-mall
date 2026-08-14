@@ -66,7 +66,7 @@ Observability:
     ServiceName: entry-api
     Exporter: otlphttp
     Endpoint: http://127.0.0.1:4318/v1/traces
-    SampleRatio: 1
+    SampleRatio: 0.1
 
 DtmServer: 127.0.0.1:36790
 ProductRpcTarget: 127.0.0.1:8080

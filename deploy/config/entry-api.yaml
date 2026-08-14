@@ -50,7 +50,7 @@ Observability:
     ServiceName: entry-api
     Exporter: otlphttp
     Endpoint: http://jaeger:4318/v1/traces
-    SampleRatio: 1
+    SampleRatio: 0.1
 
 DtmServer: dtm:36790
 ProductRpcTarget: product-rpc:8080

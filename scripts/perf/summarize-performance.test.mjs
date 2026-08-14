@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { performanceStagePassed, summarizePerformance } from './summarize-performance.mjs';
+import { parseByteSize, performanceStagePassed, summarizePerformance } from './summarize-performance.mjs';
+
+test('Docker memory units are normalized to bytes', () => {
+  assert.equal(parseByteSize('40.78MiB'), 40.78 * 1024 ** 2);
+  assert.equal(parseByteSize('1.5GB'), 1.5e9);
+  assert.equal(parseByteSize('invalid'), 0);
+});
 
 function result(kind, scenario, stage, rps, successRate, p95, options = {}) {
   return {
@@ -82,4 +88,26 @@ test('performance-only stage gate ignores pending external invariants', () => {
   report.invariants = { passed: false, violations: ['external_verification_required'] };
   report.p99_ms = 500;
   assert.equal(performanceStagePassed(report), true);
+});
+
+test('stability profile rejects sustained service memory growth', () => {
+  const summary = summarizePerformance({
+    results: [
+      result('baseline', 'read', 'baseline-read', 100, 1, 2),
+      result('load', 'read', 'load-read', 600, 1, 5),
+      result('stability', 'read', 'stability-read', 500, 1, 8),
+      result('recovery', 'payment-cycle', 'recovery-payment', 2, 1, 100),
+    ],
+    invariants: { passed: true, violations: [] }, metadata: {},
+    resources: {
+      'stability-mixed': {
+        containers: { jaeger: { memory_bytes: { delta: 200 * 1024 ** 2 } } },
+      },
+    },
+  });
+
+  assert.equal(summary.resource_gates.stability.observed, true);
+  assert.equal(summary.resource_gates.stability.passed, false);
+  assert.equal(summary.overall_passed, false);
+  assert.match(summary.violations.join(','), /jaeger memory grew/);
 });
