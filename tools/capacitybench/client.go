@@ -73,6 +73,23 @@ func (c *businessClient) login(ctx context.Context) error {
 	return nil
 }
 
+func (c *businessClient) authenticate(ctx context.Context) error {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if err := c.login(ctx); err != nil {
+			lastErr = err
+			continue
+		}
+		status, err := c.doJSON(ctx, http.MethodGet, "/api/orders?page=1&page_size=1", nil, true, nil)
+		if err == nil {
+			return nil
+		}
+		lastErr = fmt.Errorf("authentication preflight status=%d: %w", status, err)
+		time.Sleep(100 * time.Millisecond)
+	}
+	return lastErr
+}
+
 func (c *businessClient) execute(ctx context.Context, scenario string, sequence int64) sample {
 	startedAt := time.Now()
 	result := c.executeScenario(ctx, scenario, sequence)

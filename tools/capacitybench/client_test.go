@@ -72,6 +72,36 @@ func TestBusinessClientKeepsEnoughIdleConnectionsForBurstPacing(t *testing.T) {
 	}
 }
 
+func TestAuthenticateRetriesARejectedPreflight(t *testing.T) {
+	var loginCalls, preflightCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/auth/login":
+			loginCalls++
+			_, _ = w.Write([]byte(`{"access_token":"token","user_id":9}`))
+		case "/api/orders":
+			preflightCalls++
+			if preflightCalls == 1 {
+				http.Error(w, `{"code":"UNAUTHORIZED"}`, http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"items":[]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := newBusinessClient(server.URL, "13800000001", "password", 100)
+	if err := client.authenticate(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if loginCalls != 2 || preflightCalls != 2 {
+		t.Fatalf("login calls=%d preflight calls=%d", loginCalls, preflightCalls)
+	}
+}
+
 func TestReadMixUsesOnlyBoundedPublicRoutes(t *testing.T) {
 	var gotPath string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -86,7 +86,7 @@ func run(
 	client := newBusinessClient(target.String(), phone, password, productID)
 	ctx := context.Background()
 	if scenario != "read" {
-		if err := client.login(ctx); err != nil {
+		if err := client.authenticate(ctx); err != nil {
 			return err
 		}
 	}
