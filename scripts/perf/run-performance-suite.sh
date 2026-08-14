@@ -211,10 +211,10 @@ run_fixed_stage() {
 
 stage_failed() {
   [[ -s "$1" ]] || return 0
-  node -e '
-    const report = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).report;
-    process.exit(report.slo?.passed && (report.dropped ?? 0) === 0 ? 1 : 0);
-  ' "$1"
+  if node "$repo_root/scripts/perf/check-stage-performance.mjs" "$1"; then
+    return 1
+  fi
+  return 0
 }
 
 run_stress_ladder() {
@@ -345,6 +345,7 @@ if [[ "$suite" == "quick" ]]; then
   stability_duration=20s
   warmup=1s
   payment_requests=2
+  rabbit_recovery_requests=4
   idempotency_requests=5
   profile_seconds=5
   read_stress=(800 1200)
@@ -357,6 +358,7 @@ else
   stability_duration=300s
   warmup=10s
   payment_requests=8
+  rabbit_recovery_requests=12
   idempotency_requests=40
   profile_seconds=15
   read_stress=(800 1200 2000 3000)
@@ -418,7 +420,7 @@ fi
 
 docker pause rabbitmq >/dev/null
 rabbit_paused=1
-run_fixed_stage recovery payment-cycle 4 2 4 recovery-payment-rabbitmq-paused
+run_fixed_stage recovery payment-cycle "$rabbit_recovery_requests" 2 6 recovery-payment-rabbitmq-paused
 docker unpause rabbitmq >/dev/null
 rabbit_paused=0
 wait_outbox_drained || record_violation outbox_recovery_timeout

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { summarizePerformance } from './summarize-performance.mjs';
+import { performanceStagePassed, summarizePerformance } from './summarize-performance.mjs';
 
 function result(kind, scenario, stage, rps, successRate, p95, options = {}) {
   return {
@@ -75,4 +75,11 @@ test('failed stress stage reports dominant phase and CPU candidate', () => {
 
   assert.equal(summary.bottlenecks[0].dominant_step, 'create_order');
   assert.match(summary.bottlenecks[0].signals.join(','), /order-rpc CPU/);
+});
+
+test('performance-only stage gate ignores pending external invariants', () => {
+  const report = result('stress', 'order-cycle', 'stress-order', 25, 1, 300).report;
+  report.invariants = { passed: false, violations: ['external_verification_required'] };
+  report.p99_ms = 500;
+  assert.equal(performanceStagePassed(report), true);
 });

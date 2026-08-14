@@ -6,6 +6,7 @@ const files = {
   runner: resolve(root, 'scripts/perf/run-performance-suite.sh'),
   collector: resolve(root, 'scripts/perf/collect-stage-resources.sh'),
   summarizer: resolve(root, 'scripts/perf/summarize-performance.mjs'),
+  stageGate: resolve(root, 'scripts/perf/check-stage-performance.mjs'),
   tool: resolve(root, 'tools/capacitybench/main.go'),
   stats: resolve(root, 'tools/capacitybench/stats.go'),
   compose: resolve(root, 'deploy/docker-compose.yml'),

@@ -8,14 +8,18 @@ const targets = {
   idempotency: { successRate: 0.99, p95: 2000, p99: 4000 },
 };
 
-function stagePassed(report, invariants) {
+export function performanceStagePassed(report) {
   const target = targets[report.scenario];
   if (!target) return false;
   const attainment = report.target_rps > 0 ? report.qps / report.target_rps : 1;
   const minimumAttainment = report.target_rps <= 2 ? 0.85 : 0.95;
-  return invariants.passed && report.success_rate >= target.successRate &&
+  return report.success_rate >= target.successRate &&
     report.p95_ms <= target.p95 && report.p99_ms <= target.p99 &&
     (report.dropped ?? 0) === 0 && attainment >= minimumAttainment;
+}
+
+function stagePassed(report, invariants) {
+  return invariants.passed && performanceStagePassed(report);
 }
 
 function median(values) {
