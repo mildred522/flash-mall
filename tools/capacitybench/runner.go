@@ -27,7 +27,14 @@ func runLoad(ctx context.Context, executor scenarioExecutor, config loadConfig) 
 	if config.Concurrency <= 0 {
 		config.Concurrency = 1
 	}
-	jobs := make(chan int64, config.Concurrency*2)
+	queueSize := config.Concurrency * 2
+	if config.RPS > queueSize {
+		// Absorb short host/container scheduling pauses without turning timer jitter
+		// into a false server-side capacity failure. Sustained backlog still lowers
+		// achieved QPS because worker drain time remains part of the measurement.
+		queueSize = config.RPS
+	}
+	jobs := make(chan int64, queueSize)
 	var samples []sample
 	var samplesMu sync.Mutex
 	var workers sync.WaitGroup

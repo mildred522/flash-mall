@@ -227,9 +227,12 @@ run_stress_ladder() {
     run_stage stress "$scenario" "$rps" "$duration" "$warmup" "$concurrency" "$stage" || true
     if stage_failed "$output_dir/stages/$stage.json"; then
       failures=$((failures + 1))
-      [[ "$failures" -ge 2 ]] && break
+      if [[ "$failures" -ge 2 ]]; then
+        break
+      fi
     fi
   done
+  return 0
 }
 
 run_stability_mix() {

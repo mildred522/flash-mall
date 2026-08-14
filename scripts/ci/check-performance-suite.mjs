@@ -16,6 +16,9 @@ for (const [name, path] of Object.entries(files)) {
 }
 
 const runner = readFileSync(files.runner, 'utf8');
+if (/\]\][^\n]*&&\s*break/.test(runner)) {
+  throw new Error('stress ladder must not leak a false test status under set -e');
+}
 for (const [name, pattern] of [
   ['loopback mutation guard', /127\.0\.0\.1.*localhost|localhost.*127\.0\.0\.1/s],
   ['explicit mutation approval', /--allow-mutation/],
