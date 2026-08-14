@@ -1,5 +1,6 @@
 Name: hertz-gateway
 ListenOn: 0.0.0.0:8889
+PprofAddr: 0.0.0.0:6064
 DataSource: ${FLASH_MALL_PRODUCT_DATASOURCE}
 OrderDataSource: ${FLASH_MALL_ORDER_DATASOURCE}
 AuthDataSource: ${FLASH_MALL_AUTH_DATASOURCE}

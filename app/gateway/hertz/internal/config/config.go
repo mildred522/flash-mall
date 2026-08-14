@@ -14,6 +14,7 @@ import (
 type Config struct {
 	Name                                    string
 	ListenOn                                string
+	PprofAddr                               string `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 	DataSource                              string
 	OrderDataSource                         string
 	AuthDataSource                          string

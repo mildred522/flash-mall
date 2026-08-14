@@ -17,6 +17,8 @@ type capacityResult struct {
 	RecordedAt    string         `json:"recorded_at"`
 	BaseURL       string         `json:"base_url"`
 	GoVersion     string         `json:"go_version"`
+	TestKind      string         `json:"test_kind,omitempty"`
+	Stage         string         `json:"stage,omitempty"`
 	Report        scenarioReport `json:"report"`
 }
 
@@ -32,12 +34,15 @@ func main() {
 	password := flag.String("password", envOr("FLASH_MALL_CAPACITY_PASSWORD", "flashmall123"), "demo user password")
 	productID := flag.Int64("product", 100, "capacity fixture product ID")
 	output := flag.String("out", "", "optional JSON report path")
+	testKind := flag.String("test-kind", "", "suite category: baseline, load, stress, stability, or recovery")
+	stage := flag.String("stage", "", "stable stage identifier for resource correlation")
 	allowMutation := flag.Bool("allow-mutation", false, "allow local write scenarios")
+	allowCompose := flag.Bool("allow-compose-target", false, "allow the fixed hertz-gateway:8889 Compose target")
 	enforceSLO := flag.Bool("enforce-slo", false, "exit non-zero when the scenario SLO fails")
 	flag.Parse()
 
 	err := run(*baseURL, *scenario, *requests, *duration, *warmup, *rps, *concurrency,
-		*phone, *password, *productID, *output, *allowMutation, *enforceSLO)
+		*phone, *password, *productID, *output, *testKind, *stage, *allowMutation, *allowCompose, *enforceSLO)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -56,14 +61,17 @@ func run(
 	password string,
 	productID int64,
 	output string,
+	testKind string,
+	stage string,
 	allowMutation bool,
+	allowCompose bool,
 	enforceSLO bool,
 ) error {
 	target, err := url.Parse(strings.TrimRight(baseURL, "/"))
 	if err != nil {
 		return err
 	}
-	if err := validateTarget(target, scenario, allowMutation); err != nil {
+	if err := validateTarget(target, scenario, allowMutation, allowCompose); err != nil {
 		return err
 	}
 	switch scenario {
@@ -92,7 +100,8 @@ func run(
 	})
 	result := capacityResult{
 		SchemaVersion: 1, RecordedAt: time.Now().Format(time.RFC3339),
-		BaseURL: target.String(), GoVersion: runtime.Version(), Report: report,
+		BaseURL: target.String(), GoVersion: runtime.Version(), TestKind: testKind,
+		Stage: stage, Report: report,
 	}
 	payload, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {

@@ -61,21 +61,36 @@ func runLoad(ctx context.Context, executor scenarioExecutor, config loadConfig) 
 		}
 		deadline := time.NewTimer(duration)
 		if config.RPS > 0 {
-			ticker := time.NewTicker(time.Second / time.Duration(config.RPS))
+			const pacingResolution = time.Millisecond
+			ticker := time.NewTicker(pacingResolution)
 			defer ticker.Stop()
+			measurementStarted := time.Now()
+			var scheduled int64
+			dispatch := func(elapsed time.Duration) {
+				expected := int64(float64(config.RPS) * elapsed.Seconds())
+				maximum := int64(float64(config.RPS) * duration.Seconds())
+				if expected > maximum {
+					expected = maximum
+				}
+				for scheduled < expected {
+					scheduled++
+					select {
+					case jobs <- sequence.Add(1) - 1:
+					default:
+						dropped.Add(1)
+					}
+				}
+			}
 		scheduleOpen:
 			for {
 				select {
 				case <-ctx.Done():
 					break scheduleOpen
 				case <-deadline.C:
+					dispatch(duration)
 					break scheduleOpen
 				case <-ticker.C:
-					select {
-					case jobs <- sequence.Add(1) - 1:
-					default:
-						dropped.Add(1)
-					}
+					dispatch(time.Since(measurementStarted))
 				}
 			}
 		} else {
@@ -107,7 +122,7 @@ func runLoad(ctx context.Context, executor scenarioExecutor, config loadConfig) 
 	return report
 }
 
-func validateTarget(target *url.URL, scenario string, allowMutation bool) error {
+func validateTarget(target *url.URL, scenario string, allowMutation bool, allowCompose bool) error {
 	if target == nil || target.Scheme == "" || target.Hostname() == "" {
 		return fmt.Errorf("base URL must include scheme and host")
 	}
@@ -118,6 +133,9 @@ func validateTarget(target *url.URL, scenario string, allowMutation bool) error 
 		return fmt.Errorf("scenario %s requires -allow-mutation", scenario)
 	}
 	host := strings.TrimSpace(target.Hostname())
+	if allowCompose && target.Scheme == "http" && host == "hertz-gateway" && target.Port() == "8889" {
+		return nil
+	}
 	if !strings.EqualFold(host, "localhost") {
 		ip := net.ParseIP(host)
 		if ip == nil || !ip.IsLoopback() {

@@ -53,11 +53,22 @@ func TestOrderCycleUsesAuthenticatedCreateAndCancel(t *testing.T) {
 	if result.Err != nil || result.StatusCode != http.StatusOK {
 		t.Fatalf("result=%+v", result)
 	}
+	if result.Operation != "order_cycle" || result.Steps["create_order"] <= 0 || result.Steps["cancel_order"] <= 0 {
+		t.Fatalf("missing order phase timings: %+v", result)
+	}
 
 	mu.Lock()
 	defer mu.Unlock()
 	if strings.Join(paths, ",") != "/api/auth/login,/api/order/create,/api/order/cancel" {
 		t.Fatalf("paths=%v", paths)
+	}
+}
+
+func TestBusinessClientKeepsEnoughIdleConnectionsForBurstPacing(t *testing.T) {
+	client := newBusinessClient("http://127.0.0.1:8889", "", "", 100)
+	transport, ok := client.http.Transport.(*http.Transport)
+	if !ok || transport.MaxIdleConnsPerHost < 100 || transport.MaxIdleConns < 100 {
+		t.Fatalf("transport is not sized for load traffic: %#v", client.http.Transport)
 	}
 }
 
@@ -76,8 +87,41 @@ func TestReadMixUsesOnlyBoundedPublicRoutes(t *testing.T) {
 		9: "/api/shop/stores/detail",
 	} {
 		result := client.execute(t.Context(), "read", sequence)
-		if result.Err != nil || gotPath != want {
+		if result.Err != nil || gotPath != want || result.Operation == "" {
 			t.Fatalf("sequence=%d path=%q want=%q err=%v", sequence, gotPath, want, result.Err)
+		}
+	}
+}
+
+func TestPaymentCycleReportsAllPhaseTimings(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/auth/login":
+			_, _ = w.Write([]byte(`{"access_token":"token","user_id":9}`))
+		case "/api/order/create":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1","status":0}}`))
+		case "/api/order/pay":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1","payment_order_id":"pay-1","qr_url":"http://127.0.0.1/pay?token=abc","status":"pending"}}`))
+		case "/api/payment/sandbox/confirm":
+			_, _ = w.Write([]byte(`{"data":{"status":"paid"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := newBusinessClient(server.URL, "13800000001", "password", 100)
+	if err := client.login(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(t.Context(), "payment-cycle", 1)
+	if result.Err != nil || result.Operation != "payment_cycle" {
+		t.Fatalf("result=%+v", result)
+	}
+	for _, phase := range []string{"create_order", "create_payment", "confirm_payment"} {
+		if result.Steps[phase] <= 0 {
+			t.Fatalf("missing %s timing: %+v", phase, result.Steps)
 		}
 	}
 }

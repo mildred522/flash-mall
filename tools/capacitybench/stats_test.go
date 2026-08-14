@@ -8,10 +8,10 @@ import (
 
 func TestSummarizeScenarioReportsTailLatencyAndFailures(t *testing.T) {
 	samples := []sample{
-		{Duration: 10 * time.Millisecond, StatusCode: 200},
-		{Duration: 20 * time.Millisecond, StatusCode: 200},
-		{Duration: 30 * time.Millisecond, StatusCode: 409, Err: errors.New("conflict")},
-		{Duration: 40 * time.Millisecond, Err: errors.New("timeout")},
+		{Duration: 10 * time.Millisecond, StatusCode: 200, Operation: "catalog", Steps: map[string]time.Duration{"fetch": 8 * time.Millisecond}},
+		{Duration: 20 * time.Millisecond, StatusCode: 200, Operation: "catalog", Steps: map[string]time.Duration{"fetch": 18 * time.Millisecond}},
+		{Duration: 30 * time.Millisecond, StatusCode: 409, Err: errors.New("conflict"), Operation: "detail", Steps: map[string]time.Duration{"fetch": 28 * time.Millisecond}},
+		{Duration: 40 * time.Millisecond, Err: errors.New("timeout"), Operation: "detail", Steps: map[string]time.Duration{"fetch": 38 * time.Millisecond}},
 	}
 
 	got := summarizeSamples("order-cycle", samples, 2*time.Second, 0)
@@ -29,6 +29,12 @@ func TestSummarizeScenarioReportsTailLatencyAndFailures(t *testing.T) {
 	}
 	if len(got.ErrorSamples) != 2 || got.ErrorSamples[0] != "conflict" || got.ErrorSamples[1] != "timeout" {
 		t.Fatalf("error samples=%v", got.ErrorSamples)
+	}
+	if got.Operations["catalog"].Samples != 2 || got.Operations["catalog"].P95MS != 20 {
+		t.Fatalf("operation summaries=%+v", got.Operations)
+	}
+	if got.Steps["fetch"].Samples != 4 || got.Steps["fetch"].P95MS != 38 {
+		t.Fatalf("step summaries=%+v", got.Steps)
 	}
 }
 

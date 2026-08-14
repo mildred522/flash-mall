@@ -194,6 +194,11 @@ jobs:
         run: |
           node --test scripts/perf/summarize-capacity.test.mjs
           node scripts/ci/check-capacity-profile.mjs
+      - name: Check complete performance suite
+        run: |
+          bash -n scripts/perf/run-performance-suite.sh scripts/perf/collect-stage-resources.sh
+          node --test scripts/perf/summarize-performance.test.mjs
+          node scripts/ci/check-performance-suite.mjs
       - name: Check release readiness
         run: |
           node --test scripts/local/verify-release-readiness.test.mjs

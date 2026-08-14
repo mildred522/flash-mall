@@ -27,6 +27,7 @@ func main() {
 		panic(err)
 	}
 	defer func() { _ = shutdownTracing(context.Background()) }()
+	observability.StartDiagnostics("", c.PprofAddr)
 
 	svcCtx := svc.NewServiceContext(c)
 	defer svcCtx.Close()

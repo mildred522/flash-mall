@@ -48,10 +48,13 @@ type paymentResponse struct {
 }
 
 func newBusinessClient(baseURL, phone, password string, productID int64) *businessClient {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.MaxIdleConns = 512
+	transport.MaxIdleConnsPerHost = 512
 	return &businessClient{
 		baseURL: strings.TrimRight(baseURL, "/"), phone: phone, password: password,
 		productID: productID, runID: fmt.Sprintf("%d", time.Now().UnixNano()),
-		http: &http.Client{Timeout: 8 * time.Second},
+		http: &http.Client{Timeout: 8 * time.Second, Transport: transport},
 	}
 }
 
@@ -72,11 +75,12 @@ func (c *businessClient) login(ctx context.Context) error {
 
 func (c *businessClient) execute(ctx context.Context, scenario string, sequence int64) sample {
 	startedAt := time.Now()
-	status, err := c.executeScenario(ctx, scenario, sequence)
-	return sample{Duration: time.Since(startedAt), StatusCode: status, Err: err}
+	result := c.executeScenario(ctx, scenario, sequence)
+	result.Duration = time.Since(startedAt)
+	return result
 }
 
-func (c *businessClient) executeScenario(ctx context.Context, scenario string, sequence int64) (int, error) {
+func (c *businessClient) executeScenario(ctx context.Context, scenario string, sequence int64) sample {
 	switch scenario {
 	case "read":
 		return c.read(ctx, sequence)
@@ -85,57 +89,88 @@ func (c *businessClient) executeScenario(ctx context.Context, scenario string, s
 	case "payment-cycle":
 		return c.paymentCycle(ctx, sequence)
 	case "idempotency":
-		return c.createOrder(ctx, "capacity-"+c.runID+"-idempotency")
+		steps := map[string]time.Duration{}
+		status, err := measureStep(steps, "create_order", func() (int, error) {
+			return c.createOrder(ctx, "capacity-"+c.runID+"-idempotency")
+		})
+		return sample{StatusCode: status, Err: err, Operation: "idempotency_replay", Steps: steps}
 	default:
-		return 0, fmt.Errorf("unsupported scenario %q", scenario)
+		return sample{Err: fmt.Errorf("unsupported scenario %q", scenario)}
 	}
 }
 
-func (c *businessClient) read(ctx context.Context, sequence int64) (int, error) {
+func (c *businessClient) read(ctx context.Context, sequence int64) sample {
+	steps := map[string]time.Duration{}
+	operation := "catalog"
+	path := "/api/shop/catalog"
 	switch sequence % 10 {
 	case 7, 8:
-		return c.doJSON(ctx, http.MethodGet,
-			fmt.Sprintf("/api/shop/products/detail?product_id=%d", c.productID), nil, false, nil)
+		operation = "product_detail"
+		path = fmt.Sprintf("/api/shop/products/detail?product_id=%d", c.productID)
 	case 9:
-		return c.doJSON(ctx, http.MethodGet, "/api/shop/stores/detail?merchant_id=1101", nil, false, nil)
-	default:
-		return c.doJSON(ctx, http.MethodGet, "/api/shop/catalog", nil, false, nil)
+		operation = "store_detail"
+		path = "/api/shop/stores/detail?merchant_id=1101"
 	}
+	status, err := measureStep(steps, "read_"+operation, func() (int, error) {
+		return c.doJSON(ctx, http.MethodGet, path, nil, false, nil)
+	})
+	return sample{StatusCode: status, Err: err, Operation: operation, Steps: steps}
 }
 
-func (c *businessClient) orderCycle(ctx context.Context, sequence int64) (int, error) {
+func (c *businessClient) orderCycle(ctx context.Context, sequence int64) sample {
 	sequence = c.sequence.Add(1) - 1
 	requestID := fmt.Sprintf("capacity-%s-order-%d", c.runID, sequence)
+	steps := map[string]time.Duration{}
 	var created orderResponse
-	status, err := c.createOrderInto(ctx, requestID, &created)
+	status, err := measureStep(steps, "create_order", func() (int, error) {
+		return c.createOrderInto(ctx, requestID, &created)
+	})
 	if err != nil {
-		return status, err
+		return sample{StatusCode: status, Err: err, Operation: "order_cycle", Steps: steps}
 	}
-	return c.doJSON(ctx, http.MethodPost, "/api/order/cancel", map[string]any{
-		"order_id": created.OrderID, "reason": "capacity lifecycle cleanup",
-	}, true, nil)
+	status, err = measureStep(steps, "cancel_order", func() (int, error) {
+		return c.doJSON(ctx, http.MethodPost, "/api/order/cancel", map[string]any{
+			"order_id": created.OrderID, "reason": "capacity lifecycle cleanup",
+		}, true, nil)
+	})
+	return sample{StatusCode: status, Err: err, Operation: "order_cycle", Steps: steps}
 }
 
-func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) (int, error) {
+func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) sample {
 	sequence = c.sequence.Add(1) - 1
 	requestID := fmt.Sprintf("capacity-%s-payment-%d", c.runID, sequence)
+	steps := map[string]time.Duration{}
 	var created orderResponse
-	status, err := c.createOrderInto(ctx, requestID, &created)
+	status, err := measureStep(steps, "create_order", func() (int, error) {
+		return c.createOrderInto(ctx, requestID, &created)
+	})
 	if err != nil {
-		return status, err
+		return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
 	}
 	var payment paymentResponse
-	status, err = c.doJSON(ctx, http.MethodPost, "/api/order/pay",
-		map[string]any{"order_id": created.OrderID}, true, &payment)
+	status, err = measureStep(steps, "create_payment", func() (int, error) {
+		return c.doJSON(ctx, http.MethodPost, "/api/order/pay",
+			map[string]any{"order_id": created.OrderID}, true, &payment)
+	})
 	if err != nil {
-		return status, err
+		return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
 	}
 	parsed, err := url.Parse(payment.QRURL)
 	if err != nil || parsed.Query().Get("token") == "" {
-		return status, fmt.Errorf("payment QR URL has no token")
+		return sample{StatusCode: status, Err: fmt.Errorf("payment QR URL has no token"), Operation: "payment_cycle", Steps: steps}
 	}
-	return c.doJSON(ctx, http.MethodPost, "/api/payment/sandbox/confirm",
-		map[string]any{"token": parsed.Query().Get("token")}, false, nil)
+	status, err = measureStep(steps, "confirm_payment", func() (int, error) {
+		return c.doJSON(ctx, http.MethodPost, "/api/payment/sandbox/confirm",
+			map[string]any{"token": parsed.Query().Get("token")}, false, nil)
+	})
+	return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
+}
+
+func measureStep(steps map[string]time.Duration, name string, call func() (int, error)) (int, error) {
+	startedAt := time.Now()
+	status, err := call()
+	steps[name] = time.Since(startedAt)
+	return status, err
 }
 
 func (c *businessClient) createOrder(ctx context.Context, requestID string) (int, error) {

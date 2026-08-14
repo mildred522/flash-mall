@@ -11,6 +11,8 @@ type sample struct {
 	Duration   time.Duration
 	StatusCode int
 	Err        error
+	Operation  string
+	Steps      map[string]time.Duration
 }
 
 type invariantReport struct {
@@ -19,25 +21,35 @@ type invariantReport struct {
 }
 
 type scenarioReport struct {
-	Scenario     string          `json:"scenario"`
-	RPS          int             `json:"target_rps"`
-	Concurrency  int             `json:"concurrency"`
-	DurationSec  float64         `json:"duration_seconds"`
-	Attempts     int             `json:"attempts"`
-	Success      int             `json:"success"`
-	Failed       int             `json:"failed"`
-	Dropped      int             `json:"dropped"`
-	SuccessRate  float64         `json:"success_rate"`
-	QPS          float64         `json:"qps"`
-	P50MS        float64         `json:"p50_ms"`
-	P95MS        float64         `json:"p95_ms"`
-	P99MS        float64         `json:"p99_ms"`
-	MaxMS        float64         `json:"max_ms"`
-	StatusCodes  map[string]int  `json:"status_codes"`
-	Errors       map[string]int  `json:"errors"`
-	ErrorSamples []string        `json:"error_samples,omitempty"`
-	Invariants   invariantReport `json:"invariants"`
-	SLO          sloResult       `json:"slo"`
+	Scenario     string                    `json:"scenario"`
+	RPS          int                       `json:"target_rps"`
+	Concurrency  int                       `json:"concurrency"`
+	DurationSec  float64                   `json:"duration_seconds"`
+	Attempts     int                       `json:"attempts"`
+	Success      int                       `json:"success"`
+	Failed       int                       `json:"failed"`
+	Dropped      int                       `json:"dropped"`
+	SuccessRate  float64                   `json:"success_rate"`
+	QPS          float64                   `json:"qps"`
+	P50MS        float64                   `json:"p50_ms"`
+	P95MS        float64                   `json:"p95_ms"`
+	P99MS        float64                   `json:"p99_ms"`
+	MaxMS        float64                   `json:"max_ms"`
+	StatusCodes  map[string]int            `json:"status_codes"`
+	Errors       map[string]int            `json:"errors"`
+	ErrorSamples []string                  `json:"error_samples,omitempty"`
+	Operations   map[string]latencySummary `json:"operations,omitempty"`
+	Steps        map[string]latencySummary `json:"steps,omitempty"`
+	Invariants   invariantReport           `json:"invariants"`
+	SLO          sloResult                 `json:"slo"`
+}
+
+type latencySummary struct {
+	Samples int     `json:"samples"`
+	P50MS   float64 `json:"p50_ms"`
+	P95MS   float64 `json:"p95_ms"`
+	P99MS   float64 `json:"p99_ms"`
+	MaxMS   float64 `json:"max_ms"`
 }
 
 type sloTarget struct {
@@ -55,17 +67,27 @@ func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, 
 	report := scenarioReport{
 		Scenario: scenario, Dropped: dropped, Attempts: len(samples) + dropped,
 		StatusCodes: map[string]int{}, Errors: map[string]int{},
+		Operations: map[string]latencySummary{}, Steps: map[string]latencySummary{},
 		Invariants: invariantReport{Passed: scenario == "read"},
 	}
 	if scenario != "read" {
 		report.Invariants.Violations = []string{"external_verification_required"}
 	}
 	latencies := make([]float64, 0, len(samples))
+	operationLatencies := map[string][]float64{}
+	stepLatencies := map[string][]float64{}
 	for _, item := range samples {
 		if item.StatusCode > 0 {
 			report.StatusCodes[strconv.Itoa(item.StatusCode)]++
 		}
-		latencies = append(latencies, float64(item.Duration.Microseconds())/1000)
+		latencyMS := durationMilliseconds(item.Duration)
+		latencies = append(latencies, latencyMS)
+		if item.Operation != "" {
+			operationLatencies[item.Operation] = append(operationLatencies[item.Operation], latencyMS)
+		}
+		for name, duration := range item.Steps {
+			stepLatencies[name] = append(stepLatencies[name], durationMilliseconds(duration))
+		}
 		if item.Err == nil && item.StatusCode >= 200 && item.StatusCode < 300 {
 			report.Success++
 			continue
@@ -90,12 +112,34 @@ func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, 
 	}
 	sort.Float64s(latencies)
 	if len(latencies) > 0 {
-		report.P50MS = percentile(latencies, 0.50)
-		report.P95MS = percentile(latencies, 0.95)
-		report.P99MS = percentile(latencies, 0.99)
-		report.MaxMS = latencies[len(latencies)-1]
+		summary := summarizeLatencies(latencies)
+		report.P50MS = summary.P50MS
+		report.P95MS = summary.P95MS
+		report.P99MS = summary.P99MS
+		report.MaxMS = summary.MaxMS
+	}
+	for name, values := range operationLatencies {
+		report.Operations[name] = summarizeLatencies(values)
+	}
+	for name, values := range stepLatencies {
+		report.Steps[name] = summarizeLatencies(values)
 	}
 	return report
+}
+
+func durationMilliseconds(value time.Duration) float64 {
+	return float64(value.Microseconds()) / 1000
+}
+
+func summarizeLatencies(values []float64) latencySummary {
+	sort.Float64s(values)
+	return latencySummary{
+		Samples: len(values),
+		P50MS:   percentile(values, 0.50),
+		P95MS:   percentile(values, 0.95),
+		P99MS:   percentile(values, 0.99),
+		MaxMS:   values[len(values)-1],
+	}
 }
 
 func percentile(sorted []float64, p float64) float64 {

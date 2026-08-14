@@ -27,6 +27,7 @@ import (
 const (
 	defaultListenOn                   = "0.0.0.0:8093"
 	defaultMetricsListenOn            = "0.0.0.0:9093"
+	defaultPprofListenOn              = "0.0.0.0:6063"
 	defaultStockShardCount            = 4
 	defaultRecoveryInterval           = time.Minute
 	defaultRecoveryBatchSize          = 100
@@ -56,6 +57,7 @@ func main() {
 	registry := prometheus.NewRegistry()
 	metrics := newInventoryMetrics(registry)
 	startMetricsServer(envOrDefault("INVENTORY_METRICS_LISTEN_ON", defaultMetricsListenOn), registry)
+	observability.StartDiagnostics("", envOrDefault("INVENTORY_PPROF_LISTEN_ON", defaultPprofListenOn))
 	log.Printf("inventory-kitex starting: listen_on=%s shard_count=%d final_deduct_enabled=%t", listenOn, shardCount, finalDeductEnabled)
 	runtimeState := runtimeStateFromEnvironment(shardCount, finalDeductEnabled)
 	inventoryService := service.New(newRepository(shardCount, finalDeductEnabled, runtimeState.ReservationLedgerMode), shardCount).

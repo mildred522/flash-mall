@@ -283,6 +283,7 @@ services:
     environment:
       INVENTORY_LISTEN_ON: 0.0.0.0:8093
       INVENTORY_METRICS_LISTEN_ON: 0.0.0.0:9093
+      INVENTORY_PPROF_LISTEN_ON: 0.0.0.0:6063
       INVENTORY_REDIS_HOST: redis:6379
       INVENTORY_DATASOURCE: "root:${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}@tcp(mysql:3306)/mall_product?charset=utf8mb4&parseTime=true&loc=Asia%2FShanghai"
       INVENTORY_STOCK_SHARD_COUNT: 4
@@ -299,6 +300,7 @@ services:
     ports:
       - "8093:8093"
       - "9093:9093"
+      - "127.0.0.1:6063:6063"
     depends_on:
       mysql-init:
         condition: service_completed_successfully
@@ -367,6 +369,7 @@ services:
     command: ["-f", "/etc/flash-mall/gateway.yaml"]
     ports:
       - "8889:8889"
+      - "127.0.0.1:6064:6064"
     depends_on:
       product-rpc:
         condition: service_started
