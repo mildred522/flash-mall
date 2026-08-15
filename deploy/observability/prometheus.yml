@@ -22,3 +22,7 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["inventory-kitex:9093"]
+  - job_name: dtm
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["dtm:36789"]

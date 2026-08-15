@@ -4,13 +4,14 @@ import { resolve } from 'node:path';
 const root = resolve(import.meta.dirname, '../..');
 const bundles = {
   'schema.sql': [
-  'scripts/k8s/sql/00-bootstrap.sql',
-  'scripts/k8s/sql/10-order.sql',
-  'scripts/k8s/sql/11-payment-provider-migrations.sql',
-  'scripts/k8s/sql/20-product-schema.sql',
-  'scripts/k8s/sql/22-data-repair.sql',
-  'scripts/k8s/sql/30-auth-schema.sql',
-  'scripts/k8s/sql/31-auth-migrations.sql',
+    'scripts/k8s/sql/00-bootstrap.sql',
+    'scripts/k8s/sql/05-dtm.sql',
+    'scripts/k8s/sql/10-order.sql',
+    'scripts/k8s/sql/11-payment-provider-migrations.sql',
+    'scripts/k8s/sql/20-product-schema.sql',
+    'scripts/k8s/sql/22-data-repair.sql',
+    'scripts/k8s/sql/30-auth-schema.sql',
+    'scripts/k8s/sql/31-auth-migrations.sql',
   ],
   'demo-seed.sql': [
     'scripts/k8s/sql/40-demo-order.sql',

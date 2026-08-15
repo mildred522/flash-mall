@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-15T01:16:00Z",
+  "environment": "Ubuntu WSL Docker Engine on a shared Windows development host",
+  "cpu_count": 4,
+  "memory_gib": 7.76,
+  "fixture": "20260730_demo_fixture_v1",
+  "dtm_version": "v1.19.0",
+  "dtm_store": "mysql",
+  "source_parent_commit": "06b20a4f7af7ef278c99bc5eef27fa66e8b9f114",
+  "suite": "full",
+  "overall_passed": true,
+  "correctness_invariants_passed": true,
+  "capacity": {
+    "order_cycle_last_passed_rps": 60,
+    "order_cycle_first_failed_rps": null,
+    "read_last_passed_rps": 3000,
+    "read_first_failed_rps": null
+  },
+  "order_stress": [
+    {
+      "target_rps": 15,
+      "completed": 675,
+      "dropped": 0,
+      "completed_qps": 14.9628,
+      "success_rate": 1,
+      "create_p95_ms": 102.905,
+      "cancel_p95_ms": 63.709,
+      "cycle_p95_ms": 160.755
+    },
+    {
+      "target_rps": 25,
+      "completed": 1125,
+      "dropped": 0,
+      "completed_qps": 24.9356,
+      "success_rate": 1,
+      "create_p95_ms": 101.187,
+      "cancel_p95_ms": 63.516,
+      "cycle_p95_ms": 160.202
+    },
+    {
+      "target_rps": 40,
+      "completed": 1800,
+      "dropped": 0,
+      "completed_qps": 39.9049,
+      "success_rate": 1,
+      "create_p95_ms": 104.389,
+      "cancel_p95_ms": 64.157,
+      "cycle_p95_ms": 163.16
+    },
+    {
+      "target_rps": 60,
+      "completed": 2700,
+      "dropped": 0,
+      "completed_qps": 59.8196,
+      "success_rate": 1,
+      "create_p95_ms": 114.066,
+      "cancel_p95_ms": 68.668,
+      "cycle_p95_ms": 177.597
+    }
+  ],
+  "read_stress_3000_rps": {
+    "completed": 135000,
+    "dropped": 0,
+    "completed_qps": 2999.96,
+    "success_rate": 1,
+    "p95_ms": 0.471,
+    "p99_ms": 0.991
+  },
+  "order_stage_p95_ms_at_60_rps": {
+    "dtm_new_gid": 2.393,
+    "dtm_saga_submit": 165.559,
+    "order_result_query": 2.394
+  },
+  "mysql_at_60_rps": {
+    "threads_connected_min": 24,
+    "threads_connected_max": 36,
+    "threads_running_min": 1,
+    "threads_running_max": 11,
+    "row_lock_current_waits_max": 0,
+    "slow_queries": 0,
+    "cpu_average_percent": 42.78,
+    "cpu_peak_percent": 47.84
+  },
+  "source_artifacts": {
+    "report": ".runtime/performance/mysql-dtm-full-20260815/report.md",
+    "summary": ".runtime/performance/mysql-dtm-full-20260815/summary.json",
+    "stages": ".runtime/performance/mysql-dtm-full-20260815/stages/",
+    "profiles": ".runtime/performance/mysql-dtm-full-20260815/profiles/"
+  }
+}

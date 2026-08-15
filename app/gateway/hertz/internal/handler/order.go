@@ -67,7 +67,9 @@ func CreateOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 			return
 		}
 
+		queryStarted := time.Now()
 		resp, err := loadCreateOrderRespByOrderID(ctx, svcCtx, orderID, req.UserID)
+		recordOrderStage(orderStageQuery, queryStarted, err)
 		if err != nil {
 			fail(ctx, c, createOrderStatusCode(err), err)
 			return
@@ -112,7 +114,10 @@ func PayOrderHandler(svcCtx *svc.ServiceContext) app.HandlerFunc {
 }
 
 func submitCreateOrderSaga(svcCtx *svc.ServiceContext, req CreateOrderReq, orderID string) error {
-	gid := dtmgrpc.MustGenGid(svcCtx.Config.DtmServer)
+	gid, err := generateDtmGID(svcCtx.Config.DtmServer)
+	if err != nil {
+		return status.Error(codes.Unavailable, "order system busy")
+	}
 	saga := dtmgrpc.NewSagaGrpc(svcCtx.Config.DtmServer, gid)
 	saga.WaitResult = true
 	if svcCtx.Config.DtmTimeoutToFailSeconds > 0 {
@@ -139,10 +144,24 @@ func submitCreateOrderSaga(svcCtx *svc.ServiceContext, req CreateOrderReq, order
 		Amount:           req.Amount,
 		ExpectedPriceFen: req.ExpectedPriceFen,
 	})
+	started := time.Now()
 	if err := saga.Submit(); err != nil {
+		recordOrderStage(orderStageSagaSubmit, started, err)
 		return status.Error(codes.Unavailable, "order system busy")
 	}
+	recordOrderStage(orderStageSagaSubmit, started, nil)
 	return nil
+}
+
+func generateDtmGID(server string) (gid string, err error) {
+	started := time.Now()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("generate dtm gid: %v", recovered)
+		}
+		recordOrderStage(orderStageGID, started, err)
+	}()
+	return dtmgrpc.MustGenGid(server), nil
 }
 
 type userPaymentOrder = orderquery.PaymentOrder
