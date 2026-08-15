@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"flash-mall/app/common/mysqlguard"
+	commonobs "flash-mall/app/common/observability"
 	"flash-mall/app/gateway/hertz/internal/adapters/authmysql"
 	"flash-mall/app/gateway/hertz/internal/adapters/inventorykitex"
 	"flash-mall/app/gateway/hertz/internal/adapters/ordermysql"
@@ -34,6 +35,7 @@ import (
 	orderclient "flash-mall/app/order/rpc/orderclient"
 	productclient "flash-mall/app/product/rpc/productclient"
 
+	"github.com/prometheus/client_golang/prometheus"
 	redis "github.com/redis/go-redis/v9"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -95,6 +97,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if orderDB, err := svcCtx.OrderSqlConn.RawDB(); err != nil {
 		logx.Errorf("hertz order query adapter init failed: %v", err)
 	} else {
+		configureDatabasePool("order", orderDB, c.DatabasePool)
 		mustVerifyMySQLSession("hertz order", orderDB)
 		repository := ordermysql.NewQueryRepository(orderDB)
 		svcCtx.AdminOps = adminops.NewService(ordermysql.NewAdminOpsRepository(orderDB))
@@ -108,6 +111,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if authDB, err := svcCtx.AuthSqlConn.RawDB(); err != nil {
 		logx.Errorf("hertz auth adapters init failed: %v", err)
 	} else {
+		configureDatabasePool("auth", authDB, c.DatabasePool)
 		mustVerifyMySQLSession("hertz auth", authDB)
 		svcCtx.UserAddresses = useraddress.NewService(authmysql.NewUserAddressRepository(authDB))
 	}
@@ -123,6 +127,7 @@ func NewServiceContext(c config.Config) *ServiceContext {
 	if err != nil {
 		logx.Errorf("hertz product adapters init failed: %v", err)
 	} else {
+		configureDatabasePool("product", productDB, c.DatabasePool)
 		mustVerifyMySQLSession("hertz product", productDB)
 		svcCtx.ProductInventory = productmysql.NewInventoryInitializer(productDB, svcCtx.InventoryRpc)
 		svcCtx.Campaigns = campaign.NewService(productmysql.NewCampaignRepository(productDB))
@@ -176,6 +181,21 @@ func mustVerifyMySQLSession(name string, db *sql.DB) {
 	ctx, cancel := context.WithTimeout(context.Background(), mysqlSessionGuardTimeout)
 	defer cancel()
 	mysqlguard.MustSessionUTF8MB4(ctx, name, db)
+}
+
+func configureDatabasePool(pool string, db *sql.DB, cfg commonobs.DatabasePoolConfig) {
+	normalized := commonobs.ConfigureDatabasePool(db, cfg)
+	if err := commonobs.RegisterDatabaseStats(prometheus.DefaultRegisterer, pool, db); err != nil {
+		logx.Must(err)
+	}
+	logx.Infof(
+		"hertz database pool configured: pool=%s max_open=%d max_idle=%d lifetime_seconds=%d idle_time_seconds=%d",
+		pool,
+		normalized.MaxOpenConns,
+		normalized.MaxIdleConns,
+		normalized.ConnMaxLifetimeSeconds,
+		normalized.ConnMaxIdleTimeSeconds,
+	)
 }
 
 func (s *ServiceContext) Close() {

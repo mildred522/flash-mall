@@ -5,7 +5,9 @@ import (
 	"database/sql"
 
 	"flash-mall/app/common/mysqlguard"
+	commonobs "flash-mall/app/common/observability"
 	"flash-mall/app/product/rpc/internal/config"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
 )
@@ -18,6 +20,21 @@ type ServiceContext struct {
 func NewServiceContext(c config.Config) *ServiceContext {
 	mysqlguard.MustUTF8MB4("product", c.DataSource)
 	sqlConn := sqlx.NewMysql(c.DataSource)
+	db, err := sqlConn.RawDB()
+	if err != nil {
+		logx.Must(err)
+	}
+	pool := commonobs.ConfigureDatabasePool(db, c.DatabasePool)
+	if err := commonobs.RegisterDatabaseStats(prometheus.DefaultRegisterer, "product", db); err != nil {
+		logx.Must(err)
+	}
+	logx.Infof(
+		"product database pool configured: max_open=%d max_idle=%d lifetime_seconds=%d idle_time_seconds=%d",
+		pool.MaxOpenConns,
+		pool.MaxIdleConns,
+		pool.ConnMaxLifetimeSeconds,
+		pool.ConnMaxIdleTimeSeconds,
+	)
 	if !c.DisableStockRepair {
 		go repairProductStockState(context.Background(), sqlConn, c.StockBucketCount)
 	}

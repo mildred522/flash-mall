@@ -55,6 +55,12 @@ Observability:
     Endpoint: http://jaeger:4318/v1/traces
     SampleRatio: 0.1
 
+DatabasePool:
+  MaxOpenConns: 24
+  MaxIdleConns: 12
+  ConnMaxLifetimeSeconds: 300
+  ConnMaxIdleTimeSeconds: 120
+
 StockShardCount: 4
 
 RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}

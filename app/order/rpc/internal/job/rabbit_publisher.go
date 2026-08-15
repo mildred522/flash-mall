@@ -12,7 +12,15 @@ import (
 const (
 	rabbitExchangeType = "topic"
 	confirmWaitTimeout = 5 * time.Second
+	confirmBufferSize  = 1024
 )
+
+type RabbitMessage struct {
+	RoutingKey  string
+	MessageID   string
+	MessageType string
+	Body        []byte
+}
 
 // RabbitPublisher provides a small resilient publisher with confirm ack.
 type RabbitPublisher struct {
@@ -31,6 +39,15 @@ func NewRabbitPublisher(url, exchange string) *RabbitPublisher {
 }
 
 func (p *RabbitPublisher) Publish(ctx context.Context, routingKey, messageID, messageType string, body []byte) error {
+	return p.PublishBatch(ctx, []RabbitMessage{{
+		RoutingKey: routingKey, MessageID: messageID, MessageType: messageType, Body: body,
+	}})
+}
+
+func (p *RabbitPublisher) PublishBatch(ctx context.Context, messages []RabbitMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -38,29 +55,42 @@ func (p *RabbitPublisher) Publish(ctx context.Context, routingKey, messageID, me
 		return err
 	}
 
-	if err := p.ch.PublishWithContext(ctx, p.exchange, routingKey, false, false, amqp.Publishing{
-		DeliveryMode: amqp.Persistent,
-		Timestamp:    time.Now(),
-		ContentType:  "application/json",
-		Type:         messageType,
-		MessageId:    messageID,
-		Body:         body,
-	}); err != nil {
-		p.resetLocked()
-		return err
+	for _, message := range messages {
+		if err := p.ch.PublishWithContext(ctx, p.exchange, message.RoutingKey, false, false, amqp.Publishing{
+			DeliveryMode: amqp.Persistent,
+			Timestamp:    time.Now(),
+			ContentType:  "application/json",
+			Type:         message.MessageType,
+			MessageId:    message.MessageID,
+			Body:         message.Body,
+		}); err != nil {
+			p.resetLocked()
+			return err
+		}
 	}
 
-	select {
-	case c := <-p.confirmCh:
-		if !c.Ack {
-			return fmt.Errorf("rabbitmq publish nack: message_id=%s", messageID)
+	timer := time.NewTimer(confirmWaitTimeout)
+	defer timer.Stop()
+	for confirmed := 0; confirmed < len(messages); confirmed++ {
+		select {
+		case confirmation, ok := <-p.confirmCh:
+			if !ok {
+				p.resetLocked()
+				return fmt.Errorf("rabbitmq publish confirm channel closed")
+			}
+			if !confirmation.Ack {
+				p.resetLocked()
+				return fmt.Errorf("rabbitmq publish nack: delivery_tag=%d", confirmation.DeliveryTag)
+			}
+		case <-ctx.Done():
+			p.resetLocked()
+			return ctx.Err()
+		case <-timer.C:
+			p.resetLocked()
+			return fmt.Errorf("rabbitmq publish confirm timeout: batch_size=%d confirmed=%d", len(messages), confirmed)
 		}
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(confirmWaitTimeout):
-		return fmt.Errorf("rabbitmq publish confirm timeout: message_id=%s", messageID)
 	}
+	return nil
 }
 
 func (p *RabbitPublisher) ensureChannelLocked() error {
@@ -99,7 +129,7 @@ func (p *RabbitPublisher) ensureChannelLocked() error {
 			_ = conn.Close()
 			return err
 		}
-		p.confirmCh = ch.NotifyPublish(make(chan amqp.Confirmation, 1))
+		p.confirmCh = ch.NotifyPublish(make(chan amqp.Confirmation, confirmBufferSize))
 	}
 
 	p.conn = conn

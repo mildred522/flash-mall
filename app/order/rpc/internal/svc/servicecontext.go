@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"flash-mall/app/common/mysqlguard"
+	commonobs "flash-mall/app/common/observability"
 	"flash-mall/app/order/rpc/internal/config"
 	"flash-mall/app/order/rpc/internal/inventoryclient"
 	"flash-mall/app/order/rpc/internal/paymentprovider"
 	productclient "flash-mall/app/product/rpc/productclient"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/zeromicro/go-zero/core/logx"
 	"github.com/zeromicro/go-zero/core/stores/redis"
 	"github.com/zeromicro/go-zero/core/stores/sqlx"
@@ -33,6 +35,21 @@ func NewServiceContext(c config.Config) *ServiceContext {
 		SqlConn: sqlx.NewMysql(c.DataSource),
 		Redis:   redis.MustNewRedis(c.RedisConf),
 	}
+	db, err := svcCtx.SqlConn.RawDB()
+	if err != nil {
+		logx.Must(err)
+	}
+	pool := commonobs.ConfigureDatabasePool(db, c.DatabasePool)
+	if err := commonobs.RegisterDatabaseStats(prometheus.DefaultRegisterer, "order", db); err != nil {
+		logx.Must(err)
+	}
+	logx.Infof(
+		"order database pool configured: max_open=%d max_idle=%d lifetime_seconds=%d idle_time_seconds=%d",
+		pool.MaxOpenConns,
+		pool.MaxIdleConns,
+		pool.ConnMaxLifetimeSeconds,
+		pool.ConnMaxIdleTimeSeconds,
+	)
 
 	if target, err := c.ProductRpcConf.BuildTarget(); err == nil && target != "" {
 		svcCtx.ProductRpc = productclient.NewProduct(zrpc.MustNewClient(c.ProductRpcConf))

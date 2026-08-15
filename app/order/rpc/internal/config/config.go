@@ -13,13 +13,14 @@ type Config struct {
 	RedisConf                  redis.RedisConf
 	ProductRpcConf             zrpc.RpcClientConf `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 	InventoryKitexEndpoint     string
-	RequireInventoryReserve    bool                `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	Observability              commonobs.Config    `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	PaymentProvider            string              `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	PaymentExpireMinutes       int                 `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	PaymentSweepIntervalSec    int                 `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	PaymentFinalizeIntervalSec int                 `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
-	AlipaySandbox              AlipaySandboxConfig `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	RequireInventoryReserve    bool                         `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	Observability              commonobs.Config             `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	DatabasePool               commonobs.DatabasePoolConfig `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentProvider            string                       `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentExpireMinutes       int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentSweepIntervalSec    int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentFinalizeIntervalSec int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	AlipaySandbox              AlipaySandboxConfig          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 
 	PprofAddr   string
 	MetricsAddr string

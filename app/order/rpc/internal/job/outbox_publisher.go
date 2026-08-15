@@ -110,20 +110,33 @@ func (p *OutboxPublisher) Start() {
 				<-ticker.C
 				continue
 			}
-			if err := p.processOnce(ctx); err != nil {
+			processed, err := p.processOnce(ctx)
+			if err != nil {
 				p.Errorf("outbox process error: %v", err)
 			}
 			cancel()
+			if err == nil && p.batchWasFull(processed) {
+				continue
+			}
 			<-ticker.C
 		}
 	}()
 }
 
-func (p *OutboxPublisher) processTimeout(pollMs int) time.Duration {
+func (p *OutboxPublisher) batchSize() int {
 	batch := p.svcCtx.Config.OutboxBatchSize
 	if batch <= 0 {
-		batch = 20
+		return 20
 	}
+	return batch
+}
+
+func (p *OutboxPublisher) batchWasFull(processed int) bool {
+	return processed >= p.batchSize()
+}
+
+func (p *OutboxPublisher) processTimeout(pollMs int) time.Duration {
+	batch := p.batchSize()
 
 	timeoutMs := pollMs * batch
 	if timeoutMs < 5000 {
@@ -201,23 +214,23 @@ func parseRedisInt(v any) int64 {
 	}
 }
 
-func (p *OutboxPublisher) processOnce(ctx context.Context) error {
+func (p *OutboxPublisher) processOnce(ctx context.Context) (int, error) {
 	defer p.refreshStateMetrics(ctx)
 	if err := p.recoverTimeoutPublishing(ctx); err != nil {
-		return err
+		return 0, err
 	}
 
 	events, err := p.claimBatch(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if len(events) == 0 {
-		return nil
+		return 0, nil
 	}
 
-	for _, evt := range events {
-		started := time.Now()
-		if err := p.publishOne(ctx, evt); err != nil {
+	started := time.Now()
+	if err := p.publishBatch(ctx, events); err != nil {
+		for _, evt := range events {
 			recordOutboxPublish(evt.EventType, "publish_error", time.Since(started))
 			p.Errorf("outbox publish failed: id=%d event_id=%s err=%v", evt.ID, evt.EventID, err)
 			writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -225,26 +238,28 @@ func (p *OutboxPublisher) processOnce(ctx context.Context) error {
 				p.Errorf("outbox mark retry failed: id=%d err=%v", evt.ID, markErr)
 			}
 			cancel()
-			continue
 		}
-		writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := p.markPublished(writeCtx, evt.ID); err != nil {
-			recordOutboxPublish(evt.EventType, "state_update_error", time.Since(started))
-			p.Errorf("outbox mark published failed: id=%d err=%v", evt.ID, err)
-		} else {
-			recordOutboxPublish(evt.EventType, "success", time.Since(started))
-		}
-		cancel()
+		return len(events), nil
 	}
 
-	return nil
+	writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := p.markPublishedBatch(writeCtx, events); err != nil {
+		for _, evt := range events {
+			recordOutboxPublish(evt.EventType, "state_update_error", time.Since(started))
+			p.Errorf("outbox mark published failed: id=%d err=%v", evt.ID, err)
+		}
+	} else {
+		for _, evt := range events {
+			recordOutboxPublish(evt.EventType, "success", time.Since(started))
+		}
+	}
+	cancel()
+
+	return len(events), nil
 }
 
 func (p *OutboxPublisher) claimBatch(ctx context.Context) ([]outboxEvent, error) {
-	batch := p.svcCtx.Config.OutboxBatchSize
-	if batch <= 0 {
-		batch = 20
-	}
+	batch := p.batchSize()
 
 	db, err := p.svcCtx.SqlConn.RawDB()
 	if err != nil {
@@ -292,24 +307,49 @@ WHERE id = ? AND status = ?
 	return claimed, nil
 }
 
-func (p *OutboxPublisher) publishOne(ctx context.Context, evt outboxEvent) error {
-	routeKey := strings.TrimSpace(evt.EventType)
-	if routeKey == "" {
-		routeKey = strings.TrimSpace(p.svcCtx.Config.RabbitMQRouteKey)
+func (p *OutboxPublisher) publishBatch(ctx context.Context, events []outboxEvent) error {
+	messages := make([]RabbitMessage, 0, len(events))
+	for _, evt := range events {
+		routeKey := strings.TrimSpace(evt.EventType)
+		if routeKey == "" {
+			routeKey = strings.TrimSpace(p.svcCtx.Config.RabbitMQRouteKey)
+		}
+		if routeKey == "" {
+			routeKey = "order.created"
+		}
+		messages = append(messages, RabbitMessage{
+			RoutingKey: routeKey, MessageID: evt.EventID, MessageType: evt.EventType, Body: []byte(evt.Payload),
+		})
 	}
-	if routeKey == "" {
-		routeKey = "order.created"
-	}
-	return p.rabbit.Publish(ctx, routeKey, evt.EventID, evt.EventType, []byte(evt.Payload))
+	return p.rabbit.PublishBatch(ctx, messages)
 }
 
-func (p *OutboxPublisher) markPublished(ctx context.Context, id int64) error {
-	_, err := p.svcCtx.SqlConn.ExecCtx(ctx, `
+func (p *OutboxPublisher) markPublishedBatch(ctx context.Context, events []outboxEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(events)), ",")
+	args := make([]any, 0, len(events)+2)
+	args = append(args, outboxStatusPublished, outboxStatusPublishing)
+	for _, evt := range events {
+		args = append(args, evt.ID)
+	}
+	query := `
 UPDATE order_outbox
 SET status = ?, published_at = NOW(), last_error = '', update_time = NOW()
-WHERE id = ? AND status = ?
-`, outboxStatusPublished, id, outboxStatusPublishing)
-	return err
+WHERE status = ? AND id IN (` + placeholders + `)`
+	result, err := p.svcCtx.SqlConn.ExecCtx(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != int64(len(events)) {
+		return fmt.Errorf("mark published batch affected=%d expected=%d", affected, len(events))
+	}
+	return nil
 }
 
 func (p *OutboxPublisher) markRetry(ctx context.Context, evt outboxEvent, publishErr error) error {

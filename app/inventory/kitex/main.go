@@ -32,6 +32,10 @@ const (
 	defaultRecoveryInterval           = time.Minute
 	defaultRecoveryBatchSize          = 100
 	defaultReservationMetricsInterval = 15 * time.Second
+	defaultDatabaseMaxOpen            = 16
+	defaultDatabaseMaxIdle            = 8
+	defaultDatabaseLifetimeSeconds    = 300
+	defaultDatabaseIdleTimeSeconds    = 120
 )
 
 func main() {
@@ -60,7 +64,7 @@ func main() {
 	observability.StartDiagnostics("", envOrDefault("INVENTORY_PPROF_LISTEN_ON", defaultPprofListenOn))
 	log.Printf("inventory-kitex starting: listen_on=%s shard_count=%d final_deduct_enabled=%t", listenOn, shardCount, finalDeductEnabled)
 	runtimeState := runtimeStateFromEnvironment(shardCount, finalDeductEnabled)
-	inventoryService := service.New(newRepository(shardCount, finalDeductEnabled, runtimeState.ReservationLedgerMode), shardCount).
+	inventoryService := service.New(newRepository(shardCount, finalDeductEnabled, runtimeState.ReservationLedgerMode, registry), shardCount).
 		WithRuntimeState(runtimeState)
 	if runtimeState.RedisConfigured {
 		startReservationRecovery(inventoryService, metrics)
@@ -151,7 +155,12 @@ func startMetricsServer(listenOn string, registry *prometheus.Registry) {
 	}()
 }
 
-func newRepository(shardCount int, finalDeductEnabled bool, ledgerMode string) repository.StockRepository {
+func newRepository(
+	shardCount int,
+	finalDeductEnabled bool,
+	ledgerMode string,
+	registerer prometheus.Registerer,
+) repository.StockRepository {
 	redisHost := os.Getenv("INVENTORY_REDIS_HOST")
 	if redisHost == "" {
 		log.Println("INVENTORY_REDIS_HOST is empty; using in-memory inventory repository")
@@ -165,6 +174,22 @@ func newRepository(shardCount int, finalDeductEnabled bool, ledgerMode string) r
 			log.Fatalf("open inventory datasource: %v", err)
 		}
 		db = opened
+		pool := observability.ConfigureDatabasePool(db, observability.DatabasePoolConfig{
+			MaxOpenConns:           envIntOrDefault("INVENTORY_DB_MAX_OPEN_CONNS", defaultDatabaseMaxOpen),
+			MaxIdleConns:           envIntOrDefault("INVENTORY_DB_MAX_IDLE_CONNS", defaultDatabaseMaxIdle),
+			ConnMaxLifetimeSeconds: int64(envIntOrDefault("INVENTORY_DB_CONN_MAX_LIFETIME_SECONDS", defaultDatabaseLifetimeSeconds)),
+			ConnMaxIdleTimeSeconds: int64(envIntOrDefault("INVENTORY_DB_CONN_MAX_IDLE_TIME_SECONDS", defaultDatabaseIdleTimeSeconds)),
+		})
+		if err := observability.RegisterDatabaseStats(registerer, "inventory", db); err != nil {
+			log.Fatalf("register inventory database metrics: %v", err)
+		}
+		log.Printf(
+			"inventory database pool configured: max_open=%d max_idle=%d lifetime_seconds=%d idle_time_seconds=%d",
+			pool.MaxOpenConns,
+			pool.MaxIdleConns,
+			pool.ConnMaxLifetimeSeconds,
+			pool.ConnMaxIdleTimeSeconds,
+		)
 	}
 	if finalDeductEnabled && db == nil {
 		log.Fatalf("INVENTORY_FINAL_DEDUCT_ENABLED=true requires INVENTORY_DATASOURCE")

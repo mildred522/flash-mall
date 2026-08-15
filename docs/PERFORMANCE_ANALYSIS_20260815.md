@@ -200,3 +200,16 @@ Hertz 在 `submitCreateOrderSaga` 中无条件设置 `WaitResult=true`，配置�
 | 6 | 仅在真实产品需要更快受理时评估异步模式 | P2 | M | 中 | 区分 HTTP 受理时间与最终事务完成时间 |
 
 下一执行任务不再是继续调整 DTM 并发参数。当前上限内 SAGA 已稳定通过，新的优化重点应放在共享 MySQL 连接等待、库存同步写放大和 DTM 完成数据生命周期；只有先把压力上限提升到新的失败点，才有依据设置订单准入阈值。
+
+## 9. 连接预算与 Outbox 吞吐优化
+
+DTM 迁移后的第二轮优化为 Hertz、Order RPC、Product RPC 和 Inventory Kitex 配置显式连接预算，并统一暴露 `flashmall_db_connections`、`flashmall_db_wait_total`、`flashmall_db_wait_duration_seconds_total` 与连接关闭原因。Grafana 容量面板现在可以直接观察各服务、各连接池的使用率和等待时间，连接池连续五分钟超过 85% 会触发告警。
+
+60 RPS 订单定向负载显示连接预算没有制造背压：Order RPC 峰值使用 4/24，Inventory Kitex 为 5/16，Hertz order 查询池为 1/16，其余池在 Prometheus 抓取点为 0；所有池的等待次数和等待时长增量均为 0。因此当前不应继续增加连接上限，共享 MySQL 的压力来自实际事务与 Outbox 状态写，而不是应用池过小。
+
+该负载同时暴露了 Outbox 发布上限：原循环每批 20 条后固定等待 1 秒，压测结束后仍有约 1380 条待发布事件。优化分两步完成：
+
+1. 满批时立即继续排空，只有非满批或错误时才回到空闲轮询。
+2. 同批消息流水发送并集中等待 RabbitMQ publisher confirms，确认后使用单条 SQL 批量更新发布状态，替代每事件一次状态更新。
+
+最终同参数结果为 2700/2700 成功、59.79 完成 QPS、零丢弃，创建订单 p95 126.06 ms；包含预热在内的 3300 条 Outbox 在压测结束时全部进入 published，pending/publishing/dead 均为 0。相较只优化同步订单路径，创建 p95 增加约 10%，但消除了持续增长的异步积压，避免把同步 API 的漂亮数字建立在后台债务上。

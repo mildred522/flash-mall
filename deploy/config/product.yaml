@@ -22,6 +22,12 @@ Observability:
     Endpoint: http://jaeger:4318/v1/traces
     SampleRatio: 1
 
+DatabasePool:
+  MaxOpenConns: 16
+  MaxIdleConns: 8
+  ConnMaxLifetimeSeconds: 300
+  ConnMaxIdleTimeSeconds: 120
+
 StockBucketCount: 4
 
 Etcd:

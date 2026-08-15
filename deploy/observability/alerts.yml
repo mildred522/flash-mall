@@ -3,7 +3,7 @@ groups:
     interval: 30s
     rules:
       - alert: FlashMallServiceDown
-        expr: up{job=~"hertz-gateway|order-rpc|product-rpc|inventory-kitex"} == 0
+        expr: up{job=~"hertz-gateway|order-rpc|product-rpc|inventory-kitex|dtm"} == 0
         for: 2m
         labels:
           severity: critical
@@ -90,3 +90,16 @@ groups:
         annotations:
           summary: "Hertz API p95 超过 1 秒"
           description: "Hertz API 的整体 p95 已连续 10 分钟超过运行告警阈值。"
+
+      - alert: FlashMallDatabasePoolSaturated
+        expr: |
+          sum by (job, pool) (flashmall_db_connections{state="in_use"})
+          /
+          clamp_min(sum by (job, pool) (flashmall_db_connections{state="max_open"}), 1)
+          > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接池使用率超过 85%"
+          description: "{{ $labels.job }} / {{ $labels.pool }} 的连接池已连续 5 分钟接近上限。"

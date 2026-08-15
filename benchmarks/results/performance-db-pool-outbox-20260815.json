@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-15T04:38:38Z",
+  "source_parent_commit": "2d5ffe287ba03518c9756dc8fb2a1ef416cb89cd",
+  "scenario": "order-cycle",
+  "target_rps": 60,
+  "duration_seconds": 45.161645019,
+  "warmup_seconds": 10,
+  "attempts": 2700,
+  "completed": 2700,
+  "dropped": 0,
+  "success_rate": 1,
+  "completed_qps": 59.7852,
+  "create_p95_ms": 126.059,
+  "cancel_p95_ms": 76.987,
+  "cycle_p95_ms": 194.902,
+  "database_pools": {
+    "order_rpc": {"max_open": 24, "peak_in_use": 4, "wait_count_delta": 0},
+    "inventory_kitex": {"max_open": 16, "peak_in_use": 5, "wait_count_delta": 0},
+    "hertz_order": {"max_open": 16, "peak_in_use": 1, "wait_count_delta": 0},
+    "hertz_product": {"max_open": 16, "peak_in_use": 0, "wait_count_delta": 0},
+    "hertz_auth": {"max_open": 16, "peak_in_use": 0, "wait_count_delta": 0},
+    "product_rpc": {"max_open": 16, "peak_in_use": 0, "wait_count_delta": 0}
+  },
+  "outbox": {
+    "events_including_warmup": 3300,
+    "published_after_stage": 3300,
+    "pending_after_stage": 0,
+    "publishing_after_stage": 0,
+    "dead_after_stage": 0,
+    "pending_before_optimization": 1380
+  },
+  "source_artifact": ".runtime/performance/db-pool-quick-20260815/stages/outbox-batch-state-rps-60.json"
+}
