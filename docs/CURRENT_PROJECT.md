@@ -267,6 +267,7 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 - 订单 10 RPS 预期负载 100% 成功、p95 139.773 ms；25 RPS 压力档通过，40 RPS 首次失败。失败档主要延迟集中在 `create_order`，MySQL 活跃线程峰值 8，而 Hertz、Order RPC、Inventory Kitex 均未出现 CPU 饱和。
 - 五分钟 500 RPS 读与 5 RPS 订单混合稳定性全部成功；Trace 默认采样率从 100% 降为 10% 后，Jaeger 内存增长由旧轮次的 406.5 MiB 降至 37.4 MiB，资源门禁通过。
 - 正常支付、40 次同幂等键重放、RabbitMQ 暂停支付及恢复排空全部通过，最终全部业务不变量通过，演示数据和上传卷已恢复。
+- 订单压力报告已把完成吞吐与目标流量、负载生成器丢弃分离；40/60 RPS 档实际完成吞吐分别约 28.50/27.90 QPS。根因证据与优化决策记录在 `docs/PERFORMANCE_ANALYSIS_20260815.md`，首要实验是 DTM BoltDB/MySQL 存储 A/B，而不是先扩 Hertz 或 Kitex。
 
 2026-07-30 可复现演示环境与桌面控制中心收尾验证：
 

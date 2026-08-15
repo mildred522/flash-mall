@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseByteSize, performanceStagePassed, summarizePerformance } from './summarize-performance.mjs';
+import { completedQPS, parseByteSize, performanceStagePassed, summarizePerformance } from './summarize-performance.mjs';
 
 test('Docker memory units are normalized to bytes', () => {
   assert.equal(parseByteSize('40.78MiB'), 40.78 * 1024 ** 2);
   assert.equal(parseByteSize('1.5GB'), 1.5e9);
   assert.equal(parseByteSize('invalid'), 0);
+});
+
+test('completed throughput excludes load-generator drops', () => {
+  assert.equal(completedQPS({ attempts: 1800, dropped: 316, duration_seconds: 52 }), 1484 / 52);
+  assert.equal(completedQPS({ qps: 25 }), 25);
 });
 
 function result(kind, scenario, stage, rps, successRate, p95, options = {}) {

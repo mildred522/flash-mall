@@ -11,11 +11,19 @@ const targets = {
 export function performanceStagePassed(report) {
   const target = targets[report.scenario];
   if (!target) return false;
-  const attainment = report.target_rps > 0 ? report.qps / report.target_rps : 1;
+  const qps = completedQPS(report);
+  const attainment = report.target_rps > 0 ? qps / report.target_rps : 1;
   const minimumAttainment = report.target_rps <= 2 ? 0.85 : 0.95;
   return report.success_rate >= target.successRate &&
     report.p95_ms <= target.p95 && report.p99_ms <= target.p99 &&
     (report.dropped ?? 0) === 0 && attainment >= minimumAttainment;
+}
+
+export function completedQPS(report) {
+  const completed = Math.max(0, Number(report.attempts ?? 0) - Number(report.dropped ?? 0));
+  const duration = Number(report.duration_seconds ?? 0);
+  if (report.attempts !== undefined && duration > 0 && Number.isFinite(completed)) return completed / duration;
+  return Number(report.qps ?? 0);
 }
 
 function stagePassed(report, invariants) {
@@ -31,13 +39,15 @@ function median(values) {
 
 function compactStage(result, invariants) {
   const report = result.report;
+  const qps = completedQPS(report);
   return {
     stage: result.stage,
     target_rps: report.target_rps,
-    qps: report.qps,
-    attainment: report.target_rps > 0 ? report.qps / report.target_rps : 1,
+    qps,
+    attainment: report.target_rps > 0 ? qps / report.target_rps : 1,
     success_rate: report.success_rate,
     attempts: report.attempts,
+    completed: Math.max(0, Number(report.attempts ?? 0) - Number(report.dropped ?? 0)),
     failed: report.failed,
     dropped: report.dropped ?? 0,
     p50_ms: report.p50_ms,

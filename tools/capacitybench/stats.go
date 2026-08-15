@@ -26,6 +26,7 @@ type scenarioReport struct {
 	Concurrency  int                       `json:"concurrency"`
 	DurationSec  float64                   `json:"duration_seconds"`
 	Attempts     int                       `json:"attempts"`
+	Completed    int                       `json:"completed"`
 	Success      int                       `json:"success"`
 	Failed       int                       `json:"failed"`
 	Dropped      int                       `json:"dropped"`
@@ -65,7 +66,10 @@ type sloResult struct {
 
 func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, dropped int) scenarioReport {
 	report := scenarioReport{
-		Scenario: scenario, Dropped: dropped, Attempts: len(samples) + dropped,
+		Scenario:    scenario,
+		Dropped:     dropped,
+		Attempts:    len(samples) + dropped,
+		Completed:   len(samples),
 		StatusCodes: map[string]int{}, Errors: map[string]int{},
 		Operations: map[string]latencySummary{}, Steps: map[string]latencySummary{},
 		Invariants: invariantReport{Passed: scenario == "read"},
@@ -107,7 +111,7 @@ func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, 
 		report.SuccessRate = float64(report.Success) / float64(report.Attempts)
 	}
 	if elapsed > 0 {
-		report.QPS = float64(report.Attempts) / elapsed.Seconds()
+		report.QPS = float64(report.Completed) / elapsed.Seconds()
 		report.DurationSec = elapsed.Seconds()
 	}
 	sort.Float64s(latencies)

@@ -59,6 +59,8 @@ scripts/perf/run-performance-suite.sh \
 
 冻结证据为 `benchmarks/results/performance-20260815.json`。这些数字只描述当前提交、固定数据和本机 Compose 资源，不代表公网生产容量。
 
+本轮订单容量拐点、统计口径修正、根因假设和优化路线记录在 `docs/PERFORMANCE_ANALYSIS_20260815.md`。
+
 ## 如何定位瓶颈
 
 1. 先看该档是否达到目标 RPS、成功率、丢弃数和 p95/p99，区分负载生成器跟不上与服务退化。

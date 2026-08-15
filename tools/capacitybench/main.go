@@ -99,7 +99,7 @@ func run(
 		Scenario: scenario, Requests: requests, Duration: duration, RPS: rps, Concurrency: concurrency,
 	})
 	result := capacityResult{
-		SchemaVersion: 1, RecordedAt: time.Now().Format(time.RFC3339),
+		SchemaVersion: 2, RecordedAt: time.Now().Format(time.RFC3339),
 		BaseURL: target.String(), GoVersion: runtime.Version(), TestKind: testKind,
 		Stage: stage, Report: report,
 	}

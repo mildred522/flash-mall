@@ -21,6 +21,10 @@ func TestSummarizeScenarioReportsTailLatencyAndFailures(t *testing.T) {
 	if got.SuccessRate != 0.5 || got.QPS != 2 {
 		t.Fatalf("unexpected rates: %+v", got)
 	}
+	withDrops := summarizeSamples("read", samples, 2*time.Second, 4)
+	if withDrops.Attempts != 8 || withDrops.Completed != 4 || withDrops.QPS != 2 {
+		t.Fatalf("dropped work must not count as completed throughput: %+v", withDrops)
+	}
 	if got.P50MS != 20 || got.P95MS != 40 || got.P99MS != 40 {
 		t.Fatalf("unexpected percentiles: %+v", got)
 	}
