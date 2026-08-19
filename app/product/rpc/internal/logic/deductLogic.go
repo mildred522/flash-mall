@@ -34,6 +34,9 @@ func NewDeductLogic(ctx context.Context, svcCtx *svc.ServiceContext) *DeductLogi
 
 // Deduct 扣减库存（SAGA 正向操作）
 func (l *DeductLogic) Deduct(in *product.DeductReq) (*product.Empty, error) {
+	if err := requireLegacyStockMutation(l.svcCtx); err != nil {
+		return nil, err
+	}
 	span := trace.SpanFromContext(l.ctx)
 	span.SetAttributes(
 		attribute.Int64("product.id", in.GetId()),

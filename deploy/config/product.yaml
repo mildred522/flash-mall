@@ -29,6 +29,7 @@ DatabasePool:
   ConnMaxIdleTimeSeconds: 120
 
 StockBucketCount: 4
+LegacyStockMutationEnabled: ${FLASH_MALL_PRODUCT_LEGACY_STOCK_MUTATION_ENABLED}
 
 Etcd:
   Hosts:

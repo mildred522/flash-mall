@@ -52,6 +52,10 @@ func (s *Service) CheckRuntime(ctx context.Context) error {
 	return s.repo.CheckRuntime(ctx)
 }
 
+func (s *Service) RecoverRuntime(ctx context.Context) (domain.RuntimeRecoveryReport, error) {
+	return s.repo.RecoverRuntime(ctx)
+}
+
 func (s *Service) GetStock(ctx context.Context, productID int64) (domain.Stock, error) {
 	if productID <= 0 {
 		return domain.Stock{}, domain.ErrProductIDRequired

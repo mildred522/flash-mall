@@ -67,16 +67,15 @@ func (r *RedisMySQLRepository) SeedStock(ctx context.Context, productID int64, t
 	if shardCount <= 0 {
 		shardCount = r.shardCount
 	}
-	if err := r.seedRedis(ctx, productID, total, shardCount); err != nil {
-		return err
-	}
 	if r.db != nil {
 		if err := r.seedMySQLBuckets(ctx, productID, total, shardCount); err != nil {
 			return err
 		}
-		return r.refreshStockSnapshot(ctx, productID)
 	}
-	return nil
+	if err := r.seedRedis(ctx, productID, total, shardCount); err != nil {
+		return err
+	}
+	return r.refreshStockSnapshot(ctx, productID)
 }
 
 func (r *RedisMySQLRepository) AdjustStock(ctx context.Context, productID int64, delta int64, bucketIdx int, meta domain.StockChangeMeta) (domain.Stock, domain.Stock, error) {

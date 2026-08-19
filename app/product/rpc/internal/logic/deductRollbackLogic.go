@@ -31,6 +31,9 @@ func NewDeductRollbackLogic(ctx context.Context, svcCtx *svc.ServiceContext) *De
 
 // DeductRollback 回滚库存（SAGA 补偿操作）
 func (l *DeductRollbackLogic) DeductRollback(in *product.DeductReq) (*product.Empty, error) {
+	if err := requireLegacyStockMutation(l.svcCtx); err != nil {
+		return nil, err
+	}
 	// 1) 获取 DTM Barrier
 	barrier, err := dtmgrpc.BarrierFromGrpc(l.ctx)
 	if err != nil {

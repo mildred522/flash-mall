@@ -58,6 +58,7 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 ### 库存
 
 - Redis 负责库存热路径，MySQL 保存库存事实、预占账本、变更日志与快照。
+- Inventory 启动时以 MySQL 分桶、预占账本和扣减流水恢复 Redis；活动预占按原 shard 重建，已确认预占按实际 MySQL 扣减桶重建。Compose 不再硬编码任何商品库存。
 - `order_id` 是预占幂等身份；相同订单不同商品或数量必须拒绝。
 - Release 支持空补偿和重复调用；Redis 数据缺失时可依据 MySQL 账本恢复。
 - 恢复任务处理过期预占、重试和死信；对账不能用数据库总量覆盖仍被预占的可用量。
@@ -114,6 +115,7 @@ Compose 同时保留两个 HTTP 服务定义；桌面控制中心和默认快速
 ## 开发边界
 
 - 新增外部 API 只实现到 Hertz；除修复对比基线自身缺陷外，不向 Entry API 同步新业务。
+- Inventory Kitex 是当前拓扑的库存唯一写入者；Product RPC 的 Deduct、DeductRollback 和 RevertStock 仅保留为显式 legacy 兼容接口，默认配置拒绝执行。
 - Hertz Handler 应只保留 HTTP 适配、鉴权调用和结果映射；数据库查询与业务编排逐域下沉到应用服务和适配器。
 - DDL 只允许出现在数据库迁移/初始化脚本，运行时代码只能做只读 schema readiness 检查。
 - 生成的 Protobuf/Kitex 文件不手工编辑；接口变化从 IDL 重新生成。

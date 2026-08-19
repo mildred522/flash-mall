@@ -31,6 +31,7 @@ Observability:
 
 # CHG 2026-02-24: 变更=新增库存分桶数量; 之前=单行库存; 原因=降低热点行冲突。
 StockBucketCount: 4
+LegacyStockMutationEnabled: false
 
 Etcd:
   Hosts:

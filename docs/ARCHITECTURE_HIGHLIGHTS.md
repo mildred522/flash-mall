@@ -212,7 +212,7 @@ sequenceDiagram
 
 ### 4.3 库存热路径与持久化账本
 
-**设计：** Redis保存按商品分桶的可用库存，Lua原子完成预占；MySQL保存库存事实、预占账本、变更日志和快照。`order_id`是预占身份，Release支持重复调用和空补偿，恢复任务处理过期、processing与dead letter。
+**设计：** Redis保存按商品分桶的可用库存，Lua原子完成预占；MySQL保存库存事实、预占账本、变更日志和快照。`order_id`是预占身份，Release支持重复调用和空补偿；Inventory启动时从MySQL分桶、活动预占和扣减流水重建Redis，恢复任务继续处理过期、processing与dead letter。Product RPC遗留库存命令默认关闭，当前拓扑只允许Inventory写库存。
 
 **价值：** 兼顾热点性能、可恢复性、幂等和审计，避免只用Redis后无法解释库存去向。
 
@@ -223,6 +223,7 @@ sequenceDiagram
 - `app/inventory/repository/reservation_reaper.go`
 - `app/inventory/repository/redis_scripts.go`
 - `app/inventory/repository/stock_persistence.go`
+- `app/inventory/repository/runtime_recovery.go`
 
 **不变量：** 可用量不为负；同一订单不能预占不同商品或数量；支付订单最终必须是CONFIRMED；失败订单不能永久悬挂。
 

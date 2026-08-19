@@ -61,8 +61,9 @@ func newRevertStockTestServiceContext(t *testing.T) *svc.ServiceContext {
 	t.Helper()
 
 	return svc.NewServiceContext(config.Config{
-		DataSource:       revertStockTestDSN,
-		StockBucketCount: 4,
+		DataSource:                 revertStockTestDSN,
+		StockBucketCount:           4,
+		LegacyStockMutationEnabled: true,
 	})
 }
 

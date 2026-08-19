@@ -15,6 +15,10 @@ type MemoryStockRepository struct {
 
 func (r *MemoryStockRepository) CheckRuntime(context.Context) error { return nil }
 
+func (r *MemoryStockRepository) RecoverRuntime(context.Context) (domain.RuntimeRecoveryReport, error) {
+	return domain.RuntimeRecoveryReport{}, nil
+}
+
 func NewMemoryStockRepository() *MemoryStockRepository {
 	return &MemoryStockRepository{
 		stocks:       map[int64]domain.Stock{},

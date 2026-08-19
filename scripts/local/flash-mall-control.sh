@@ -10,7 +10,7 @@ repo_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 deploy_dir="$repo_root/deploy"
 compose_file="docker-compose.yml"
 business_services="auth-api product-rpc order-rpc inventory-kitex hertz-gateway"
-log_services="$business_services mysql mysql-init redis redis-init rabbitmq etcd dtm jaeger"
+log_services="$business_services mysql mysql-init redis rabbitmq etcd dtm jaeger"
 wait_timeout=180
 error_emitted=0
 command_name=""

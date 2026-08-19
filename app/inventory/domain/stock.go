@@ -7,6 +7,12 @@ type Stock struct {
 	Total     int64
 }
 
+type RuntimeRecoveryReport struct {
+	Products              int
+	ReservedReservations  int
+	ConfirmedReservations int
+}
+
 func NewStock(productID int64, total int64) Stock {
 	if total < 0 {
 		total = 0

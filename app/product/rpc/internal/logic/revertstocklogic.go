@@ -29,6 +29,9 @@ func NewRevertStockLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Rever
 
 // RevertStock 归还库存（用于超时关单等场景）
 func (l *RevertStockLogic) RevertStock(in *product.RevertStockReq) (*product.RevertStockResp, error) {
+	if err := requireLegacyStockMutation(l.svcCtx); err != nil {
+		return nil, err
+	}
 	// 1) 获取 RawDB（手动事务）
 	db, err := l.svcCtx.SqlConn.RawDB()
 	if err != nil {

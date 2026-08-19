@@ -8,6 +8,7 @@ import (
 
 type StockRepository interface {
 	CheckRuntime(ctx context.Context) error
+	RecoverRuntime(ctx context.Context) (domain.RuntimeRecoveryReport, error)
 	GetStock(ctx context.Context, productID int64) (domain.Stock, error)
 	BatchGetStock(ctx context.Context, productIDs []int64) ([]domain.Stock, error)
 	SeedStock(ctx context.Context, productID int64, total int64, shardCount int) error

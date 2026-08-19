@@ -220,6 +220,48 @@ end
 return 1
 `
 
+const restoreProductStockLuaScript = `
+local shardCount = tonumber(ARGV[1])
+for i = 1, shardCount do
+  redis.call("set", KEYS[i], ARGV[i + 1])
+end
+redis.call("set", KEYS[shardCount + 1], ARGV[shardCount + 2])
+return 1
+`
+
+const resetReservationRecoveryIndexesLuaScript = `
+for i = 1, #KEYS do
+  redis.call("del", KEYS[i])
+end
+return 1
+`
+
+const restoreReservationLuaScript = `
+local status = ARGV[1]
+local orderID = ARGV[5]
+redis.call("del", KEYS[1])
+redis.call("hset", KEYS[1],
+  "status", status,
+  "product_id", ARGV[2],
+  "quantity", ARGV[3],
+  "shard_index", ARGV[4],
+  "order_id", orderID)
+if status == "confirmed" then
+  redis.call("hset", KEYS[1], "mysql_deducted", "1")
+  redis.call("expire", KEYS[1], ARGV[7])
+  redis.call("zrem", KEYS[2], orderID)
+  redis.call("hdel", KEYS[4], orderID)
+  redis.call("zrem", KEYS[5], orderID)
+else
+  redis.call("expire", KEYS[1], ARGV[6])
+  if not redis.call("zscore", KEYS[5], orderID) then
+    redis.call("zadd", KEYS[2], ARGV[8], orderID)
+  end
+end
+redis.call("zrem", KEYS[3], orderID)
+return 1
+`
+
 const releaseStockLuaScript = `
 local shardCount = tonumber(ARGV[2])
 local reservationKey = KEYS[shardCount + 1]

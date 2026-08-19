@@ -66,6 +66,22 @@ func main() {
 	runtimeState := runtimeStateFromEnvironment(shardCount, finalDeductEnabled)
 	inventoryService := service.New(newRepository(shardCount, finalDeductEnabled, runtimeState.ReservationLedgerMode, registry), shardCount).
 		WithRuntimeState(runtimeState)
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	if err := inventoryService.CheckRuntime(startupCtx); err != nil {
+		startupCancel()
+		log.Fatalf("inventory runtime check failed: %v", err)
+	}
+	recovery, err := inventoryService.RecoverRuntime(startupCtx)
+	startupCancel()
+	if err != nil {
+		log.Fatalf("inventory runtime recovery failed: %v", err)
+	}
+	log.Printf(
+		"inventory runtime recovered: products=%d reserved_reservations=%d confirmed_reservations=%d",
+		recovery.Products,
+		recovery.ReservedReservations,
+		recovery.ConfirmedReservations,
+	)
 	if runtimeState.RedisConfigured {
 		startReservationRecovery(inventoryService, metrics)
 		startReservationMetricsSampler(inventoryService, metrics)
