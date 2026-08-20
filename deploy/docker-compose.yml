@@ -188,6 +188,7 @@ services:
       FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
       FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
       FLASH_MALL_PRODUCT_LEGACY_STOCK_MUTATION_ENABLED: ${FLASH_MALL_PRODUCT_LEGACY_STOCK_MUTATION_ENABLED:-false}
+      FLASH_MALL_TRACING_SAMPLE_RATIO: ${FLASH_MALL_TRACING_SAMPLE_RATIO:-0.1}
     volumes:
       - ./config/product.yaml:/etc/flash-mall/product.yaml:ro
     command: ["-f", "/etc/flash-mall/product.yaml"]
@@ -217,6 +218,7 @@ services:
       FLASH_MALL_ALIPAY_PRIVATE_KEY: ${FLASH_MALL_ALIPAY_PRIVATE_KEY:-}
       FLASH_MALL_ALIPAY_PUBLIC_KEY: ${FLASH_MALL_ALIPAY_PUBLIC_KEY:-}
       FLASH_MALL_ALIPAY_NOTIFY_URL: ${FLASH_MALL_ALIPAY_NOTIFY_URL:-}
+      FLASH_MALL_TRACING_SAMPLE_RATIO: ${FLASH_MALL_TRACING_SAMPLE_RATIO:-0.1}
     volumes:
       - ./config/order.yaml:/etc/flash-mall/order.yaml:ro
     command: ["-f", "/etc/flash-mall/order.yaml"]
@@ -327,6 +329,7 @@ services:
       FLASH_MALL_PAYMENT_CALLBACK_SECRET: ${FLASH_MALL_PAYMENT_CALLBACK_SECRET:-flash-mall-local-payment-secret}
       FLASH_MALL_INVENTORY_KITEX_ENDPOINT: inventory-kitex:8093
       FLASH_MALL_CACHE_REDIS_ADDR: redis:6379
+      FLASH_MALL_TRACING_SAMPLE_RATIO: ${FLASH_MALL_TRACING_SAMPLE_RATIO:-0.1}
     volumes:
       - ./config/gateway.yaml:/etc/flash-mall/gateway.yaml:ro
       - flash-mall-uploads:/data/flash-mall/uploads

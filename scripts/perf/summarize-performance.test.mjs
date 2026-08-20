@@ -82,6 +82,19 @@ test('suite invariants do not rewrite successful stage measurements', () => {
   assert.equal(summary.overall_passed, false);
 });
 
+test('baseline rejects non-repeatable latency even when every sample meets SLO', () => {
+  const summary = summarizePerformance({
+    results: [
+      result('baseline', 'order-cycle', 'baseline-order-1', 2, 1, 260, { p99: 300 }),
+      result('baseline', 'order-cycle', 'baseline-order-2', 2, 1, 110, { p99: 130 }),
+      result('baseline', 'order-cycle', 'baseline-order-3', 2, 1, 100, { p99: 120 }),
+    ],
+    invariants: { passed: true, violations: [] }, metadata: {}, resources: {},
+  });
+  assert.equal(summary.profiles.baseline['order-cycle'].repeatability_passed, false);
+  assert.equal(summary.profiles.baseline['order-cycle'].passed, false);
+});
+
 test('saturation reports both peak business TPS and underlying HTTP QPS', () => {
   const summary = summarizePerformance({
     results: [

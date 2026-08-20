@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"testing"
 
+	"flash-mall/app/order/rpc/internal/config"
 	"flash-mall/app/order/rpc/internal/paymentprovider"
 	"flash-mall/app/order/rpc/internal/svc"
 
@@ -42,6 +43,28 @@ func (*recoveryInventoryStub) ConfirmDeduct(context.Context, string) error      
 func (s *recoveryInventoryStub) ReleaseStock(_ context.Context, orderID, _ string) error {
 	s.released = orderID
 	return nil
+}
+
+func TestInventoryFinalizeBatchSize(t *testing.T) {
+	recovery := NewPaymentRecovery(&svc.ServiceContext{})
+	if got := recovery.inventoryFinalizeBatchSize(); got != 200 {
+		t.Fatalf("default batch size=%d, want 200", got)
+	}
+	recovery.svcCtx.Config = config.Config{PaymentFinalizeBatchSize: 1000}
+	if got := recovery.inventoryFinalizeBatchSize(); got != 1000 {
+		t.Fatalf("configured batch size=%d, want 1000", got)
+	}
+	if got := recovery.inventoryFinalizeConcurrency(); got != 8 {
+		t.Fatalf("default concurrency=%d, want 8", got)
+	}
+	recovery.svcCtx.Config.PaymentFinalizeConcurrency = 16
+	if got := recovery.inventoryFinalizeConcurrency(); got != 16 {
+		t.Fatalf("configured concurrency=%d, want 16", got)
+	}
+	recovery.svcCtx.Config.PaymentFinalizeConcurrency = 100
+	if got := recovery.inventoryFinalizeConcurrency(); got != 64 {
+		t.Fatalf("bounded concurrency=%d, want 64", got)
+	}
 }
 
 func TestCloseExpiredPaymentClosesProviderAndReleasesInventory(t *testing.T) {

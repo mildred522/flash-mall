@@ -71,6 +71,9 @@ function profileScenario(kind, stages) {
     result.median_p99_ms = median(stages.map((stage) => stage.p99_ms));
     result.p95_spread_ms = Math.max(...stages.map((stage) => stage.p95_ms)) -
       Math.min(...stages.map((stage) => stage.p95_ms));
+    result.maximum_p95_spread_ms = Math.max(50, result.median_p95_ms * 0.5);
+    result.repeatability_passed = result.p95_spread_ms <= result.maximum_p95_spread_ms;
+    result.passed = result.passed && result.repeatability_passed;
   }
   if (kind === 'stress') {
     const passing = stages.filter((stage) => stage.passed).map((stage) => stage.target_rps);
@@ -313,12 +316,12 @@ function markdown(summary) {
     lines.push('- No failed stress stage was observed within the configured ceiling.');
   }
   for (const item of summary.bottlenecks) {
-    lines.push(`- ${item.scenario} at ${item.first_failed_target_rps} RPS: achieved ${formatNumber(item.achieved_qps)} QPS, p95 ${formatNumber(item.p95_ms, 3)} ms; dominant step ${item.dominant_step || 'unknown'}; ${item.signals.join('; ')}.`);
+    lines.push(`- ${item.scenario} at target ${item.first_failed_target_rps} TPS: achieved ${formatNumber(item.achieved_qps)} business TPS, p95 ${formatNumber(item.p95_ms, 3)} ms; dominant step ${item.dominant_step || 'unknown'}; ${item.signals.join('; ')}.`);
   }
 
   lines.push('', '## 基准重复性', '');
   for (const [scenario, profile] of Object.entries(summary.profiles.baseline ?? {})) {
-    lines.push(`- ${scenario}: median p95 ${formatNumber(profile.median_p95_ms, 3)} ms, median p99 ${formatNumber(profile.median_p99_ms, 3)} ms, p95 spread ${formatNumber(profile.p95_spread_ms, 3)} ms.`);
+    lines.push(`- ${scenario}: median p95 ${formatNumber(profile.median_p95_ms, 3)} ms, median p99 ${formatNumber(profile.median_p99_ms, 3)} ms, p95 spread ${formatNumber(profile.p95_spread_ms, 3)} ms (limit ${formatNumber(profile.maximum_p95_spread_ms, 3)} ms, ${profile.repeatability_passed ? 'pass' : 'fail'}).`);
   }
   const stability = summary.resource_gates?.stability;
   lines.push('', '## 稳定性资源门禁', '');

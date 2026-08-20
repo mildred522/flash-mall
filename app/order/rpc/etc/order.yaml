@@ -40,6 +40,8 @@ PaymentProvider: local_sandbox
 PaymentExpireMinutes: 15
 PaymentSweepIntervalSec: 10
 PaymentFinalizeIntervalSec: 10
+PaymentFinalizeBatchSize: 1000
+PaymentFinalizeConcurrency: 16
 AlipaySandbox:
   AppID: ''
   GatewayURL: https://openapi-sandbox.dl.alipaydev.com/gateway.do

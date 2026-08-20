@@ -36,6 +36,8 @@ PaymentProvider: ${FLASH_MALL_PAYMENT_PROVIDER}
 PaymentExpireMinutes: 15
 PaymentSweepIntervalSec: 10
 PaymentFinalizeIntervalSec: 10
+PaymentFinalizeBatchSize: 1000
+PaymentFinalizeConcurrency: 16
 AlipaySandbox:
   AppID: ${FLASH_MALL_ALIPAY_APP_ID}
   GatewayURL: ${FLASH_MALL_ALIPAY_GATEWAY_URL}
@@ -53,7 +55,7 @@ Observability:
     ServiceName: order-rpc
     Exporter: otlphttp
     Endpoint: http://jaeger:4318/v1/traces
-    SampleRatio: 0.1
+    SampleRatio: ${FLASH_MALL_TRACING_SAMPLE_RATIO}
 
 DatabasePool:
   MaxOpenConns: 24

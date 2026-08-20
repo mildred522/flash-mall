@@ -20,6 +20,8 @@ type Config struct {
 	PaymentExpireMinutes       int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 	PaymentSweepIntervalSec    int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 	PaymentFinalizeIntervalSec int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentFinalizeBatchSize   int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
+	PaymentFinalizeConcurrency int                          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 	AlipaySandbox              AlipaySandboxConfig          `json:",optional"` //nolint:staticcheck // go-zero config uses optional in json tags.
 
 	PprofAddr   string

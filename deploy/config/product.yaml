@@ -20,7 +20,7 @@ Observability:
     ServiceName: product-rpc
     Exporter: otlphttp
     Endpoint: http://jaeger:4318/v1/traces
-    SampleRatio: 1
+    SampleRatio: ${FLASH_MALL_TRACING_SAMPLE_RATIO}
 
 DatabasePool:
   MaxOpenConns: 16

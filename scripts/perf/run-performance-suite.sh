@@ -16,6 +16,8 @@ rabbit_paused=0
 sampler_pid=""
 profile_pids=()
 upload_volume_before=""
+capacity_token=""
+admin_token=""
 
 usage() {
   cat <<'EOF'
@@ -65,6 +67,10 @@ case "$suite" in full|quick) ;; *) echo "invalid suite: $suite" >&2; exit 2 ;; e
 # preserving port 3000 as the normal project default outside this script.
 export FLASH_MALL_GRAFANA_PORT="${FLASH_MALL_PERF_GRAFANA_PORT:-3300}"
 export FLASH_MALL_GRAFANA_URL="http://127.0.0.1:${FLASH_MALL_GRAFANA_PORT}"
+original_tracing_sample_ratio="${FLASH_MALL_TRACING_SAMPLE_RATIO-}"
+original_tracing_sample_ratio_set=0
+[[ -v FLASH_MALL_TRACING_SAMPLE_RATIO ]] && original_tracing_sample_ratio_set=1
+export FLASH_MALL_TRACING_SAMPLE_RATIO="${FLASH_MALL_PERF_TRACING_SAMPLE_RATIO:-0.01}"
 
 timestamp="$(date +%Y%m%d-%H%M%S)"
 output_dir="${output_dir:-$repo_root/.runtime/performance/$timestamp}"
@@ -79,6 +85,80 @@ stage_log="$output_dir/stages.tsv"
 mysql_scalar() {
   docker exec mysql mysql --default-character-set=utf8mb4 -N -uroot \
     -p"${FLASH_MALL_MYSQL_ROOT_PASSWORD:-6494kj06}" -e "$1" 2>/dev/null
+}
+
+restore_tracing_environment() {
+  if [[ "$original_tracing_sample_ratio_set" -eq 1 ]]; then
+    export FLASH_MALL_TRACING_SAMPLE_RATIO="$original_tracing_sample_ratio"
+  else
+    unset FLASH_MALL_TRACING_SAMPLE_RATIO
+  fi
+}
+
+get_capacity_token() {
+  if [[ -n "$capacity_token" ]]; then
+    printf '%s' "$capacity_token"
+    return 0
+  fi
+  capacity_token="$(curl --noproxy '*' -fsS -X POST "$base_url/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d '{"phone":"13800000001","password":"flashmall123","device_type":"performance-cleanup"}' \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=JSON.parse(s);process.stdout.write(v.data?.access_token||v.access_token||"")})')"
+  [[ -n "$capacity_token" ]] || return 1
+  printf '%s' "$capacity_token"
+}
+
+get_admin_token() {
+  if [[ -n "$admin_token" ]]; then
+    printf '%s' "$admin_token"
+    return 0
+  fi
+  admin_token="$(curl --noproxy '*' -fsS -X POST "$base_url/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d '{"phone":"13800000002","password":"admin123","device_type":"performance-fixture"}' \
+    | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=JSON.parse(s);process.stdout.write(v.data?.access_token||v.access_token||"")})')"
+  [[ -n "$admin_token" ]] || return 1
+  printf '%s' "$admin_token"
+}
+
+prepare_performance_stock() {
+  local token bucket current desired=250000 delta
+  token="$(get_admin_token)" || return 1
+  for bucket in 0 1 2 3; do
+    current="$(mysql_scalar "SELECT stock FROM mall_product.product_stock_bucket WHERE product_id = 100 AND bucket_idx = $bucket;")"
+    [[ "$current" =~ ^[0-9]+$ ]] || return 1
+    delta=$((desired - current))
+    (( delta == 0 )) && continue
+    curl --noproxy '*' -fsS -X POST "$base_url/api/admin/products/stock-adjust" \
+      -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
+      -d "{\"product_id\":100,\"delta\":$delta,\"bucket_idx\":$bucket}" >/dev/null
+  done
+  [[ "$(mysql_scalar "SELECT COALESCE(SUM(stock),0) FROM mall_product.product_stock_bucket WHERE product_id = 100;")" == "1000000" ]]
+}
+
+cleanup_capacity_reservations() {
+  local stage="$1" token deadline pending reserved
+  token="$(get_capacity_token)" || return 1
+  deadline=$((SECONDS + 180))
+  while (( SECONDS < deadline )); do
+    pending="$(mysql_scalar "SELECT id FROM mall_order.orders WHERE request_id LIKE 'capacity-%' AND status = 0 ORDER BY create_time LIMIT 100;")"
+    if [[ -n "$pending" ]]; then
+      TOKEN="$token" BASE_URL="$base_url" printf '%s\n' "$pending" \
+        | TOKEN="$token" BASE_URL="$base_url" xargs -r -P 4 -I '{}' sh -c '
+            curl --noproxy "*" -fsS -X POST "$BASE_URL/api/order/cancel" \
+              -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+              -d "{\"order_id\":\"{}\",\"reason\":\"performance stage cleanup\"}" >/dev/null 2>&1 || true
+          '
+    fi
+    reserved="$(mysql_scalar "SELECT COUNT(*) FROM mall_product.inventory_reservation WHERE order_id LIKE 'capacity-%' AND status = 'RESERVED';")"
+    pending="$(mysql_scalar "SELECT COUNT(*) FROM mall_order.orders WHERE request_id LIKE 'capacity-%' AND status = 0;")"
+    if [[ "$pending" == "0" && "$reserved" == "0" ]]; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "[performance] cleanup timed out after $stage: pending=$pending reserved=$reserved" >&2
+  return 1
 }
 
 stop_sampler() {
@@ -149,6 +229,7 @@ restore_demo() {
     rabbit_paused=0
   fi
   if [[ "$restore_needed" -eq 1 ]]; then
+    restore_tracing_environment
     "$control" reset-demo --confirm-reset --profile interview --observability >/dev/null || exit_code=1
     restore_needed=0
   fi
@@ -193,6 +274,9 @@ run_stage() {
   set -e
   stop_sampler
   stop_profiles
+  if [[ "$scenario" != "read" ]] && ! cleanup_capacity_reservations "$stage"; then
+    record_violation "stage_cleanup_timeout_${stage}"
+  fi
   printf '%s\t%s\t%s\t%s\t%s\tend:%s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" "$kind" "$scenario" "$rps" "$status" >> "$stage_log"
   return "$status"
 }
@@ -209,8 +293,22 @@ run_fixed_stage() {
   status=$?
   set -e
   stop_sampler
+  if [[ "$scenario" != "read" ]] && ! cleanup_capacity_reservations "$stage"; then
+    record_violation "stage_cleanup_timeout_${stage}"
+  fi
   printf '%s\t%s\t%s\t%s\t%s\tend:%s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" "$kind" "$scenario" "$rps" "$status" >> "$stage_log"
   return "$status"
+}
+
+prime_business_paths() {
+  echo "[performance] priming connections, caches and transaction coordinators"
+  run_capacity primer-read -scenario read -requests 2000 -rps 1000 -warmup 0s \
+    -concurrency 64 -test-kind primer -stage primer-read >/dev/null
+  run_capacity primer-order -scenario order-cycle -requests 20 -rps 5 -warmup 0s \
+    -concurrency 10 -test-kind primer -stage primer-order -allow-mutation >/dev/null
+  run_capacity primer-trade -scenario trade-cycle -requests 5 -rps 1 -warmup 0s \
+    -concurrency 4 -test-kind primer -stage primer-trade -allow-mutation >/dev/null
+  cleanup_capacity_reservations primer
 }
 
 stage_failed() {
@@ -263,7 +361,12 @@ run_saturation_sweep() {
     stage="saturation-${scenario}-c-${concurrency}"
     echo "[performance] closed-loop saturation $scenario at concurrency $concurrency"
     run_stage saturation "$scenario" 0 "$duration" 1s "$concurrency" "$stage" || true
-    current_qps="$(node -e 'const r=require(process.argv[1]).report; process.stdout.write(String(r.http_qps ?? r.qps ?? 0))' "$output_dir/stages/$stage.json")"
+    # A failed level is already a useful upper bound. Escalating beyond it only
+    # pollutes recovery data and counting all HTTP subrequests exaggerates useful capacity.
+    if stage_failed "$output_dir/stages/$stage.json"; then
+      break
+    fi
+    current_qps="$(node -e 'const r=require(process.argv[1]).report; process.stdout.write(String(r.qps ?? 0))' "$output_dir/stages/$stage.json")"
     if node -e 'const p=Number(process.argv[1]),c=Number(process.argv[2]); process.exit(p > 0 && c <= p * 1.05 ? 0 : 1)' "$previous_qps" "$current_qps"; then
       plateau_count=$((plateau_count + 1))
     else
@@ -301,6 +404,9 @@ run_stability_mix() {
   wait "$order_pid" || order_status=$?
   wait "$trade_pid" || trade_status=$?
   stop_sampler
+  if ! cleanup_capacity_reservations "$stage"; then
+    record_violation "stage_cleanup_timeout_${stage}"
+  fi
   status=$((read_status != 0 || order_status != 0 || trade_status != 0))
   printf '%s\t%s\tstability\tmixed\tread+order+trade\tend:%s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" "$status" >> "$stage_log"
   return "$status"
@@ -355,9 +461,27 @@ verify_invariants() {
     actual="$(docker exec redis redis-cli --raw GET "stock:${product}:${bucket}" 2>/dev/null || true)"
     [[ "$actual" == "$expected" ]] || record_violation "redis_mysql_stock_${product}_${bucket}"
   done < <(mysql_scalar "
-    SELECT product_id,bucket_idx,stock FROM mall_product.product_stock_bucket
-    WHERE product_id IN (100,101,102,103,104,201,202,211,212)
-    ORDER BY product_id,bucket_idx;
+    SELECT b.product_id,b.bucket_idx,
+      b.stock - COALESCE(SUM(CASE WHEN r.status = 'RESERVED' THEN r.quantity ELSE 0 END), 0) AS expected_available
+    FROM mall_product.product_stock_bucket b
+    LEFT JOIN mall_product.inventory_reservation r
+      ON r.product_id = b.product_id AND r.shard_index = b.bucket_idx + 1 AND r.status = 'RESERVED'
+    WHERE b.product_id IN (100,101,102,103,104,201,202,211,212)
+    GROUP BY b.product_id,b.bucket_idx,b.stock
+    ORDER BY b.product_id,b.bucket_idx;
+  ")
+
+  while IFS=$'\t' read -r product expected; do
+    [[ -n "$product" ]] || continue
+    actual="$(docker exec redis redis-cli --raw GET "stock_reserved:${product}" 2>/dev/null || true)"
+    [[ -z "$actual" && "$expected" == "0" ]] && actual=0
+    [[ "$actual" == "$expected" ]] || record_violation "redis_mysql_reserved_${product}"
+  done < <(mysql_scalar "
+    SELECT b.product_id,COALESCE(SUM(CASE WHEN r.status = 'RESERVED' THEN r.quantity ELSE 0 END),0)
+    FROM (SELECT DISTINCT product_id FROM mall_product.product_stock_bucket
+      WHERE product_id IN (100,101,102,103,104,201,202,211,212)) b
+    LEFT JOIN mall_product.inventory_reservation r ON r.product_id = b.product_id
+    GROUP BY b.product_id ORDER BY b.product_id;
   ")
 
   VIOLATIONS_FILE="$violations_file" OUTPUT_FILE="$output_dir/invariants.json" node <<'NODE'
@@ -372,7 +496,8 @@ NODE
 }
 
 write_metadata() {
-  COMMIT="$(git -C "$repo_root" rev-parse HEAD)" SUITE="$suite" OUTPUT_FILE="$output_dir/metadata.json" node <<'NODE'
+  COMMIT="$(git -C "$repo_root" rev-parse HEAD)" SUITE="$suite" \
+    TRACING_SAMPLE_RATIO="$FLASH_MALL_TRACING_SAMPLE_RATIO" OUTPUT_FILE="$output_dir/metadata.json" node <<'NODE'
 const fs = require('node:fs');
 const os = require('node:os');
 fs.writeFileSync(process.env.OUTPUT_FILE, `${JSON.stringify({
@@ -382,7 +507,8 @@ fs.writeFileSync(process.env.OUTPUT_FILE, `${JSON.stringify({
   environment: 'Ubuntu WSL Docker Engine on a shared Windows development host',
   cpu_count: os.cpus().length,
   total_memory_bytes: os.totalmem(),
-  demo_fixture: '20260730_demo_fixture_v1',
+  demo_fixture: '20260730_demo_fixture_v1+product100_stock_1000000',
+  tracing_sample_ratio: Number(process.env.TRACING_SAMPLE_RATIO),
   recorded_at: new Date().toISOString(),
 }, null, 2)}\n`);
 NODE
@@ -405,19 +531,17 @@ if [[ "$suite" == "quick" ]]; then
   order_stress_start=12
   order_stress_ceiling=32
   trade_stress_start=2
-  trade_stress_ceiling=8
+  trade_stress_ceiling=64
   saturation_duration=4s
   read_saturation_ceiling=512
   order_saturation_ceiling=128
+  trade_saturation_ceiling=64
 else
   baseline_repeats=3
   baseline_duration=30s
   load_duration=60s
   stress_duration=45s
-  # Keep the paid-flow probe below the 10k-unit fixture budget even when
-  # expansion and binary refinement both run; otherwise stock depletion would
-  # be misreported as a service-capacity boundary.
-  trade_stress_duration=12s
+  trade_stress_duration=20s
   stability_duration=300s
   warmup=10s
   payment_requests=8
@@ -429,10 +553,11 @@ else
   order_stress_start=15
   order_stress_ceiling=240
   trade_stress_start=4
-  trade_stress_ceiling=128
+  trade_stress_ceiling=1000
   saturation_duration=15s
   read_saturation_ceiling=2048
   order_saturation_ceiling=512
+  trade_saturation_ceiling=512
 fi
 
 echo "[performance] preparing current source and fixed fixture"
@@ -448,10 +573,13 @@ upload_volume_before="$(docker volume inspect -f '{{.Name}}' flash-mall-uploads)
 "$control" reset-demo --confirm-reset --profile interview --observability >/dev/null
 restore_needed=1
 "$control" verify-demo --profile interview --observability >/dev/null
+echo "[performance] expanding product 100 through the admin/Inventory Kitex stock path"
+prepare_performance_stock
 compose_network="$(docker inspect -f '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' hertz-gateway)"
 [[ -n "$compose_network" ]] || { echo "cannot resolve Hertz Compose network" >&2; exit 1; }
 CGO_ENABLED=0 "/home/mildred/.local/go/bin/go" build -o "$tool" "$repo_root/tools/capacitybench"
 write_metadata
+prime_business_paths
 
 echo "[performance] baseline: repeated low-load latency"
 for repeat in $(seq 1 "$baseline_repeats"); do
@@ -468,6 +596,7 @@ run_stage load trade-cycle 3 "$load_duration" 1s 12 load-trade
 echo "[performance] saturation: measuring unpaced completion ceilings"
 run_saturation_sweep read "$saturation_duration" 32 "$read_saturation_ceiling"
 run_saturation_sweep order-cycle "$saturation_duration" 8 "$order_saturation_ceiling"
+run_saturation_sweep trade-cycle "$saturation_duration" 8 "$trade_saturation_ceiling"
 
 echo "[performance] stress: expanding automatically and refining the first failed level"
 run_adaptive_stress read "$read_stress_start" "$read_stress_ceiling" "$stress_duration" "$warmup" 256
@@ -481,10 +610,7 @@ echo "[performance] recovery: payment, idempotency and RabbitMQ interruption"
 run_fixed_stage recovery payment-cycle "$payment_requests" 2 8 recovery-payment-normal
 run_fixed_stage recovery idempotency "$idempotency_requests" 20 "$idempotency_requests" recovery-idempotency
 
-token="$(curl --noproxy '*' -fsS -X POST "$base_url/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"phone":"13800000001","password":"flashmall123","device_type":"performance-cleanup"}' \
-  | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).access_token||""))')"
+token="$(get_capacity_token)"
 idempotency_order="$(mysql_scalar "
   SELECT id FROM mall_order.orders WHERE request_id LIKE 'capacity-%-idempotency'
   ORDER BY create_time DESC LIMIT 1;
@@ -508,6 +634,7 @@ node "$repo_root/scripts/perf/summarize-performance.mjs" "$output_dir" \
   "$output_dir/summary.json" "$output_dir/report.md"
 
 echo "[performance] restoring fixed interview fixture"
+restore_tracing_environment
 "$control" reset-demo --confirm-reset --profile interview --observability >/dev/null
 restore_needed=0
 "$control" verify-demo --profile interview --observability >/dev/null
