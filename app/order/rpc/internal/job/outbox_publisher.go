@@ -126,7 +126,7 @@ func (p *OutboxPublisher) Start() {
 func (p *OutboxPublisher) batchSize() int {
 	batch := p.svcCtx.Config.OutboxBatchSize
 	if batch <= 0 {
-		return 20
+		return 200
 	}
 	return batch
 }

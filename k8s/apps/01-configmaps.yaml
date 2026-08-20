@@ -258,7 +258,7 @@ data:
     RabbitMQURL: ${FLASH_MALL_RABBITMQ_URL}
     RabbitMQExchange: order.events
     RabbitMQRouteKey: order.created
-    OutboxBatchSize: 20
+    OutboxBatchSize: 200
     OutboxPollMs: 1000
     OutboxRetrySec: 5
     OutboxTimeoutSec: 60

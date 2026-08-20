@@ -584,8 +584,8 @@ prime_business_paths
 echo "[performance] baseline: repeated low-load latency"
 for repeat in $(seq 1 "$baseline_repeats"); do
   run_stage baseline read 100 "$baseline_duration" "$warmup" 24 "baseline-read-${repeat}"
-  run_stage baseline order-cycle 2 "$baseline_duration" "$warmup" 8 "baseline-order-${repeat}"
-  run_stage baseline trade-cycle 1 "$baseline_duration" 1s 4 "baseline-trade-${repeat}"
+  run_stage baseline order-cycle 10 "$baseline_duration" "$warmup" 16 "baseline-order-${repeat}"
+  run_stage baseline trade-cycle 5 "$baseline_duration" 1s 12 "baseline-trade-${repeat}"
 done
 
 echo "[performance] load: expected operating levels"

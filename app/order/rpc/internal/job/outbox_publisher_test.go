@@ -13,7 +13,7 @@ import (
 
 func TestOutboxBatchSizeUsesConfiguredAndDefaultValues(t *testing.T) {
 	publisher := &OutboxPublisher{svcCtx: &svc.ServiceContext{Config: config.Config{}}}
-	if got := publisher.batchSize(); got != 20 {
+	if got := publisher.batchSize(); got != 200 {
 		t.Fatalf("default batch size=%d", got)
 	}
 	publisher.svcCtx.Config.OutboxBatchSize = 64
