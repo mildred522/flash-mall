@@ -176,6 +176,8 @@ node scripts/local/verify-durable-assets.mjs --allow-mutation /path/to/image.png
 ./scripts/perf/run-performance-suite.sh --suite full --allow-mutation --confirm-reset
 ```
 
+性能套件区分业务 TPS 与实际 HTTP QPS；`full` 会对读链路和订单链路执行闭环并发饱和扫描，并对读、订单及七步完整支付链路自动扩档，在首次失败后用二分法收敛容量区间。最终库存、预占和 Outbox 不变量作为独立套件门禁，不会反向篡改已经完成的阶段测量。
+
 素材持久化验收脚本只允许连接本机回环地址，必须显式传入 `--allow-mutation`。脚本结束时会取消验收订单以释放库存，并恢复商品原始名称、图片、价格、供应商和状态；账号密码可用 `FLASH_MALL_VERIFY_*` 环境变量覆盖。
 
 Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代按服务重建，缓存超过预算后保留近期热缓存；任何自动清理都不得删除 MySQL、Redis 或 RabbitMQ 数据卷。

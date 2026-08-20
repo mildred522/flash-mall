@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 const targets = {
   read: { successRate: 0.999, p95: 100, p99: 250 },
   'order-cycle': { successRate: 0.99, p95: 1500, p99: 3000 },
+  'trade-cycle': { successRate: 0.99, p95: 3000, p99: 5000 },
   'payment-cycle': { successRate: 0.99, p95: 2000, p99: 4000 },
   idempotency: { successRate: 0.99, p95: 2000, p99: 4000 },
 };
@@ -26,10 +27,6 @@ export function completedQPS(report) {
   return Number(report.qps ?? 0);
 }
 
-function stagePassed(report, invariants) {
-  return invariants.passed && performanceStagePassed(report);
-}
-
 function median(values) {
   if (values.length === 0) return 0;
   const sorted = [...values].sort((left, right) => left - right);
@@ -37,13 +34,17 @@ function median(values) {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function compactStage(result, invariants) {
+function compactStage(result) {
   const report = result.report;
   const qps = completedQPS(report);
   return {
     stage: result.stage,
     target_rps: report.target_rps,
+    concurrency: report.concurrency,
     qps,
+    business_tps: qps,
+    http_requests: Number(report.http_requests ?? report.completed ?? 0),
+    http_qps: Number(report.http_qps ?? qps),
     attainment: report.target_rps > 0 ? qps / report.target_rps : 1,
     success_rate: report.success_rate,
     attempts: report.attempts,
@@ -56,7 +57,9 @@ function compactStage(result, invariants) {
     max_ms: report.max_ms,
     operations: report.operations ?? {},
     steps: report.steps ?? {},
-    passed: stagePassed(report, invariants),
+    // A final cross-service invariant is a suite-level gate. It must not rewrite
+    // the historical latency/throughput result of every individual stage.
+    passed: performanceStagePassed(report),
   };
 }
 
@@ -76,6 +79,12 @@ function profileScenario(kind, stages) {
     result.first_failed_target_rps = failed[0] ?? 0;
     result.boundary_observed = failed.length > 0;
     result.passed = stages.length > 0;
+  }
+  if (kind === 'saturation') {
+    const peak = stages.reduce((best, stage) => stage.http_qps > (best?.http_qps ?? -1) ? stage : best, null);
+    result.peak_business_tps = peak?.business_tps ?? 0;
+    result.peak_http_qps = peak?.http_qps ?? 0;
+    result.peak_concurrency = peak?.concurrency ?? 0;
   }
   return result;
 }
@@ -146,14 +155,16 @@ export function summarizePerformance({ results, invariants, metadata, resources 
     if (!result.report || !targets[result.report.scenario] || !result.test_kind) continue;
     const kind = result.test_kind;
     const scenario = result.report.scenario;
-    ((grouped[kind] ??= {})[scenario] ??= []).push(compactStage(result, invariants));
+    ((grouped[kind] ??= {})[scenario] ??= []).push(compactStage(result));
   }
 
   const profiles = {};
   for (const [kind, scenarios] of Object.entries(grouped)) {
     profiles[kind] = {};
     for (const [scenario, stages] of Object.entries(scenarios)) {
-      stages.sort((left, right) => left.target_rps - right.target_rps || left.stage.localeCompare(right.stage));
+      stages.sort((left, right) => kind === 'saturation'
+        ? left.concurrency - right.concurrency
+        : left.target_rps - right.target_rps || left.stage.localeCompare(right.stage));
       profiles[kind][scenario] = profileScenario(kind, stages);
     }
   }
@@ -279,13 +290,13 @@ function markdown(summary) {
     '',
     '## 阶段结果',
     '',
-    '| profile | scenario | stage | target RPS | achieved QPS | p95 ms | p99 ms | success | dropped | gate |',
-    '|---|---|---|---:|---:|---:|---:|---:|---:|---|',
+    '| profile | scenario | stage | target TPS | business TPS | HTTP QPS | p95 ms | p99 ms | success | dropped | gate |',
+    '|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|',
   ];
   for (const [kind, scenarios] of Object.entries(summary.profiles)) {
     for (const [scenario, profile] of Object.entries(scenarios)) {
       for (const stage of profile.stages) {
-        lines.push(`| ${kind} | ${scenario} | ${stage.stage} | ${stage.target_rps} | ${formatNumber(stage.qps)} | ${formatNumber(stage.p95_ms, 3)} | ${formatNumber(stage.p99_ms, 3)} | ${formatNumber(100 * stage.success_rate)}% | ${stage.dropped} | ${stage.passed ? 'pass' : 'fail'} |`);
+        lines.push(`| ${kind} | ${scenario} | ${stage.stage} | ${stage.target_rps || 'closed'} | ${formatNumber(stage.business_tps)} | ${formatNumber(stage.http_qps)} | ${formatNumber(stage.p95_ms, 3)} | ${formatNumber(stage.p99_ms, 3)} | ${formatNumber(100 * stage.success_rate)}% | ${stage.dropped} | ${stage.passed ? 'pass' : 'fail'} |`);
       }
     }
   }
@@ -293,7 +304,10 @@ function markdown(summary) {
   lines.push('', '## 容量边界与瓶颈证据', '');
   const stress = summary.profiles.stress ?? {};
   for (const [scenario, profile] of Object.entries(stress)) {
-    lines.push(`- ${scenario}: last passed ${profile.last_passed_target_rps || '-'} RPS; first failed ${profile.first_failed_target_rps || 'not reached'} RPS.`);
+    lines.push(`- ${scenario}: last passed ${profile.last_passed_target_rps || '-'} TPS; first failed ${profile.first_failed_target_rps || 'not reached'} TPS.`);
+  }
+  for (const [scenario, profile] of Object.entries(summary.profiles.saturation ?? {})) {
+    lines.push(`- ${scenario} closed-loop peak: ${formatNumber(profile.peak_business_tps)} business TPS / ${formatNumber(profile.peak_http_qps)} HTTP QPS at concurrency ${profile.peak_concurrency}.`);
   }
   if (summary.bottlenecks.length === 0) {
     lines.push('- No failed stress stage was observed within the configured ceiling.');

@@ -24,7 +24,7 @@ type capacityResult struct {
 
 func main() {
 	baseURL := flag.String("base-url", "http://127.0.0.1:8889", "Hertz gateway base URL")
-	scenario := flag.String("scenario", "read", "read, order-cycle, payment-cycle, or idempotency")
+	scenario := flag.String("scenario", "read", "read, order-cycle, trade-cycle, payment-cycle, or idempotency")
 	requests := flag.Int("requests", 0, "fixed request count; zero uses duration")
 	duration := flag.Duration("duration", 30*time.Second, "measurement duration")
 	warmup := flag.Duration("warmup", 5*time.Second, "warmup duration")
@@ -75,7 +75,7 @@ func run(
 		return err
 	}
 	switch scenario {
-	case "read", "order-cycle", "payment-cycle", "idempotency":
+	case "read", "order-cycle", "trade-cycle", "payment-cycle", "idempotency":
 	default:
 		return fmt.Errorf("unsupported scenario %q", scenario)
 	}

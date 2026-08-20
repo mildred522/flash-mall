@@ -21,6 +21,9 @@ func TestSummarizeScenarioReportsTailLatencyAndFailures(t *testing.T) {
 	if got.SuccessRate != 0.5 || got.QPS != 2 {
 		t.Fatalf("unexpected rates: %+v", got)
 	}
+	if got.HTTPRequests != 4 || got.HTTPQPS != 2 {
+		t.Fatalf("unexpected HTTP throughput: %+v", got)
+	}
 	withDrops := summarizeSamples("read", samples, 2*time.Second, 4)
 	if withDrops.Attempts != 8 || withDrops.Completed != 4 || withDrops.QPS != 2 {
 		t.Fatalf("dropped work must not count as completed throughput: %+v", withDrops)

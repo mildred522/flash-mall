@@ -21,7 +21,10 @@ function result(kind, scenario, stage, rps, successRate, p95, options = {}) {
     report: {
       scenario,
       target_rps: rps,
+      concurrency: options.concurrency ?? 20,
       qps: options.qps ?? rps,
+      http_requests: options.httpRequests ?? 100,
+      http_qps: options.httpQPS ?? options.qps ?? rps,
       success_rate: successRate,
       p95_ms: p95,
       p99_ms: options.p99 ?? p95 * 1.5,
@@ -67,6 +70,32 @@ test('load or stability SLO failure fails the suite', () => {
 
   assert.equal(summary.profiles.load.read.passed, false);
   assert.equal(summary.overall_passed, false);
+});
+
+test('suite invariants do not rewrite successful stage measurements', () => {
+  const summary = summarizePerformance({
+    results: [result('baseline', 'read', 'baseline-read', 100, 1, 2)],
+    invariants: { passed: false, violations: ['reserved_reservations'] },
+    metadata: {}, resources: {},
+  });
+  assert.equal(summary.profiles.baseline.read.stages[0].passed, true);
+  assert.equal(summary.overall_passed, false);
+});
+
+test('saturation reports both peak business TPS and underlying HTTP QPS', () => {
+  const summary = summarizePerformance({
+    results: [
+      result('saturation', 'order-cycle', 'saturation-order-c16', 0, 1, 200,
+        { qps: 90, httpQPS: 180, concurrency: 16, p99: 300 }),
+      result('saturation', 'order-cycle', 'saturation-order-c32', 0, 1, 260,
+        { qps: 120, httpQPS: 240, concurrency: 32, p99: 400 }),
+    ],
+    invariants: { passed: true, violations: [] }, metadata: {}, resources: {},
+  });
+
+  assert.equal(summary.profiles.saturation['order-cycle'].peak_business_tps, 120);
+  assert.equal(summary.profiles.saturation['order-cycle'].peak_http_qps, 240);
+  assert.equal(summary.profiles.saturation['order-cycle'].peak_concurrency, 32);
 });
 
 test('failed stress stage reports dominant phase and CPU candidate', () => {

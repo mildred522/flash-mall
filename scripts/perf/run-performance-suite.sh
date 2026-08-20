@@ -30,10 +30,11 @@ Options:
   --confirm-reset          Required: permits fixture reset before and after the suite
 
 Full suite:
-  baseline: 3 repeated low-load samples
+  baseline: 3 repeated low-load read/order/full-trade samples
   load: 60-second expected-load stages
-  stress: increasing stages until two failed levels or the configured ceiling
-  stability: 5-minute mixed read/write soak
+  saturation: unpaced concurrency expansion until throughput plateaus
+  stress: automatic rate expansion plus binary refinement after first failure
+  stability: 5-minute mixed read/order/full-trade soak
   recovery: payment, idempotency, RabbitMQ pause/recovery and business invariants
 EOF
 }
@@ -122,6 +123,9 @@ start_profiles() {
   else
     start_profile order-rpc 6061 "$stage" "$seconds"
     start_profile inventory-kitex 6063 "$stage" "$seconds"
+    if [[ "$scenario" == "trade-cycle" ]]; then
+      start_profile product-rpc 6062 "$stage" "$seconds"
+    fi
   fi
 }
 
@@ -217,28 +221,66 @@ stage_failed() {
   return 0
 }
 
-run_stress_ladder() {
-  local scenario="$1" duration="$2" warmup="$3" concurrency="$4"
-  shift 4
-  local failures=0
-  for rps in "$@"; do
+run_adaptive_stress() {
+  local scenario="$1" start_rps="$2" ceiling="$3" duration="$4" warmup="$5" concurrency="$6"
+  local rps="$start_rps" last_pass=0 first_fail=0 stage threshold midpoint
+  while (( rps <= ceiling )); do
     stage="stress-${scenario}-rps-${rps}"
-    echo "[performance] stress $scenario at $rps RPS"
+    echo "[performance] stress $scenario at $rps business TPS"
     run_stage stress "$scenario" "$rps" "$duration" "$warmup" "$concurrency" "$stage" || true
     if stage_failed "$output_dir/stages/$stage.json"; then
-      failures=$((failures + 1))
-      if [[ "$failures" -ge 2 ]]; then
-        break
-      fi
+      first_fail="$rps"
+      break
+    fi
+    last_pass="$rps"
+    (( rps == ceiling )) && break
+    rps=$((rps * 2))
+    (( rps > ceiling )) && rps="$ceiling"
+  done
+
+  # Once a failing level exists, converge to an approximately 10% capacity interval.
+  while (( first_fail > 0 )); do
+    threshold=$((last_pass / 10))
+    (( threshold < 1 )) && threshold=1
+    (( first_fail - last_pass <= threshold )) && break
+    midpoint=$(((last_pass + first_fail) / 2))
+    (( midpoint <= last_pass || midpoint >= first_fail )) && break
+    stage="stress-${scenario}-rps-${midpoint}"
+    echo "[performance] refine $scenario boundary at $midpoint business TPS"
+    run_stage stress "$scenario" "$midpoint" "$duration" "$warmup" "$concurrency" "$stage" || true
+    if stage_failed "$output_dir/stages/$stage.json"; then
+      first_fail="$midpoint"
+    else
+      last_pass="$midpoint"
     fi
   done
-  return 0
+}
+
+run_saturation_sweep() {
+  local scenario="$1" duration="$2" concurrency="$3" ceiling="$4"
+  local stage current_qps previous_qps=0 plateau_count=0
+  while (( concurrency <= ceiling )); do
+    stage="saturation-${scenario}-c-${concurrency}"
+    echo "[performance] closed-loop saturation $scenario at concurrency $concurrency"
+    run_stage saturation "$scenario" 0 "$duration" 1s "$concurrency" "$stage" || true
+    current_qps="$(node -e 'const r=require(process.argv[1]).report; process.stdout.write(String(r.http_qps ?? r.qps ?? 0))' "$output_dir/stages/$stage.json")"
+    if node -e 'const p=Number(process.argv[1]),c=Number(process.argv[2]); process.exit(p > 0 && c <= p * 1.05 ? 0 : 1)' "$previous_qps" "$current_qps"; then
+      plateau_count=$((plateau_count + 1))
+    else
+      plateau_count=0
+    fi
+    (( plateau_count >= 2 )) && break
+    previous_qps="$current_qps"
+    (( concurrency == ceiling )) && break
+    concurrency=$((concurrency * 2))
+    (( concurrency > ceiling )) && concurrency="$ceiling"
+  done
 }
 
 run_stability_mix() {
   local duration="$1" warmup="$2"
   local stage="stability-mixed"
-  printf '%s\t%s\tstability\tmixed\tread+order\tstart\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" >> "$stage_log"
+  printf '%s\t%s\tstability\tmixed\tread+order+trade\tstart\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" >> "$stage_log"
   start_sampler "$stage"
   run_capacity stability-read -scenario read -rps 500 -duration "$duration" -warmup "$warmup" \
     -concurrency 80 -test-kind stability -stage stability-read -allow-mutation \
@@ -248,13 +290,19 @@ run_stability_mix() {
     -concurrency 20 -test-kind stability -stage stability-order -allow-mutation \
     -out "/results/stages/stability-order.json" >/dev/null &
   order_pid=$!
+  run_capacity stability-trade -scenario trade-cycle -rps 1 -duration "$duration" -warmup 1s \
+    -concurrency 8 -test-kind stability -stage stability-trade -allow-mutation \
+    -out "/results/stages/stability-trade.json" >/dev/null &
+  trade_pid=$!
   read_status=0
   order_status=0
+  trade_status=0
   wait "$read_pid" || read_status=$?
   wait "$order_pid" || order_status=$?
+  wait "$trade_pid" || trade_status=$?
   stop_sampler
-  status=$((read_status != 0 || order_status != 0))
-  printf '%s\t%s\tstability\tmixed\tread+order\tend:%s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" "$status" >> "$stage_log"
+  status=$((read_status != 0 || order_status != 0 || trade_status != 0))
+  printf '%s\t%s\tstability\tmixed\tread+order+trade\tend:%s\n' "$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" "$stage" "$status" >> "$stage_log"
   return "$status"
 }
 
@@ -345,27 +393,46 @@ if [[ "$suite" == "quick" ]]; then
   baseline_duration=5s
   load_duration=10s
   stress_duration=8s
+  trade_stress_duration=6s
   stability_duration=20s
   warmup=1s
   payment_requests=2
   rabbit_recovery_requests=4
   idempotency_requests=5
   profile_seconds=5
-  read_stress=(800 1200)
-  order_stress=(12 20)
+  read_stress_start=800
+  read_stress_ceiling=3200
+  order_stress_start=12
+  order_stress_ceiling=32
+  trade_stress_start=2
+  trade_stress_ceiling=8
+  saturation_duration=4s
+  read_saturation_ceiling=512
+  order_saturation_ceiling=128
 else
   baseline_repeats=3
   baseline_duration=30s
   load_duration=60s
   stress_duration=45s
+  # Keep the paid-flow probe below the 10k-unit fixture budget even when
+  # expansion and binary refinement both run; otherwise stock depletion would
+  # be misreported as a service-capacity boundary.
+  trade_stress_duration=12s
   stability_duration=300s
   warmup=10s
   payment_requests=8
   rabbit_recovery_requests=12
   idempotency_requests=40
   profile_seconds=15
-  read_stress=(800 1200 2000 3000)
-  order_stress=(15 25 40 60)
+  read_stress_start=800
+  read_stress_ceiling=100000
+  order_stress_start=15
+  order_stress_ceiling=240
+  trade_stress_start=4
+  trade_stress_ceiling=128
+  saturation_duration=15s
+  read_saturation_ceiling=2048
+  order_saturation_ceiling=512
 fi
 
 echo "[performance] preparing current source and fixed fixture"
@@ -390,15 +457,22 @@ echo "[performance] baseline: repeated low-load latency"
 for repeat in $(seq 1 "$baseline_repeats"); do
   run_stage baseline read 100 "$baseline_duration" "$warmup" 24 "baseline-read-${repeat}"
   run_stage baseline order-cycle 2 "$baseline_duration" "$warmup" 8 "baseline-order-${repeat}"
+  run_stage baseline trade-cycle 1 "$baseline_duration" 1s 4 "baseline-trade-${repeat}"
 done
 
 echo "[performance] load: expected operating levels"
 run_stage load read 600 "$load_duration" "$warmup" 64 load-read
 run_stage load order-cycle 10 "$load_duration" "$warmup" 24 load-order
+run_stage load trade-cycle 3 "$load_duration" 1s 12 load-trade
 
-echo "[performance] stress: searching for latency or throughput knee"
-run_stress_ladder read "$stress_duration" "$warmup" 120 "${read_stress[@]}"
-run_stress_ladder order-cycle "$stress_duration" "$warmup" 80 "${order_stress[@]}"
+echo "[performance] saturation: measuring unpaced completion ceilings"
+run_saturation_sweep read "$saturation_duration" 32 "$read_saturation_ceiling"
+run_saturation_sweep order-cycle "$saturation_duration" 8 "$order_saturation_ceiling"
+
+echo "[performance] stress: expanding automatically and refining the first failed level"
+run_adaptive_stress read "$read_stress_start" "$read_stress_ceiling" "$stress_duration" "$warmup" 256
+run_adaptive_stress order-cycle "$order_stress_start" "$order_stress_ceiling" "$stress_duration" "$warmup" 160
+run_adaptive_stress trade-cycle "$trade_stress_start" "$trade_stress_ceiling" "$trade_stress_duration" 1s 96
 
 echo "[performance] stability: sustained mixed traffic"
 run_stability_mix "$stability_duration" "$warmup"

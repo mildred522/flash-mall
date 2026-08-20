@@ -156,6 +156,55 @@ func TestPaymentCycleReportsAllPhaseTimings(t *testing.T) {
 	}
 }
 
+func TestTradeCycleTraversesTheCompletePurchaseJourney(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/auth/login":
+			_, _ = w.Write([]byte(`{"access_token":"token","user_id":9}`))
+		case "/api/shop/catalog", "/api/shop/products/detail":
+			_, _ = w.Write([]byte(`{"data":{"items":[]}}`))
+		case "/api/order/create":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1","status":0}}`))
+		case "/api/order/pay":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1","payment_order_id":"pay-1","qr_url":"http://127.0.0.1/pay?token=abc","status":"pending"}}`))
+		case "/api/payment/sandbox/confirm":
+			_, _ = w.Write([]byte(`{"data":{"status":"paid"}}`))
+		case "/api/payment/status":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1","payment_order_id":"pay-1","status":"paid"}}`))
+		case "/api/order/detail":
+			if r.Header.Get("Authorization") != "Bearer token" {
+				http.Error(w, "missing bearer", http.StatusUnauthorized)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-1"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := newBusinessClient(server.URL, "13800000001", "password", 100)
+	if err := client.login(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(t.Context(), "trade-cycle", 1)
+	if result.Err != nil || result.Operation != "trade_cycle" || len(result.Steps) != 7 {
+		t.Fatalf("result=%+v", result)
+	}
+	want := "/api/auth/login,/api/shop/catalog,/api/shop/products/detail,/api/order/create,/api/order/pay,/api/payment/sandbox/confirm,/api/payment/status,/api/order/detail"
+	mu.Lock()
+	defer mu.Unlock()
+	if strings.Join(paths, ",") != want {
+		t.Fatalf("paths=%v", paths)
+	}
+}
+
 func TestIdempotencyDoesNotDecodeAnUnusedResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -219,5 +268,40 @@ func TestOrderCycleDoesNotReuseRequestIDAcrossLoadPhases(t *testing.T) {
 	defer mu.Unlock()
 	if len(requestIDs) != 2 || requestIDs[0] == requestIDs[1] {
 		t.Fatalf("request IDs must remain unique across warmup and measurement: %v", requestIDs)
+	}
+}
+
+func TestOrderCycleRetriesCleanupOutsideMeasuredSteps(t *testing.T) {
+	var cancelCalls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/auth/login":
+			_, _ = w.Write([]byte(`{"access_token":"token","user_id":9}`))
+		case "/api/order/create":
+			_, _ = w.Write([]byte(`{"data":{"order_id":"order-cleanup","status":0}}`))
+		case "/api/order/cancel":
+			cancelCalls++
+			if cancelCalls == 1 {
+				http.Error(w, "temporary overload", http.StatusServiceUnavailable)
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"status":"closed"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	client := newBusinessClient(server.URL, "13800000001", "password", 100)
+	if err := client.login(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	result := client.execute(t.Context(), "order-cycle", 1)
+	if result.Err == nil || cancelCalls != 2 {
+		t.Fatalf("result=%+v cancel_calls=%d", result, cancelCalls)
+	}
+	if len(result.Steps) != 2 {
+		t.Fatalf("cleanup retry must not be counted as a business step: %+v", result.Steps)
 	}
 }

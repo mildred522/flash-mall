@@ -93,7 +93,12 @@ func (c *businessClient) authenticate(ctx context.Context) error {
 func (c *businessClient) execute(ctx context.Context, scenario string, sequence int64) sample {
 	startedAt := time.Now()
 	result := c.executeScenario(ctx, scenario, sequence)
-	result.Duration = time.Since(startedAt)
+	for _, duration := range result.Steps {
+		result.Duration += duration
+	}
+	if result.Duration <= 0 {
+		result.Duration = time.Since(startedAt)
+	}
 	return result
 }
 
@@ -105,6 +110,8 @@ func (c *businessClient) executeScenario(ctx context.Context, scenario string, s
 		return c.orderCycle(ctx, sequence)
 	case "payment-cycle":
 		return c.paymentCycle(ctx, sequence)
+	case "trade-cycle":
+		return c.tradeCycle(ctx, sequence)
 	case "idempotency":
 		steps := map[string]time.Duration{}
 		status, err := measureStep(steps, "create_order", func() (int, error) {
@@ -143,6 +150,7 @@ func (c *businessClient) orderCycle(ctx context.Context, sequence int64) sample 
 		return c.createOrderInto(ctx, requestID, &created)
 	})
 	if err != nil {
+		c.bestEffortCancelRequest(requestID)
 		return sample{StatusCode: status, Err: err, Operation: "order_cycle", Steps: steps}
 	}
 	status, err = measureStep(steps, "cancel_order", func() (int, error) {
@@ -150,7 +158,39 @@ func (c *businessClient) orderCycle(ctx context.Context, sequence int64) sample 
 			"order_id": created.OrderID, "reason": "capacity lifecycle cleanup",
 		}, true, nil)
 	})
+	if err != nil {
+		c.bestEffortCancel(created.OrderID)
+	}
 	return sample{StatusCode: status, Err: err, Operation: "order_cycle", Steps: steps}
+}
+
+func (c *businessClient) bestEffortCancel(orderID string) {
+	for attempt := 0; attempt < 3; attempt++ {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		_, err := c.doJSON(cleanupCtx, http.MethodPost, "/api/order/cancel", map[string]any{
+			"order_id": orderID, "reason": "capacity lifecycle cleanup retry",
+		}, true, nil)
+		cancel()
+		if err == nil {
+			return
+		}
+		time.Sleep(time.Duration(attempt+1) * 50 * time.Millisecond)
+	}
+}
+
+func (c *businessClient) bestEffortCancelRequest(requestID string) {
+	for attempt := 0; attempt < 3; attempt++ {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		var order orderResponse
+		path := "/api/order/status?request_id=" + url.QueryEscape(requestID)
+		_, err := c.doJSON(cleanupCtx, http.MethodGet, path, nil, true, &order)
+		cancel()
+		if err == nil && order.OrderID != "" {
+			c.bestEffortCancel(order.OrderID)
+			return
+		}
+		time.Sleep(time.Duration(attempt+1) * 50 * time.Millisecond)
+	}
 }
 
 func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) sample {
@@ -162,6 +202,7 @@ func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) sampl
 		return c.createOrderInto(ctx, requestID, &created)
 	})
 	if err != nil {
+		c.bestEffortCancelRequest(requestID)
 		return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
 	}
 	var payment paymentResponse
@@ -170,6 +211,7 @@ func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) sampl
 			map[string]any{"order_id": created.OrderID}, true, &payment)
 	})
 	if err != nil {
+		c.bestEffortCancel(created.OrderID)
 		return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
 	}
 	parsed, err := url.Parse(payment.QRURL)
@@ -181,6 +223,74 @@ func (c *businessClient) paymentCycle(ctx context.Context, sequence int64) sampl
 			map[string]any{"token": parsed.Query().Get("token")}, false, nil)
 	})
 	return sample{StatusCode: status, Err: err, Operation: "payment_cycle", Steps: steps}
+}
+
+// tradeCycle measures one user-visible purchase journey rather than one isolated API:
+// browse catalog -> inspect product -> create order -> create payment -> confirm ->
+// observe payment state -> read the final order. Login remains a stage precondition,
+// matching a normal session instead of inflating every purchase with a new login.
+func (c *businessClient) tradeCycle(ctx context.Context, sequence int64) sample {
+	sequence = c.sequence.Add(1) - 1
+	requestID := fmt.Sprintf("capacity-%s-trade-%d", c.runID, sequence)
+	steps := map[string]time.Duration{}
+	status, err := measureStep(steps, "browse_catalog", func() (int, error) {
+		return c.doJSON(ctx, http.MethodGet, "/api/shop/catalog", nil, false, nil)
+	})
+	if err != nil {
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+	status, err = measureStep(steps, "browse_product_detail", func() (int, error) {
+		path := fmt.Sprintf("/api/shop/products/detail?product_id=%d", c.productID)
+		return c.doJSON(ctx, http.MethodGet, path, nil, false, nil)
+	})
+	if err != nil {
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+
+	var created orderResponse
+	status, err = measureStep(steps, "create_order", func() (int, error) {
+		return c.createOrderInto(ctx, requestID, &created)
+	})
+	if err != nil {
+		c.bestEffortCancelRequest(requestID)
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+	var payment paymentResponse
+	status, err = measureStep(steps, "create_payment", func() (int, error) {
+		return c.doJSON(ctx, http.MethodPost, "/api/order/pay",
+			map[string]any{"order_id": created.OrderID}, true, &payment)
+	})
+	if err != nil {
+		c.bestEffortCancel(created.OrderID)
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+	parsed, err := url.Parse(payment.QRURL)
+	if err != nil || parsed.Query().Get("token") == "" {
+		return sample{StatusCode: status, Err: fmt.Errorf("payment QR URL has no token"), Operation: "trade_cycle", Steps: steps}
+	}
+	token := parsed.Query().Get("token")
+	status, err = measureStep(steps, "confirm_payment", func() (int, error) {
+		return c.doJSON(ctx, http.MethodPost, "/api/payment/sandbox/confirm",
+			map[string]any{"token": token}, false, nil)
+	})
+	if err != nil {
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+	var finalPayment paymentResponse
+	status, err = measureStep(steps, "read_payment_status", func() (int, error) {
+		return c.doJSON(ctx, http.MethodGet, "/api/payment/status?token="+url.QueryEscape(token), nil, false, &finalPayment)
+	})
+	if err == nil && finalPayment.Status != "paid" {
+		err = fmt.Errorf("payment status=%q, want paid", finalPayment.Status)
+	}
+	if err != nil {
+		return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
+	}
+	status, err = measureStep(steps, "read_order_detail", func() (int, error) {
+		path := "/api/order/detail?order_id=" + url.QueryEscape(created.OrderID)
+		return c.doJSON(ctx, http.MethodGet, path, nil, true, nil)
+	})
+	return sample{StatusCode: status, Err: err, Operation: "trade_cycle", Steps: steps}
 }
 
 func measureStep(steps map[string]time.Duration, name string, call func() (int, error)) (int, error) {

@@ -31,7 +31,9 @@ type scenarioReport struct {
 	Failed       int                       `json:"failed"`
 	Dropped      int                       `json:"dropped"`
 	SuccessRate  float64                   `json:"success_rate"`
-	QPS          float64                   `json:"qps"`
+	QPS          float64                   `json:"qps"` // Completed business cycles per second (TPS for multi-request scenarios).
+	HTTPRequests int                       `json:"http_requests"`
+	HTTPQPS      float64                   `json:"http_qps"`
 	P50MS        float64                   `json:"p50_ms"`
 	P95MS        float64                   `json:"p95_ms"`
 	P99MS        float64                   `json:"p99_ms"`
@@ -81,6 +83,7 @@ func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, 
 	operationLatencies := map[string][]float64{}
 	stepLatencies := map[string][]float64{}
 	for _, item := range samples {
+		report.HTTPRequests += len(item.Steps)
 		if item.StatusCode > 0 {
 			report.StatusCodes[strconv.Itoa(item.StatusCode)]++
 		}
@@ -112,6 +115,7 @@ func summarizeSamples(scenario string, samples []sample, elapsed time.Duration, 
 	}
 	if elapsed > 0 {
 		report.QPS = float64(report.Completed) / elapsed.Seconds()
+		report.HTTPQPS = float64(report.HTTPRequests) / elapsed.Seconds()
 		report.DurationSec = elapsed.Seconds()
 	}
 	sort.Float64s(latencies)
@@ -166,6 +170,8 @@ func defaultSLO(scenario string) sloTarget {
 		return sloTarget{SuccessRate: 0.999, P95MS: 100, P99MS: 250}
 	case "order-cycle":
 		return sloTarget{SuccessRate: 0.99, P95MS: 1500, P99MS: 3000}
+	case "trade-cycle":
+		return sloTarget{SuccessRate: 0.99, P95MS: 3000, P99MS: 5000}
 	case "payment-cycle", "idempotency":
 		return sloTarget{SuccessRate: 0.99, P95MS: 2000, P99MS: 4000}
 	default:
