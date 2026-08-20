@@ -48,6 +48,41 @@ func TestMarkPublishedBatchUsesSingleStateUpdate(t *testing.T) {
 	}
 }
 
+func TestMarkPublishingBatchUsesSingleCompareAndSet(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	publisher := &OutboxPublisher{svcCtx: &svc.ServiceContext{SqlConn: sqlx.NewSqlConnFromDB(db)}}
+	mock.ExpectExec("(?s)UPDATE order_outbox.*status = \\?.*id IN \\(\\?,\\?\\)").
+		WithArgs(outboxStatusPublishing, outboxStatusPending, int64(10), int64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 2))
+
+	if err := publisher.markPublishingBatch(context.Background(), []outboxEvent{{ID: 10}, {ID: 11}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMarkPublishingBatchRejectsPartialClaim(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	publisher := &OutboxPublisher{svcCtx: &svc.ServiceContext{SqlConn: sqlx.NewSqlConnFromDB(db)}}
+	mock.ExpectExec("(?s)UPDATE order_outbox.*id IN \\(\\?,\\?\\)").
+		WithArgs(outboxStatusPublishing, outboxStatusPending, int64(10), int64(11)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	if err := publisher.markPublishingBatch(context.Background(), []outboxEvent{{ID: 10}, {ID: 11}}); err == nil {
+		t.Fatal("partial batch claim must fail closed")
+	}
+}
+
 func TestOutboxDrainContinuesOnlyAfterFullBatch(t *testing.T) {
 	publisher := &OutboxPublisher{svcCtx: &svc.ServiceContext{Config: config.Config{OutboxBatchSize: 20}}}
 	if publisher.batchWasFull(19) {

@@ -276,15 +276,39 @@ LIMIT ?
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-
-	claimed := make([]outboxEvent, 0, batch)
+	candidates := make([]outboxEvent, 0, batch)
 	for rows.Next() {
 		var evt outboxEvent
 		if scanErr := rows.Scan(&evt.ID, &evt.EventID, &evt.EventType, &evt.Payload, &evt.AttemptCount); scanErr != nil {
+			_ = rows.Close()
 			return nil, scanErr
 		}
+		candidates = append(candidates, evt)
+	}
+	if err = rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err = rows.Close(); err != nil {
+		return nil, err
+	}
+	if len(candidates) == 0 {
+		return nil, nil
+	}
 
+	// The normal deployment elects exactly one publisher with the Redis leader
+	// lock. Claim its complete page in one autocommit instead of issuing up to
+	// OutboxBatchSize individual commits. Keep the compare-and-set fallback for
+	// deployments that deliberately disable single-active publishing.
+	if p.svcCtx.Config.OutboxSingleActive {
+		if err := p.markPublishingBatch(ctx, candidates); err != nil {
+			return nil, err
+		}
+		return candidates, nil
+	}
+
+	claimed := make([]outboxEvent, 0, len(candidates))
+	for _, evt := range candidates {
 		res, execErr := db.ExecContext(ctx, `
 UPDATE order_outbox
 SET status = ?, update_time = NOW()
@@ -301,10 +325,35 @@ WHERE id = ? AND status = ?
 			claimed = append(claimed, evt)
 		}
 	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
 	return claimed, nil
+}
+
+func (p *OutboxPublisher) markPublishingBatch(ctx context.Context, events []outboxEvent) error {
+	if len(events) == 0 {
+		return nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(events)), ",")
+	args := make([]any, 0, len(events)+2)
+	args = append(args, outboxStatusPublishing, outboxStatusPending)
+	for _, evt := range events {
+		args = append(args, evt.ID)
+	}
+	query := `
+UPDATE order_outbox
+SET status = ?, update_time = NOW()
+WHERE status = ? AND id IN (` + placeholders + `)`
+	result, err := p.svcCtx.SqlConn.ExecCtx(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != int64(len(events)) {
+		return fmt.Errorf("mark publishing batch affected=%d expected=%d", affected, len(events))
+	}
+	return nil
 }
 
 func (p *OutboxPublisher) publishBatch(ctx context.Context, events []outboxEvent) error {
