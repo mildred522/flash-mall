@@ -230,6 +230,8 @@ Docker 构建使用服务级源码复制和共享 BuildKit 缓存。日常迭代
 
 本轮代码清理、容量证据链、可观测闭环、故障恢复和真实浏览器验收均已收口。仓库不再围绕已经完成的分层重复重构；功能层面的剩余工作仅是实际部署时注入支付宝沙箱凭据和公网通知地址，或根据目标环境配置域名、TLS、Secret 与资源限额。当前仍有一项明确工程债：`app/order/rpc/internal/job/order_paid_projection.go` 为兼容旧环境保留了消费者运行时建表，生产化前应迁入版本化 schema 脚本并改为只读 readiness 校验。收尾阶段不再扩展 Stripe 或微信支付，避免扩大维护面。
 
+2026-08-20 性能异常已完成收口：测试使用百万库存业务夹具、成功业务 TPS 饱和口径、首次失败停止、写阶段确定性补偿、1% 压测 Trace 和充足基线样本；订单库存恢复采用批次 1000/并发 16，Outbox confirm publisher 批次提升至 200。提交 `16b9141` 的正式全量结果中正确性不变量和全部必需阶段通过，公开读边界 22,400–24,000 TPS、订单 150–165 TPS、完整交易 128–136 TPS，RabbitMQ 中断恢复后无 Outbox、悬挂预占或 Redis/MySQL 残留。完整解释见 `docs/PERFORMANCE_ANALYSIS_20260820.md`。
+
 ## 15 分钟面试演示顺序
 
 1. **0–2 分钟：启动与拓扑。** 从 Windows 桌面控制中心选择“面试演示 + 可观测”，说明外部入口是 Hertz 8889，Go-zero Entry API 8888 只保留为 `main` 基线；展示 `verify-release-readiness.mjs` 的 34 项只读检查。

@@ -61,6 +61,17 @@ scripts/perf/run-performance-suite.sh \
 
 ## 当前冻结结果
 
+最新正式结果绑定提交 `16b9141d450f5249087de6aa9abd3395a9008bd3`，环境为 4 vCPU、约 7.76 GiB 的 Ubuntu WSL Docker Engine，性能夹具为 `20260730_demo_fixture_v1+product100_stock_1000000`。
+
+- 公开读最后通过 22,400 TPS，24,000 TPS 首次失败；闭环峰值 27,115.39 business TPS。
+- 订单生命周期最后通过 150 TPS，165 TPS 首次失败；闭环峰值 165.80 business TPS。
+- 完整交易最后通过 128 TPS，136 TPS 首次失败；闭环峰值 116.46 business TPS / 815.25 HTTP QPS。
+- 三条基线重复性、五分钟稳定性、RabbitMQ 暂停恢复和全部业务不变量通过；Trace 已从压测 1% 恢复日常 10%。
+
+冻结证据为 `benchmarks/results/performance-20260820.json`，异常修复与瓶颈解释见 `docs/PERFORMANCE_ANALYSIS_20260820.md`。以下 2026-08-15 结果保留为历史对照。
+
+### 2026-08-15 历史结果
+
 正式结果绑定提交 `ab99259bb847db10bbb00c45fef7407cd52657ff`，环境为 4 vCPU、约 7.76 GiB 的 Ubuntu WSL Docker Engine，夹具为 `20260730_demo_fixture_v1`。
 
 - 公开读：600 RPS 预期负载实际 599.99 QPS，p95 0.376 ms；压力最高测到 3000 RPS，实际 2999.93 QPS、全部成功、p95 0.476 ms，尚未观察到失败边界。
