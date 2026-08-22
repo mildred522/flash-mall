@@ -27,7 +27,7 @@ for (const [name, pattern] of [
   ['exit restoration trap', /trap restore_demo/],
   ['baseline profile', /run_stage baseline/],
   ['expected load profile', /run_stage load/],
-  ['stress ladder', /run_stress_ladder/],
+  ['adaptive stress ladder', /run_adaptive_stress/],
   ['mixed stability profile', /run_stability_mix/],
   ['continuous resource sampling', /start_sampler/],
   ['CPU profile capture', /debug\/pprof\/profile/],
@@ -69,4 +69,4 @@ for (const port of ['6061', '6062', '6063', '6064']) {
   if (!compose.includes(port)) throw new Error(`pprof port ${port} is not available to the local suite`);
 }
 
-console.log('Performance suite contract verified: baseline, load, stress, stability, profiles, resources, recovery');
+console.log('Performance suite contract verified: baseline, load, adaptive stress, stability, profiles, resources, recovery');
